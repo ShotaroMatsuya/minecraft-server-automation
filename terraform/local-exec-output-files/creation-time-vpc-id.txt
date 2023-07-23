@@ -1,0 +1,12 @@
+VPC created on Sat Jul 22 22:36:39 JST 2023 and VPC ID: vpc-09e0ca490ad542ea3
+VPC created on Sat Jul 22 23:55:12 JST 2023 and VPC ID: vpc-0b9c45f6b4908f550
+VPC created on Sun Jul 23 03:03:23 JST 2023 and VPC ID: vpc-05456eb04f212755e
+VPC created on Sun Jul 23 12:28:00 JST 2023 and VPC ID: vpc-004c662d9fdc03fc3
+VPC created on Sun Jul 23 12:56:21 JST 2023 and VPC ID: vpc-0b6fba36f13198e5a
+VPC created on Sun Jul 23 13:35:52 JST 2023 and VPC ID: vpc-05c3022d2462e3496
+VPC created on Sun Jul 23 14:10:10 JST 2023 and VPC ID: vpc-0d94f70f168ab28de
+VPC created on Sun Jul 23 15:11:35 JST 2023 and VPC ID: vpc-03961d1947fdf716f
+VPC created on Sun Jul 23 15:55:53 JST 2023 and VPC ID: vpc-011c355bb5fd42af9
+VPC created on Sun Jul 23 22:25:20 JST 2023 and VPC ID: vpc-02bd708c7aa286e09
+VPC created on Mon Jul 24 02:14:21 JST 2023 and VPC ID: vpc-06b8ad8c25e89cc13
+VPC created on Mon Jul 24 02:50:54 JST 2023 and VPC ID: vpc-018a347748e7a490e
