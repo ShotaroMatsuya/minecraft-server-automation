@@ -1,0 +1,25 @@
+version: "3.8"
+
+services:
+  mc:
+    container_name: minecraft
+    image: itzg/minecraft-server
+    tty: true
+    stdin_open: true
+    ports:
+      - "25565:25565"
+    environment:
+      EULA: "TRUE"
+    volumes:
+      # attach the relative directory 'data' to the container's /data path
+      - ./app:/data
+  fluent-bit:
+    container_name: fluentbit
+    depends_on: 
+      - mc
+    build: 
+      context: ./docker/fluentbit
+      dockerfile: Dockerfile.local
+    volumes:
+      - ./app:/data
+    command: ["/fluent-bit/bin/fluent-bit", "-c", "/fluent-bit/etc/fluent-bit_custom-local.conf"]
