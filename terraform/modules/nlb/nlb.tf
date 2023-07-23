@@ -1,7 +1,7 @@
 # Terraform AWS Application Load Balancer (ALB)
 module "nlb" {
   source  = "terraform-aws-modules/alb/aws"
-  version = "8.6.1"
+  version = "8.7.0"
 
   name               = "${local.name}-nlb"
   load_balancer_type = "network"
