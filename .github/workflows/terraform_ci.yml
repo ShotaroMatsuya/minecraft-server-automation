@@ -92,10 +92,11 @@ jobs:
           tflint_version: "v0.24.0"
 
       - name: TF Security
-        uses: reviewdog/action-tfsec@v1
-        with:
-          github_token: ${{ secrets.github_token }}
-          working_directory: ./terraform
-          reporter: github-pr-review
-          filter_mode: nofilter
-          fail_on_error: true
+      uses: reviewdog/action-tfsec@master
+      with:
+        github_token: ${{ secrets.github_token }}
+        working_directory: ./terraform
+        level: info
+        reporter: github-pr-review
+        filter_mode: nofilter
+        fail_on_error: true
