@@ -2,7 +2,7 @@
 # Security Group for ECS fargate container
 module "fargate_sg" {
   source  = "terraform-aws-modules/security-group/aws"
-  version = "4.17.2"
+  version = "5.1.0"
 
   name        = "${local.name}-fargate-sg"
   description = "Security group with Ingress from other containers in the same security group"
@@ -34,7 +34,7 @@ module "fargate_sg" {
 
 module "allow_nfs_sg" {
   source      = "terraform-aws-modules/security-group/aws"
-  version     = "4.17.2"
+  version     = "5.1.0"
   description = "EFS security group"
   tags        = local.common_tags
   name        = "${local.name}-allow-nfs-sg"
