@@ -104,3 +104,4 @@ jobs:
         with:
           working_directory: ''
           github_token: ${{ github.token }}
+          tfsec_args: --force-all-dirs
