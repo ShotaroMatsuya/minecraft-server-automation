@@ -21,7 +21,7 @@ resource "aws_efs_backup_policy" "main" {
 }
 
 resource "aws_efs_mount_target" "main" {
-  for_each       = { for subnet_id in var.public_subnets : subnet_id => subnet_id }
+  for_each       = { for k, v in var.public_subnets : k => v }
   file_system_id = aws_efs_file_system.main.id
   subnet_id      = each.value
   security_groups = [
