@@ -46,7 +46,7 @@ module "custom_ecs" {
   fluentbit_image_uri       = "${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/minecraft/fluentbit"
   mc_container_name         = "minecraft"
   mc_container_port         = 25565
-  firelens_log_group        = "/aws/ecs/minecraft-firelens-logs"
+  firelens_log_group        = module.custom_cloudwatch.firelens_log_group_name
   ecs_volume_name           = "log-volume"
   ecs_volume_path           = "/data/logs"
   efs_file_volume_name      = "data"
@@ -76,8 +76,32 @@ module "custom_efs" {
   environment = local.environment
 }
 
-# module "custom_lambda" {}
+module "custom_cloudwatch" {
+  source             = "./modules/cloudwatch"
+  firelens_log_group = "/aws/ecs/minecraft-firelens-logs"
+  sns_topic_arn      = module.custom_sns.sns_topic_arn
+  ecs_cluster        = module.custom_ecs.ecs_cluster_name
+  ecs_service        = module.custom_ecs.ecs_service_name
 
-# module "custom_sns" {}
+  owners      = local.owners
+  environment = local.environment
+}
 
-# module "custom_chatbot" {}
+module "custom_sns" {
+  source = "./modules/sns"
+
+  owners      = local.owners
+  environment = local.environment
+  aws_account_id = var.aws_account_id
+}
+
+module "custom_chatbot" {
+  source                        = "./modules/chatbot"
+  sns_topic_arn                 = module.custom_sns.sns_topic_arn
+  chatbot_slack_workspace_id    = var.slack_workspace_id
+  chatbot_slack_id              = var.slack_channel_id
+  chatbot_notification_role_arn = module.custom_iam.chatbot_notification_role_arn
+
+  owners      = local.owners
+  environment = local.environment
+}
