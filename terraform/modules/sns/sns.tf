@@ -64,10 +64,11 @@ resource "aws_kms_key" "for_encrypt_sns_topic" {
 
 
 resource "aws_kms_alias" "for_encrypt_sns_topic_alias" {
-  name          = "alias/guardduty/for_encrypt_sns_topic"
+  name          = "alias/cwa/for_encrypt_sns_topic"
   target_key_id = aws_kms_key.for_encrypt_sns_topic.key_id
 }
 
+# These permissions allow the CloudWatch alarms to publish messages to encrypted SNS topics
 data "aws_iam_policy_document" "policy_for_encrypt_sns_topic" {
   version = "2012-10-17"
 
@@ -83,6 +84,26 @@ data "aws_iam_policy_document" "policy_for_encrypt_sns_topic" {
 
     actions = [
       "kms:*"
+    ]
+
+    resources = [
+      "*",
+    ]
+  }
+
+  # cloudwatch.amazonaws.com に対する権限が暗号化対象のサービス操作に必要
+  statement {
+    sid    = "Allow_CloudWatch_for_CMK"
+    effect = "Allow"
+
+    principals {
+      type        = "Service"
+      identifiers = ["cloudwatch.amazonaws.com"]
+    }
+
+    actions = [
+      "kms:GenerateDataKey*",
+      "kms:Decrypt"
     ]
 
     resources = [
