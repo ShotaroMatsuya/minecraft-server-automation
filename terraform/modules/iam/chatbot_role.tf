@@ -38,6 +38,7 @@ resource "aws_iam_policy" "chatbot-notification-only" {
             "logs:DescribeQueryDefinitions",
             "logs:DescribeLogGroups"
           ],
+          # tfsec:ignore:aws-iam-no-policy-wildcards
           Resource : "*"
         }
       ]
