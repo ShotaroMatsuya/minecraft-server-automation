@@ -92,7 +92,7 @@ module "custom_sns" {
 
   owners      = local.owners
   environment = local.environment
-
+  aws_account_id = var.aws_account_id
 }
 
 module "custom_chatbot" {
