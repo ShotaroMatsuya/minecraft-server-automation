@@ -35,10 +35,10 @@ resource "aws_iam_policy" "chatbot-notification-only" {
           Sid : "",
           Effect : "Allow",
           Action : [
-            "cloudwatch:Describe*", # tfsec:ignore:aws-iam-no-policy-wildcards
-            "cloudwatch:Get*", # tfsec:ignore:aws-iam-no-policy-wildcards
+            "logs:DescribeQueryDefinitions",
+            "logs:DescribeLogGroups"
           ],
-          Resource : "*" # tfsec:ignore:aws-iam-no-policy-wildcards
+          Resource : "*"
         }
       ]
     }
