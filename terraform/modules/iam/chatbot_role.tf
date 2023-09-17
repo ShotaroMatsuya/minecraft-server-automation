@@ -35,9 +35,8 @@ resource "aws_iam_policy" "chatbot-notification-only" {
           Sid : "",
           Effect : "Allow",
           Action : [
-            "cloudwatch:Describe*",
-            "cloudwatch:Get*",
-            "cloudwatch:List*"
+            "logs:DescribeQueryDefinitions",
+            "logs:DescribeLogGroups"
           ],
           Resource : "*"
         }
