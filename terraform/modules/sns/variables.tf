@@ -1,5 +1,6 @@
 variable "owners" {}
 variable "environment" {}
+variable "aws_account_id" {}
 
 locals {
   owners      = var.owners

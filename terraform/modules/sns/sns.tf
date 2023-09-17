@@ -7,6 +7,7 @@ resource "aws_sns_topic" "main" {
   firehose_success_feedback_sample_rate    = "0"
   http_success_feedback_sample_rate        = "0"
   lambda_success_feedback_sample_rate      = "0"
+  kms_master_key_id = aws_kms_key.for_encrypt_sns_topic.id
 
   policy = <<POLICY
 {
@@ -53,4 +54,39 @@ resource "aws_sns_topic_subscription" "main" {
   protocol             = "https"
   raw_message_delivery = "false"
   topic_arn            = aws_sns_topic.main.arn
+}
+
+resource "aws_kms_key" "for_encrypt_sns_topic" {
+  description         = "sns topic暗号化用"
+  enable_key_rotation = true
+  policy              = data.aws_iam_policy_document.policy_for_encrypt_sns_topic.json
+}
+
+
+resource "aws_kms_alias" "for_encrypt_sns_topic_alias" {
+  name          = "alias/guardduty/for_encrypt_sns_topic"
+  target_key_id = aws_kms_key.for_encrypt_sns_topic.key_id
+}
+
+data "aws_iam_policy_document" "policy_for_encrypt_sns_topic" {
+  version = "2012-10-17"
+
+  # defaultでついてくるルートアカウントに対する権限設定
+  statement {
+    sid    = "Enable Root User Permissions"
+    effect = "Allow"
+
+    principals {
+      type        = "AWS"
+      identifiers = ["arn:aws:iam::${var.aws_account_id}:root"]
+    }
+
+    actions = [
+      "kms:*"
+    ]
+
+    resources = [
+      "*",
+    ]
+  }
 }
