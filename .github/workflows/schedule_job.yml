@@ -2,10 +2,10 @@ name: Start and Stop Workflow
 
 on:
   schedule:
-    # At 08:00 AM UTC
-    - cron: '0 8 * * *'
-    # At 08:00 PM UTC
-    - cron: '0 20 * * *'
+    # At 01:00 PM JST
+    - cron: '0 4 * * *'
+    # At 01:00 AM JST
+    - cron: '0 16 * * *'
 env:
   SLACK_USERNAME: DeployBot
   SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
