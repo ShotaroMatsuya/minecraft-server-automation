@@ -12,7 +12,9 @@ env:
   SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
   TF_VERSION: 1.4.1
   AWS_REGION: ap-northeast-1
-
+defaults:
+  run:
+    working-directory: ./terraform
 jobs:
   scheduled_job:
     runs-on: ubuntu-latest
