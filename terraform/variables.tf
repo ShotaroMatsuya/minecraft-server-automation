@@ -29,6 +29,16 @@ variable "slack_channel_id" {
   description = "The ID of the Slack channel. To get the ID, open Slack, right click on the channel name in the left pane, then choose Copy Link. The channel ID is the 9-character string at the end of the URL. For example, ABCBBLZZZ."
   type        = string
 }
+
+variable "github_org" {
+  description = "github organization name"
+  type = string
+}
+
+variable "github_repo" {
+  description = "github repository name"
+  type = string
+}
 locals {
   owners      = var.owners
   environment = var.environment

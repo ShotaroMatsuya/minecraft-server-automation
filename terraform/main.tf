@@ -12,7 +12,7 @@ module "custom_vpc" {
 }
 
 module "custom_iam" {
-  source = "./modules/iam"
+  source                = "./modules/iam"
 
   owners         = local.owners
   environment    = local.environment
@@ -90,8 +90,8 @@ module "custom_cloudwatch" {
 module "custom_sns" {
   source = "./modules/sns"
 
-  owners      = local.owners
-  environment = local.environment
+  owners         = local.owners
+  environment    = local.environment
   aws_account_id = var.aws_account_id
 }
 
@@ -101,6 +101,16 @@ module "custom_chatbot" {
   chatbot_slack_workspace_id    = var.slack_workspace_id
   chatbot_slack_id              = var.slack_channel_id
   chatbot_notification_role_arn = module.custom_iam.chatbot_notification_role_arn
+
+  owners      = local.owners
+  environment = local.environment
+}
+
+module "custom_iam_role_for_github" {
+  source      = "./modules/github"
+  account_id  = var.aws_account_id
+  github_org  = var.github_org
+  github_repo = var.github_repo
 
   owners      = local.owners
   environment = local.environment
