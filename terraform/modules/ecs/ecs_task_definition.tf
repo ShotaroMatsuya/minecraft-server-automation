@@ -21,7 +21,8 @@ resource "aws_ecs_task_definition" "main" {
           { name : "OP_PERMISSION_LEVEL", value : "4" },
           { name: "DIFFICULTY", value: "hard" },
           { name: "MAX_PLAYERS", value: "2" },
-          { name: "ENABLE_COMMAND_BLOCK", value: "true" }
+          { name: "ENABLE_COMMAND_BLOCK", value: "true" },
+          { name: "OPS", value: "2cffa334-b882-41ba-8e83-0bb4cb0d8769"}
         ],
         essential : true,
         image : var.mc_image_uri,
