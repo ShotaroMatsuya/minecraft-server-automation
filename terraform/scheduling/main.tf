@@ -31,9 +31,9 @@ data "aws_subnets" "my_subnets" {
 
 
 module "custom_domain" {
-  source = "../modules/domain"
-  nlb_dns_name           = module.custom_nlb.nlb_dns_name
-  nlb_zone_id            = module.custom_nlb.this_lb_zone_id
+  source       = "../modules/domain"
+  nlb_dns_name = module.custom_nlb.nlb_dns_name
+  nlb_zone_id  = module.custom_nlb.this_lb_zone_id
 
   owners      = local.owners
   environment = local.environment
@@ -56,8 +56,8 @@ module "custom_ecs" {
     "name" : "containerInsights",
     "value" : "enabled"
   }
-  fargate_cpu               = 2048
-  fargate_memory            = 4096
+  fargate_cpu               = 1024
+  fargate_memory            = 2048
   mc_image_uri              = "itzg/minecraft-server"
   fluentbit_image_uri       = "${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/minecraft/fluentbit"
   mc_container_name         = "minecraft"

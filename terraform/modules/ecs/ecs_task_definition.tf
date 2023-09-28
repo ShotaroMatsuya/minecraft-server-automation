@@ -17,7 +17,11 @@ resource "aws_ecs_task_definition" "main" {
       {
         cpu : 0,
         environment : [
-          { name : "EULA", value : "TRUE" }
+          { name : "EULA", value : "TRUE" },
+          { name : "OP_PERMISSION_LEVEL", value : "4" },
+          { name: "DIFFICULTY", value: "hard" },
+          { name: "MAX_PLAYERS", value: "2" },
+          { name: "ENABLE_COMMAND_BLOCK", value: "true" }
         ],
         essential : true,
         image : var.mc_image_uri,
