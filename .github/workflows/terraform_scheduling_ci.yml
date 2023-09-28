@@ -1,4 +1,4 @@
-name: Terraform Continuous Integration By Official
+name: Terraform Continuous Integration(for scheduling resources) By Official
 
 on:
   push:
@@ -19,7 +19,7 @@ jobs:
     defaults:
       run:
         shell: bash
-        working-directory: ./terraform
+        working-directory: ./terraform/scheduling
 
     steps:
       - name: Checkout code
