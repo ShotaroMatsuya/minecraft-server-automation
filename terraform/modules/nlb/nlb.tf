@@ -26,11 +26,11 @@ module "nlb" {
       deregistration_delay = 10
       health_check = {
         enabled             = true
-        interval            = 6
+        interval            = 30
         port                = "traffic-port"
         healthy_threshold   = 2
         unhealthy_threshold = 2
-        timeout             = 5
+        timeout             = 20
         protocol            = "TCP"
       }
       tags = local.common_tags
