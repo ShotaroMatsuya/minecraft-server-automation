@@ -79,7 +79,7 @@ jobs:
 
       - name: Comment
         if: steps.diff.outputs.diff
-        uses: actions/github-script@v3.0.0
+        uses: actions/github-script@v3.2.0
         env:
           PLAN: "terraform\n${{ steps.plan.outputs.stdout }}"
         with:
