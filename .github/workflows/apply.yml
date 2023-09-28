@@ -37,7 +37,7 @@ jobs:
 
       - name: Apply
         run: |
-          DIFF=$(git diff --name-only HEAD^ modules ${{ matrix.dir }})
+          DIFF=$(git diff --name-only HEAD^ terraform/modules ${{ matrix.dir }})
           if [[ ${DIFF} = *resources* || ${DIFF} = *modules* ]]; then
             cd ${{ matrix.dir }}
             terraform init
