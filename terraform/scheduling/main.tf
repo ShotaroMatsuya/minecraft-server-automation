@@ -31,9 +31,9 @@ data "aws_subnets" "my_subnets" {
 
 
 module "custom_domain" {
-  source = "../modules/domain"
-  nlb_dns_name           = module.custom_nlb.nlb_dns_name
-  nlb_zone_id            = module.custom_nlb.this_lb_zone_id
+  source       = "../modules/domain"
+  nlb_dns_name = module.custom_nlb.nlb_dns_name
+  nlb_zone_id  = module.custom_nlb.this_lb_zone_id
 
   owners      = local.owners
   environment = local.environment
