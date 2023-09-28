@@ -32,12 +32,12 @@ variable "slack_channel_id" {
 
 variable "github_org" {
   description = "github organization name"
-  type = string
+  type        = string
 }
 
 variable "github_repo" {
   description = "github repository name"
-  type = string
+  type        = string
 }
 locals {
   owners      = var.owners
