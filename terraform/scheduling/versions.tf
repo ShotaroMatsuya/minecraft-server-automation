@@ -18,7 +18,7 @@ terraform {
   # Adding Backend as S3 for Remote State Storage
   backend "s3" {
     bucket = "minecraft-backend"
-    key    = "state/terraform.tfstate"
+    key    = "state/scheduling/terraform.tfstate"
     region = "ap-northeast-1"
     # For State Locking
     dynamodb_table = "minecraft-statelocking"
@@ -28,12 +28,4 @@ terraform {
 # Provider Block
 provider "aws" {
   region = var.aws_region
-}
-# Create a Null Resource and provisioners
-resource "null_resource" "name" {
-  # Local Exec Provisioner: local-exec provisioner (Create-Time Provisioner - Triggered during Create Resource)
-  provisioner "local-exec" {
-    command     = "echo VPC created on `date` and VPC ID: ${module.custom_vpc.vpc_id} >> creation-time-vpc-id.txt"
-    working_dir = "local-exec-output-files/"
-  }
 }

@@ -41,7 +41,7 @@ resource "aws_ecs_service" "main" {
   ]
   provisioner "local-exec" {
     command     = "echo Destroy time prov `date` >> destroy-time-prov.txt"
-    working_dir = "local-exec-output-files/"
+    working_dir = "../local-exec-output-files/"
     when        = destroy
     #on_failure = continue
   }

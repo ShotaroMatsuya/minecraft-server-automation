@@ -4,7 +4,8 @@ resource "aws_ecs_task_definition" "main" {
     efs_volume_configuration {
       file_system_id     = var.efs_id
       root_directory     = "/"
-      transit_encryption = "DISABLED"
+      transit_encryption      = "ENABLED"
+      transit_encryption_port = 2999
 
       authorization_config {
         iam = "DISABLED"

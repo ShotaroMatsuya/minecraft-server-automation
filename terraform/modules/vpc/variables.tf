@@ -31,17 +31,6 @@ variable "sg_rule_for_alb" {
   default     = []
 }
 
-variable "nlb_dns_name" {
-  description = "DNS Name of nlb to register in route53"
-  type        = string
-}
-
-variable "nlb_zone_id" {
-  description = "nlb zone id to register in route53"
-  type        = string
-}
-
-
 variable "owners" {}
 variable "environment" {}
 
