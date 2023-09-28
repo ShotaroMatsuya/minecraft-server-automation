@@ -1,10 +1,9 @@
 name: Terraform Continuous Integration By Official
 
 on:
-  push:
+  pull_request:
     branches:
       - main
-  pull_request:
 
 jobs:
   terraform-ci:
