@@ -2,8 +2,8 @@ resource "aws_ecs_task_definition" "main" {
   volume {
     name = "data"
     efs_volume_configuration {
-      file_system_id     = var.efs_id
-      root_directory     = "/"
+      file_system_id          = var.efs_id
+      root_directory          = "/"
       transit_encryption      = "ENABLED"
       transit_encryption_port = 2999
 
@@ -19,10 +19,11 @@ resource "aws_ecs_task_definition" "main" {
         environment : [
           { name : "EULA", value : "TRUE" },
           { name : "OP_PERMISSION_LEVEL", value : "4" },
-          { name: "DIFFICULTY", value: "hard" },
-          { name: "MAX_PLAYERS", value: "2" },
-          { name: "ENABLE_COMMAND_BLOCK", value: "true" },
-          { name: "OPS", value: "2cffa334-b882-41ba-8e83-0bb4cb0d8769"}
+          { name : "DIFFICULTY", value : "hard" },
+          { name : "MAX_PLAYERS", value : "4" },
+          { name : "ENABLE_COMMAND_BLOCK", value : "true" },
+          { name : "OPS", value : "2cffa334-b882-41ba-8e83-0bb4cb0d8769" },
+          { name : "HARDCORE", value : "true" }
         ],
         essential : true,
         image : var.mc_image_uri,
