@@ -1,9 +1,9 @@
 data "aws_vpc" "myvpc" {
-  id = "vpc-0e5468f3c81240453"
+  id = "vpc-037fe755fc34b451a"
 }
 
 data "aws_security_group" "fargate_sg" {
-  id = "sg-021594a535f976e96"
+  id = "sg-0d23106b417fb78f6"
 }
 
 data "aws_iam_role" "task_role" {
@@ -15,7 +15,7 @@ data "aws_iam_role" "task_execution_role" {
 }
 
 data "aws_efs_file_system" "my_efs" {
-  file_system_id = "fs-0f3060484a112498b"
+  file_system_id = "fs-0f00934083a3eead1"
 }
 
 data "aws_sns_topic" "my_sns" {
@@ -73,6 +73,7 @@ module "custom_ecs" {
   task_role_arn             = data.aws_iam_role.task_role.arn
   task_execution_role_arn   = data.aws_iam_role.task_execution_role.arn
   efs_id                    = data.aws_efs_file_system.my_efs.id
+  enable_efs                = false
 
   owners         = local.owners
   environment    = local.environment
