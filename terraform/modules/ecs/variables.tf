@@ -66,6 +66,12 @@ variable "public_subnets_ids" {
   description = "List of IDs of public subnets"
 }
 
+variable "enable_efs" {
+  description = "Whether to attach an efs volume or not"
+  type        = bool
+  default     = false
+}
+
 variable "efs_id" {
   description = "The ID that identifies the file system (e.g., `fs-ccfc0d65`)"
 }
