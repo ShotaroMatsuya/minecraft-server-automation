@@ -1,14 +1,18 @@
 resource "aws_ecs_task_definition" "main" {
   volume {
     name = "data"
-    efs_volume_configuration {
-      file_system_id          = var.efs_id
-      root_directory          = "/"
-      transit_encryption      = "ENABLED"
-      transit_encryption_port = 2999
 
-      authorization_config {
-        iam = "DISABLED"
+    dynamic "efs_volume_configuration" {
+      for_each = var.enable_efs ? [1] : []
+      content {
+        file_system_id          = var.efs_id
+        root_directory          = "/"
+        transit_encryption      = "ENABLED"
+        transit_encryption_port = 2999
+
+        authorization_config {
+          iam = "DISABLED"
+        }
       }
     }
   }
@@ -30,16 +34,20 @@ resource "aws_ecs_task_definition" "main" {
         logConfiguration : {
           logDriver : "awsfirelens"
         },
-        mountPoints : [
-          {
-            containerPath : var.ecs_volume_path,
-            sourceVolume : var.ecs_volume_name
-          },
-          {
-            containerPath : var.efs_file_volume_path
-            sourceVolume : var.efs_file_volume_name
-          },
-        ],
+        mountPoints = concat(
+          [
+            {
+              containerPath = var.ecs_volume_path,
+              sourceVolume  = var.ecs_volume_name
+            }
+          ],
+          var.enable_efs ? [
+            {
+              containerPath = var.efs_file_volume_path,
+              sourceVolume  = var.efs_file_volume_name
+            }
+          ] : []
+        ),
         name : var.mc_container_name,
         portMappings : [{
           containerPort : var.mc_container_port,
