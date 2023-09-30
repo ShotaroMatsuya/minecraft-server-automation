@@ -77,3 +77,11 @@ chmod +x load-memory.sh
 ./load-memory.sh
 ```
 
+### Restart ECS Cluster
+```bash
+cl=$(aws ecs list-clusters | jq -r '.clusterArns[0]' )
+svc=$(aws ecs list-services --cluster ${cl} | jq -r '.serviceArns[0]' | sed -E 's/.+cluster\///g')
+
+aws ecs update-service --force-new-deployment --cluster ${cl} --service ${svc}
+
+```

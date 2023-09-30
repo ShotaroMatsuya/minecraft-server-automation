@@ -58,7 +58,7 @@ module "custom_ecs" {
   }
   fargate_cpu               = 1024
   fargate_memory            = 2048
-  mc_image_uri              = "itzg/minecraft-server"
+  mc_image_uri              = "${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/minecraft/server"
   fluentbit_image_uri       = "${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/minecraft/fluentbit"
   mc_container_name         = "minecraft"
   mc_container_port         = 25565
