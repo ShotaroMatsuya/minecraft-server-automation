@@ -3,7 +3,7 @@ resource "aws_ecs_task_definition" "main" {
     name = "data"
 
     dynamic "efs_volume_configuration" {
-      for_each = var.enable_efs ? [1] : []
+      for_each = var.efs_id != null ? [1] : []
       content {
         file_system_id          = var.efs_id
         root_directory          = "/"
@@ -41,7 +41,7 @@ resource "aws_ecs_task_definition" "main" {
               sourceVolume  = var.ecs_volume_name
             }
           ],
-          var.enable_efs ? [
+          var.efs_id != null ? [
             {
               containerPath = var.efs_file_volume_path,
               sourceVolume  = var.efs_file_volume_name

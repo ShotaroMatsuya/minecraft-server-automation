@@ -72,8 +72,7 @@ module "custom_ecs" {
   public_subnets_ids        = data.aws_subnets.my_subnets.ids
   task_role_arn             = data.aws_iam_role.task_role.arn
   task_execution_role_arn   = data.aws_iam_role.task_execution_role.arn
-  efs_id                    = data.aws_efs_file_system.my_efs.id
-  enable_efs                = false
+  # efs_id                    = data.aws_efs_file_system.my_efs.id
 
   owners         = local.owners
   environment    = local.environment
