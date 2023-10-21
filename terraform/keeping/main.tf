@@ -18,17 +18,17 @@ module "custom_iam" {
   aws_account_id = var.aws_account_id
 }
 
-module "custom_efs" {
-  source                     = "../modules/efs"
-  vpc_id                     = module.custom_vpc.vpc_id
-  azs                        = module.custom_vpc.azs
-  public_subnets             = module.custom_vpc.public_subnets
-  public_subnets_cidr_blocks = module.custom_vpc.public_subnets_cidr_blocks
-  security_group_id          = module.custom_vpc.allow_nfs_sg_group_id
+# module "custom_efs" {
+#   source                     = "../modules/efs"
+#   vpc_id                     = module.custom_vpc.vpc_id
+#   azs                        = module.custom_vpc.azs
+#   public_subnets             = module.custom_vpc.public_subnets
+#   public_subnets_cidr_blocks = module.custom_vpc.public_subnets_cidr_blocks
+#   security_group_id          = module.custom_vpc.allow_nfs_sg_group_id
 
-  owners      = local.owners
-  environment = local.environment
-}
+#   owners      = local.owners
+#   environment = local.environment
+# }
 
 module "custom_sns" {
   source = "../modules/sns"
