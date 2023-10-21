@@ -16,7 +16,7 @@ services:
       - ~/.aws/credentials:/root/.aws/credentials:ro
       - ~/.aws/config:/root/.aws/config:ro
       # attach the relative directory 'data' to the container's /data path
-      - ./docker/minecraft:/data
+      # - ./docker/minecraft:/data
   fluent-bit:
     container_name: fluentbit
     depends_on: 
