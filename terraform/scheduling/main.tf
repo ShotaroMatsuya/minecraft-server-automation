@@ -1,9 +1,9 @@
 data "aws_vpc" "myvpc" {
-  id = "vpc-037fe755fc34b451a"
+  id = "vpc-060589f74f426a33d"
 }
 
 data "aws_security_group" "fargate_sg" {
-  id = "sg-0d23106b417fb78f6"
+  id = "sg-04c0c849ab137bdb8"
 }
 
 data "aws_iam_role" "task_role" {
@@ -15,7 +15,7 @@ data "aws_iam_role" "task_execution_role" {
 }
 
 data "aws_efs_file_system" "my_efs" {
-  file_system_id = "fs-0f00934083a3eead1"
+  file_system_id = "fs-0fd95b104cc3f60cd"
 }
 
 data "aws_sns_topic" "my_sns" {
@@ -57,7 +57,7 @@ module "custom_ecs" {
     "value" : "enabled"
   }
   fargate_cpu               = 1024
-  fargate_memory            = 2048
+  fargate_memory            = 4096
   mc_image_uri              = "${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/minecraft/server"
   fluentbit_image_uri       = "${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/minecraft/fluentbit"
   mc_container_name         = "minecraft"
