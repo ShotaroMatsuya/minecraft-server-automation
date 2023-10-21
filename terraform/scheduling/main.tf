@@ -14,9 +14,9 @@ data "aws_iam_role" "task_execution_role" {
   name = "minecraft-test-ecs_tasks_execution-role"
 }
 
-data "aws_efs_file_system" "my_efs" {
-  file_system_id = "fs-0fd95b104cc3f60cd"
-}
+# data "aws_efs_file_system" "my_efs" {
+#   file_system_id = "fs-0fd95b104cc3f60cd"
+# }
 
 data "aws_sns_topic" "my_sns" {
   name = "${local.name}-sns-topic"
