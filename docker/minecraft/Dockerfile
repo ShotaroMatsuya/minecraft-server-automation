@@ -1,5 +1,6 @@
 FROM itzg/minecraft-server
 
+ENV TZ=Asia/Tokyo
 ENV S3_BUCKET_NAME="minecraft-backend"
 ENV S3_PREFIX_NAME="backups"
 
@@ -21,4 +22,4 @@ RUN chmod -R 755 /world
 RUN chmod -R 755 /scripts
 
 ENTRYPOINT ["/usr/bin/tini", "--"]
-CMD ["./scripts/entrypoint.sh"]
+CMD ["/scripts/entrypoint.sh"]
