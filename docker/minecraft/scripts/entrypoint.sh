@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -ex
+# set -ex
 
 # Volumeにworldを移動する
 cp -r /world /data/
@@ -27,12 +27,12 @@ cleanup() {
 }
 
 # function executed when container is started
-    echo "Container is starting. Downloading data from S3..."
-    LATEST_BACKUP=$(aws s3 ls --recursive s3://${S3_BUCKET}/${S3_PREFIX}/ | sort | tail -n 1 | awk '{print $4}' )
-    # donwload s3 and unzip it to /data/world/
-    aws s3 cp s3://${S3_BUCKET}/${LATEST_BACKUP} /data/world/
-    find /data/world/ -name "*.tar.gz" -exec tar -xvf {} \;
-    rm -rf /data/world/*.tar.gz
+echo "Container is starting. Downloading data from S3..."
+LATEST_BACKUP=$(aws s3 ls --recursive s3://${S3_BUCKET}/${S3_PREFIX}/ | sort | tail -n 1 | awk '{print $4}' )
+# donwload s3 and unzip it to /data/world/
+aws s3 cp s3://${S3_BUCKET}/${LATEST_BACKUP} /data/world/
+find /data/world/ -name "*.tar.gz" -exec tar -xvf {} \;
+rm -rf /data/world/*.tar.gz
 
 
 # trap SIGTERM signal and call cleanup
