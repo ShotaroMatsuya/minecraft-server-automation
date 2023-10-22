@@ -11,7 +11,7 @@ services:
     ports:
       - "25565:25565"
     environment:
-      EURA: "TRUE"
+      EULA: "TRUE"
       WEBHOOK_PATH:
       S3_BUCKET_NAME:
       S3_PREFIX_NAME:
