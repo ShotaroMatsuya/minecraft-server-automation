@@ -19,7 +19,7 @@ output "ecs_task_execution_role" {
   value       = module.custom_iam.ecs_task_execution_role_name
 }
 
-output "efs_id" {
-  description = "The ID that identifies the file system (e.g., `fs-ccfc0d65`)"
-  value       = module.custom_efs.efs_id
-}
+# output "efs_id" {
+#   description = "The ID that identifies the file system (e.g., `fs-ccfc0d65`)"
+#   value       = module.custom_efs.efs_id
+# }

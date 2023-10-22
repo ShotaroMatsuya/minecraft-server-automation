@@ -3,3 +3,6 @@
 **/*/world/**/*.json
 **/*/world/**/*.dat*
 **/*/usercache.json
+
+secrets.env
+.envrc

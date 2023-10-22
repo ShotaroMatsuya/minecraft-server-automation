@@ -3,7 +3,7 @@ resource "aws_ecs_task_definition" "main" {
     name = "data"
 
     dynamic "efs_volume_configuration" {
-      for_each = var.enable_efs ? [1] : []
+      for_each = var.efs_id != null ? [1] : []
       content {
         file_system_id          = var.efs_id
         root_directory          = "/"
@@ -20,15 +20,7 @@ resource "aws_ecs_task_definition" "main" {
     [
       {
         cpu : 0,
-        environment : [
-          { name : "EULA", value : "TRUE" },
-          { name : "OP_PERMISSION_LEVEL", value : "4" },
-          { name : "DIFFICULTY", value : "hard" },
-          { name : "MAX_PLAYERS", value : "4" },
-          { name : "ENABLE_COMMAND_BLOCK", value : "true" },
-          { name : "OPS", value : "2cffa334-b882-41ba-8e83-0bb4cb0d8769" },
-          { name : "HARDCORE", value : "true" }
-        ],
+        environment = var.container_env,
         essential : true,
         image : var.mc_image_uri,
         logConfiguration : {
@@ -41,7 +33,7 @@ resource "aws_ecs_task_definition" "main" {
               sourceVolume  = var.ecs_volume_name
             }
           ],
-          var.enable_efs ? [
+          var.efs_id != null ? [
             {
               containerPath = var.efs_file_volume_path,
               sourceVolume  = var.efs_file_volume_name

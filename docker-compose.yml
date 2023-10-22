@@ -12,11 +12,14 @@ services:
       - "25565:25565"
     environment:
       EULA: "TRUE"
+      WEBHOOK_PATH:
+      S3_BUCKET_NAME:
+      S3_PREFIX_NAME:
     volumes:
       - ~/.aws/credentials:/root/.aws/credentials:ro
       - ~/.aws/config:/root/.aws/config:ro
       # attach the relative directory 'data' to the container's /data path
-      - ./docker/minecraft:/data
+      # - ./docker/minecraft:/data
   fluent-bit:
     container_name: fluentbit
     depends_on: 

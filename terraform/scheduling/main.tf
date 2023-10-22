@@ -1,9 +1,9 @@
 data "aws_vpc" "myvpc" {
-  id = "vpc-037fe755fc34b451a"
+  id = "vpc-060589f74f426a33d"
 }
 
 data "aws_security_group" "fargate_sg" {
-  id = "sg-0d23106b417fb78f6"
+  id = "sg-04c0c849ab137bdb8"
 }
 
 data "aws_iam_role" "task_role" {
@@ -14,9 +14,9 @@ data "aws_iam_role" "task_execution_role" {
   name = "minecraft-test-ecs_tasks_execution-role"
 }
 
-data "aws_efs_file_system" "my_efs" {
-  file_system_id = "fs-0f00934083a3eead1"
-}
+# data "aws_efs_file_system" "my_efs" {
+#   file_system_id = "fs-0fd95b104cc3f60cd"
+# }
 
 data "aws_sns_topic" "my_sns" {
   name = "${local.name}-sns-topic"
@@ -56,8 +56,8 @@ module "custom_ecs" {
     "name" : "containerInsights",
     "value" : "enabled"
   }
-  fargate_cpu               = 1024
-  fargate_memory            = 2048
+  fargate_cpu               = 2048
+  fargate_memory            = 4096
   mc_image_uri              = "${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/minecraft/server"
   fluentbit_image_uri       = "${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/minecraft/fluentbit"
   mc_container_name         = "minecraft"
@@ -72,8 +72,8 @@ module "custom_ecs" {
   public_subnets_ids        = data.aws_subnets.my_subnets.ids
   task_role_arn             = data.aws_iam_role.task_role.arn
   task_execution_role_arn   = data.aws_iam_role.task_execution_role.arn
-  efs_id                    = data.aws_efs_file_system.my_efs.id
-  enable_efs                = false
+  container_env             = local.container_env
+  # efs_id                    = data.aws_efs_file_system.my_efs.id
 
   owners         = local.owners
   environment    = local.environment
