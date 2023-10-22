@@ -29,7 +29,6 @@ cleanup() {
     if [ ! -d backup/${PARTITION_DATE} ]; then
         mkdir -p backup/${PARTITION_DATE}
     fi
-    # aws s3 rm s3://${S3_BUCKET}/${S3_PREFIX}/${PARTITION_DATE} --recursive
     FILE_NAME='minecraft-'${BACKUP_DATE_TIME}'.tar.gz'
     tar -zcvf backup/${PARTITION_DATE}/${FILE_NAME} -C /data/ world/
     slack_notify ":creeper:バックアップを作成しました！！\n\nバックアップファイル名: *${S3_BUCKET}/${S3_PREFIX}/${PARTITION_DATE}/${FILE_NAME}* \n\n*削除*したい場合は、以下のリンクから削除を行ってください。\n\nhttps://s3.console.aws.amazon.com/s3/object/${S3_BUCKET}?region=ap-northeast-1&prefix=${S3_PREFIX}/${PARTITION_DATE}/${FILE_NAME}"
