@@ -1,5 +1,6 @@
 # minecraft-server-automation
-# minecraft-server-automation
+
+![Infrastructure Diagram](./docs/mc-server.drawio.png)
 
 ### ECS Exec実行
 
