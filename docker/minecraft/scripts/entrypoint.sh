@@ -12,9 +12,7 @@ S3_PREFIX=$S3_PREFIX_NAME # backups
 BACKUP_DATE_TIME=$(date +"%Y%m%d%H%M%S")
 PARTITION_DATE=$(date +"%Y")-$(date +"%m")-$(date +"%d")
 
-WEBHOOK_URL=$WEBHOOK_URL
-
-echo $WEBHOOK_URL
+WEBHOOK_URL="https://hooks.slack.com/services/${WEBHOOK_PATH}"
 
 # slack notification
 slack_notify() {

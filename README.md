@@ -90,3 +90,8 @@ aws ecs update-service --force-new-deployment --cluster ${cl} --service ${svc}
 ```bash
 aws backup list-backup-jobs | jq -r '.BackupJobs[] | select(.BackupVaultName == "minecraft-vault" )' | jq -r '.RecoveryPointArn' | xargs -L 1 aws backup delete-recovery-point --backup-vault-name minecraft-vault --recovery-point-arn
 ```
+
+### Confirm environment variables in local
+```bash
+docker compose run --rm mc env
+```
