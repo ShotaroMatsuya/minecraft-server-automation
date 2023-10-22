@@ -17,9 +17,9 @@ RUN apt-get update && apt-get install -y  \
 
 WORKDIR /data
 
-COPY --chown=1000:1000 ./world /world
+# COPY --chown=1000:1000 ./world /world
 COPY --chown=1000:1000 ./scripts /scripts
-RUN chmod -R 755 /world
+# RUN chmod -R 755 /world
 RUN chmod -R 755 /scripts
 
 ENTRYPOINT ["/usr/bin/tini", "--"]

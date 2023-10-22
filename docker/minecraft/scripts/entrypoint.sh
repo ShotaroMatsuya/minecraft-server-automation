@@ -2,10 +2,6 @@
 
 # set -ex
 
-# Volumeにworldを移動する
-cp -r /world /data/
-chown minecraft:minecraft /data/world -R
-
 export S3_BUCKET=$S3_BUCKET_NAME # minecraft-backend
 S3_PREFIX=$S3_PREFIX_NAME # backups
 
