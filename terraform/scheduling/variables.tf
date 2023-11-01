@@ -44,6 +44,8 @@ variable "env_file" {
   type        = string
 }
 
+variable "WEBHOOK_PATH" {}
+
 locals {
   owners      = var.owners
   environment = var.environment
