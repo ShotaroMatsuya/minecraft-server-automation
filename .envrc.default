@@ -1,3 +1,4 @@
 export WEBHOOK_PATH=""
 export S3_BUCKET_NAME=""
 export S3_PREFIX_NAME=""
+export TF_VAR_WEBHOOK_PATH=""
