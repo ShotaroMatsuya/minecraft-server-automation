@@ -7,4 +7,4 @@ slack_workspace_id = "T02RVJA3YDN"
 slack_channel_id   = "C02R85FHLP6"
 github_org         = "ShotaroMatsuya"
 github_repo        = "minecraft-server-automation"
-env_file           = "dev.yaml"
+env_files          = ["dev.yaml", "secrets.yaml"]

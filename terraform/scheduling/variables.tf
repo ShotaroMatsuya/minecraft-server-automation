@@ -39,9 +39,10 @@ variable "github_repo" {
   description = "github repository name"
   type        = string
 }
-variable "env_file" {
-  description = "A file to be passed to ECS as environment variables."
-  type        = string
+
+variable "env_files" {
+  description = "A list of files to be passed to ECS as environment variables."
+  type        = list(string)
 }
 
 variable "WEBHOOK_PATH" {}
@@ -54,6 +55,6 @@ locals {
     owners      = local.owners
     environment = local.environment
   }
-
-  container_env = [for var_name, val in yamldecode(file(var.env_file)) : { name = var_name, value = val }]
+  env_vars      = merge([for f in var.env_files : yamldecode(file(f))]...)
+  container_env = [for var_name, val in local.env_vars : { name = var_name, value = val }]
 }
