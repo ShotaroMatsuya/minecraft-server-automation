@@ -88,6 +88,8 @@ module "custom_cloudwatch" {
   sns_topic_arn      = data.aws_sns_topic.my_sns.arn
   ecs_cluster        = module.custom_ecs.ecs_cluster_name
   ecs_service        = module.custom_ecs.ecs_service_name
+  this_lb_arn_suffix = module.custom_nlb.this_lb_arn_suffix
+  target_group_arn_suffixes = module.custom_nlb.target_group_arn_suffixes
 
   owners      = local.owners
   environment = local.environment

@@ -11,6 +11,14 @@ variable "ecs_service" {
   description = "Name of the service."
 }
 
+variable "target_group_arn_suffixes" {
+  description = "ARN suffixes of our target groups - can be used with CloudWatch."
+}
+
+variable "this_lb_arn_suffix" {
+  description = "ARN suffix of our load balancer - can be used with CloudWatch."
+  }
+
 
 variable "sns_topic_arn" {
   description = "ARN of the SNS topic to subscribe to."
