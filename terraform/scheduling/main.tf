@@ -59,7 +59,7 @@ module "custom_ecs" {
   }
   fargate_cpu               = 2048
   fargate_memory            = 4096
-  mc_image_uri              = "${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/minecraft/server"
+  mc_image_uri              = "${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/minecraft/server-restore"
   fluentbit_image_uri       = "${var.aws_account_id}.dkr.ecr.${var.aws_region}.amazonaws.com/minecraft/fluentbit"
   mc_container_name         = "minecraft"
   mc_container_port         = 25565
@@ -74,6 +74,8 @@ module "custom_ecs" {
   task_role_arn             = data.aws_iam_role.task_role.arn
   task_execution_role_arn   = data.aws_iam_role.task_execution_role.arn
   container_env             = local.container_env
+  set_recovery_point = true
+  recovery_time      = "20231101201531"
   # efs_id                    = data.aws_efs_file_system.my_efs.id
 
   owners         = local.owners
