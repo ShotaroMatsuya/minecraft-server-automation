@@ -2,6 +2,7 @@ version: "3.8"
 
 services:
   mc:
+    platform: linux/x86_64
     container_name: minecraft
     build:
       context: ./docker/minecraft
