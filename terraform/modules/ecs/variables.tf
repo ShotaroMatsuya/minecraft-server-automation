@@ -84,6 +84,18 @@ variable "task_role_arn" {
   description = "The ARN of ecs task role"
 }
 
+variable "set_recovery_point" {
+  description = "Whether to restore data from a backup at a specific date and time"
+  type        = bool
+  default     = false
+}
+
+variable "recovery_time" {
+  description = "Specify the time to restore"
+  type        = string
+  default     = null
+}
+
 ########################################
 # Define Local Values in Terraform     #
 ########################################

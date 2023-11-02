@@ -2,10 +2,11 @@ version: "3.8"
 
 services:
   mc:
+    platform: linux/x86_64
     container_name: minecraft
     build:
       context: ./docker/minecraft
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.restore
     tty: true
     stdin_open: true
     ports:

@@ -7,7 +7,7 @@ resource "aws_sns_topic" "main" {
   firehose_success_feedback_sample_rate    = "0"
   http_success_feedback_sample_rate        = "0"
   lambda_success_feedback_sample_rate      = "0"
-  kms_master_key_id = aws_kms_key.for_encrypt_sns_topic.id
+  kms_master_key_id                        = aws_kms_key.for_encrypt_sns_topic.id
 
   policy = <<POLICY
 {
