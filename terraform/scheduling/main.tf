@@ -1,9 +1,15 @@
 data "aws_vpc" "myvpc" {
-  id = "vpc-060589f74f426a33d"
+  filter {
+    name   = "tag:owners"
+    values = ["minecraft"]
+  }
 }
 
 data "aws_security_group" "fargate_sg" {
-  id = "sg-04c0c849ab137bdb8"
+  filter {
+    name = "tag:Name"
+    values = ["minecraft-test-fargate-sg"]
+  }
 }
 
 data "aws_iam_role" "task_role" {
