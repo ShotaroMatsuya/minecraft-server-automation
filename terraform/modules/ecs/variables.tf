@@ -87,13 +87,13 @@ variable "task_role_arn" {
 variable "set_recovery_point" {
   description = "Whether to restore data from a backup at a specific date and time"
   type        = bool
-  default = false
+  default     = false
 }
 
 variable "recovery_time" {
   description = "Specify the time to restore"
-  type = string
-  default = null
+  type        = string
+  default     = null
 }
 
 ########################################

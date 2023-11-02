@@ -22,7 +22,7 @@ output "public_subnets" {
 # VPC Pubolic Subnets CIDR Blocks
 output "public_subnets_cidr_blocks" {
   description = "List of CIDR Blocks of public subnets"
-  value = module.vpc.public_subnets_cidr_blocks
+  value       = module.vpc.public_subnets_cidr_blocks
 }
 
 # VPC AZs

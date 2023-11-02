@@ -17,7 +17,7 @@ variable "target_group_arn_suffixes" {
 
 variable "this_lb_arn_suffix" {
   description = "ARN suffix of our load balancer - can be used with CloudWatch."
-  }
+}
 
 
 variable "sns_topic_arn" {

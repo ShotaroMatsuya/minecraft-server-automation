@@ -42,7 +42,7 @@ module "nlb" {
 
 resource "null_resource" "send_slack_notification" {
   provisioner "local-exec" {
-    command = "bash send_to_slack.sh https://hooks.slack.com/services/${var.slack_webhook_path} ${module.nlb.lb_dns_name}"
-    working_dir  = "../scripts/"
+    command     = "bash send_to_slack.sh https://hooks.slack.com/services/${var.slack_webhook_path} ${module.nlb.lb_dns_name}"
+    working_dir = "../scripts/"
   }
 }

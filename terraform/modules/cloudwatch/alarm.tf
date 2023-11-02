@@ -76,11 +76,11 @@ resource "aws_cloudwatch_metric_alarm" "target_group_health_check" {
   statistic           = "Maximum"
   threshold           = "1"
   alarm_description   = "This metric monitors ecs health status"
-  ok_actions       = [var.sns_topic_arn]
+  ok_actions          = [var.sns_topic_arn]
   alarm_actions       = [var.sns_topic_arn]
 
   dimensions = {
-    TargetGroup = var.target_group_arn_suffixes[0]
+    TargetGroup  = var.target_group_arn_suffixes[0]
     LoadBalancer = var.this_lb_arn_suffix
   }
 }
