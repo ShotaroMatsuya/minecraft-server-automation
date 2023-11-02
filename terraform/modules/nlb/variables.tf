@@ -20,6 +20,11 @@ variable "vpc_public_subnet_ids" {
   type        = list(string)
 }
 
+variable "slack_webhook_path" {
+  description = "Webhook url for notification of nlb_dns address to slack ch when creation completion"
+  type        = string
+}
+
 # variable "loadbalancer_sg_group_id" {
 #   description = "SG group ID for alb"
 #   type        = string

@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# スクリプト内のコマンドが意図しない理由で非ゼロの終了コードを返す場合、それがエラーであるかどうかに関わらずスクリプトは終了
 # set -ex
 
 export S3_BUCKET=$S3_BUCKET_NAME # minecraft-backend
@@ -34,6 +35,7 @@ cleanup() {
     slack_notify ":creeper:バックアップを作成しました！！\n\nバックアップファイル名: *${S3_BUCKET}/${S3_PREFIX}/${PARTITION_DATE}/${FILE_NAME}* \n\n*削除*したい場合は、以下のリンクから削除を行ってください。\n\nhttps://s3.console.aws.amazon.com/s3/object/${S3_BUCKET}?region=ap-northeast-1&prefix=${S3_PREFIX}/${PARTITION_DATE}/${FILE_NAME}"
     aws s3 cp backup/${PARTITION_DATE}/${FILE_NAME} s3://${S3_BUCKET}/${S3_PREFIX}/${PARTITION_DATE}/
 
+    # ラッパースクリプトで先にSIGTERMをハンドリングする
     kill -TERM "$child" 2>/dev/null
 }
 
@@ -52,8 +54,9 @@ slack_notify ":creeper:バックアップをリストアしました！！\n\n�
 # trap SIGTERM signal and call cleanup
 trap cleanup TERM
 
-# execute default command in container definition
+# script実行後にベースイメージのEnrypointをバックグランド実行
 /start "$@" &
 child=$!
 
+# 前景で無限ループを実行し、cleanup完了まで待機
 wait "$child"

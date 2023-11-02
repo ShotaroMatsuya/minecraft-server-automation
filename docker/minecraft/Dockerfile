@@ -20,5 +20,6 @@ WORKDIR /data
 COPY --chown=1000:1000 ./scripts /scripts
 RUN chmod -R 755 /scripts
 
+# ベースイメージのSIGTERMの挙動をオーバーライドし、自前のスクリプトを実行する
 ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["/scripts/entrypoint.sh"]
