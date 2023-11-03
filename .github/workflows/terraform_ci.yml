@@ -4,6 +4,8 @@ on:
   pull_request:
     branches:
       - main
+env:
+  TF_VAR_WEBHOOK_PATH: ${{secrets.WEBHOOK_PATH}}
 
 jobs:
   terraform-ci:
