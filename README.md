@@ -25,10 +25,10 @@ By customizing the entry point of the container, it is now possible to restore f
 Continuous backups to inexpensive object storage(AWS S3) eliminate the risk of data loss due to frequent container lifecycles.  
 Those activities will be notified in own slack.
 
-- task definition mapped from yaml
+- Task definition mapped from yaml  
 Improves operability by defining container environment variables in multiple yaml files　and mapping them with terraform.
 
-- restore  
+- Restore  
 By default, restore is performed from the latest backup when the container starts, it is also possible to restore world data from the backup at a specific timestamp from the terraform variable.  
 This is useful when you want to restore the world.
 
