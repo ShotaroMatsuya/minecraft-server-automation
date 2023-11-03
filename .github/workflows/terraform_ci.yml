@@ -58,7 +58,7 @@ jobs:
       - name: Initialize
         id: init
         if: steps.diff.outputs.diff
-        run: terraform init -lock=false
+        run: terraform init -lock=false -upgrade
         working-directory: ${{ matrix.dir }}
 
       - name: Download modules
