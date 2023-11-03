@@ -30,7 +30,7 @@ Improves operability by defining container environment variables in multiple yam
 
 - Restore  
 By default, restore is performed from the latest backup when the container starts, it is also possible to restore world data from the backup at a specific timestamp from the terraform variable.  
-This is useful when you want to restore the world.
+This is useful when you want to travel back in time to your precious world.
 
 
 ## Utilities
