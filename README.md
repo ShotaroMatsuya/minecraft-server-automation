@@ -21,7 +21,7 @@ These are defined as `scheduling` resources.
 ## Other Feature
 
 - Backup  
-Customize the container entrypoint, restore from the latest world data in backup (S3) when starting, and back up to S3 when stopping.  
+By customizing the entry point of the container, it is now possible to restore from the latest data from backup (S3) when starting, and automatically back up when stopping.  
 Continuous backups to inexpensive object storage(AWS S3) eliminate the risk of data loss due to frequent container lifecycles.  
 Those activities will be notified in own slack.
 
