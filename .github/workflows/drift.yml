@@ -41,11 +41,11 @@ jobs:
           terraform_version: ${{ env.TF_VERSION }}
 
       - name: Terraform Init
-        run: terraform init
+        run: terraform init -lock=false
         working-directory: ${{ matrix.dir }}
 
       - name: Terraform Plan
-        run: terraform plan
+        run: terraform plan -lock=false
           -var "assume_role_arn=${{ secrets.AWS_IAM_ROLE_ARN }}"
           -detailed-exitcode
         working-directory: ${{ matrix.dir }}

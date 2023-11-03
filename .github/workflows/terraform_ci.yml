@@ -56,7 +56,7 @@ jobs:
       - name: Initialize
         id: init
         if: steps.diff.outputs.diff
-        run: terraform init
+        run: terraform init -lock=false
         working-directory: ${{ matrix.dir }}
 
       - name: Download modules
@@ -66,13 +66,13 @@ jobs:
 
       - name: Validate
         if: steps.diff.outputs.diff
-        run: terraform validate
+        run: terraform validate -lock=false
         working-directory: ${{ matrix.dir }}
 
       - name: Plan
         if: steps.diff.outputs.diff
         id: plan
-        run: terraform plan -no-color
+        run: terraform plan -no-color -lock=false
         working-directory: ${{ matrix.dir }}
         continue-on-error: true
 
