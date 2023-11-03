@@ -6,7 +6,7 @@ on:
       - main
 env:
   TF_VAR_WEBHOOK_PATH: ${{secrets.WEBHOOK_PATH}}
-
+  TF_VAR_env_files: ${{secrets.ENV_FILES}}
 jobs:
   terraform-ci:
     name: Terraform CI
