@@ -21,7 +21,7 @@ These are defined as `scheduling` resources.
 ## Other Feature
 
 - Backup  
-By customizing the entry point of the container, it is now possible to restore from the latest data from backup (S3) when starting, and automatically back up when stopping.  
+By customizing the entrypoint shell of the Dockerfile, it is possible to restore from the latest data from backup (S3) when starting, and automatically back up when stopping.  
 Continuous backups to inexpensive object storage(AWS S3) eliminate the risk of data loss due to frequent container lifecycles.  
 Those activities will be notified in own slack.
 
@@ -29,7 +29,7 @@ Those activities will be notified in own slack.
 Improves operability by defining container environment variables in multiple yaml files　and mapping them with terraform.
 
 - Restore  
-By default, restore is performed from the latest backup when the container starts, it is also possible to restore world data from the backup at a specific timestamp from the terraform variable.  
+By default restore is performed from the latest backup when the container starts (As mentioned earlier), it is also possible to restore world data from a specific recovery point via terraform variable.  
 This is useful when you want to travel back in time to your precious world.
 
 
