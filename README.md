@@ -1,6 +1,39 @@
 # minecraft-server-automation
 
+Build a minecraft container execution environment using terraform.  
+
+## Main Feature
+
+It mainly supports local provisioning.  
+Since it uses personal resources, it is divided into two terraform.states as below considering the cost.  
+
+#### keeping
+
+Resources that do not cost much even if they are constantly running are defined as `keeping` resources.
+
+#### scheduling
+
+For resources that incur running costs, automatically start or stop them on daily.　　
+These are defined as `scheduling` resources.
+
 ![Infrastructure Diagram](./docs/mc-server.drawio.png)
+
+## Other Feature
+
+- Backup  
+Customize the container entrypoint, restore from the latest world data in backup (S3) when starting, and back up to S3 when stopping.  
+Continuous backups to inexpensive object storage(AWS S3) eliminate the risk of data loss due to frequent container lifecycles.  
+Those activities will be notified in own slack.
+
+- task definition mapped from yaml
+Improves operability by defining container environment variables in multiple yaml files　and mapping them with terraform.
+
+- restore  
+By default, restore is performed from the latest backup when the container starts, it is also possible to restore world data from the backup at a specific timestamp from the terraform variable.  
+This is useful when you want to restore the world.
+
+
+## Utilities
 
 ### ECS Exec実行
 
