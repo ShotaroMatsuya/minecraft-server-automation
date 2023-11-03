@@ -78,6 +78,7 @@ resource "aws_cloudwatch_metric_alarm" "target_group_health_check" {
   alarm_description   = "This metric monitors ecs health status"
   ok_actions          = [var.sns_topic_arn]
   alarm_actions       = [var.sns_topic_arn]
+  treat_missing_data  = "breaching"
 
   dimensions = {
     TargetGroup  = var.target_group_arn_suffixes[0]
