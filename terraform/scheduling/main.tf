@@ -7,7 +7,7 @@ data "aws_vpc" "myvpc" {
 
 data "aws_security_group" "fargate_sg" {
   filter {
-    name = "tag:Name"
+    name   = "tag:Name"
     values = ["minecraft-test-fargate-sg"]
   }
 }
