@@ -91,17 +91,23 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
-          snyk container test ${{ matrix.tag }} --file=${{ matrix.dockerfile }} --severity-threshold=high
+          result=$(snyk container test ${{ matrix.tag }} --file=${{ matrix.dockerfile }} --severity-threshold=high)
+          echo "name=result::$result" >> $GITHUB_OUTPUTS
           snyk container monitor ${{ matrix.tag }}
-      - name: Comment PR with Snyk results
-        if: steps.diff.outputs.diff && github.event_name == 'pull_request'
-        uses: unsplash/comment-on-pr@v1.3.0
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create comment with output
+        uses: actions/github-script@v5
+        if: success() && steps.snyk_scan.outputs.result != ''
         with:
-          msg: "Snyk Vulnerability Scan Results:\n```\n${{ steps.snyk_scan.outputs.snyk_results }}\n```"
-          check_for_duplicate_msg: false
-
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const output = `${{ steps.snyk_scan.outputs.result }}`;
+            const issue_number = context.payload.pull_request.number;
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue_number,
+              body: `Snyk Vulnerability Scan Results:\n\`\`\`\n${output}\n\`\`\``
+            });
       - name: Login to Amazon ECR
         if: github.event_name == 'push'
         id: login-ecr
