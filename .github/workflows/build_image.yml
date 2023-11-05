@@ -50,20 +50,19 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v1
-      - name: Determine if path has changes
-        id: has_changes
-        run: |
-          echo "build=false" >> $GITHUB_OUTPUT
-          if git diff --name-only ${{ github.event.before }} ${{ github.event.after }} | grep -q '${{ matrix.path }}'; then
-            echo "build=true" >> $GITHUB_OUTPUT
-          fi
+      - name: Check diff
+        id: diff
+        uses: technote-space/get-diff-action@v4.2.0
+        with:
+          PATTERNS: |
+            ${{ matrix.path }}
 
       - name: Build Docker image
-        if: steps.has_changes.outputs.build == 'true'
+        if: steps.diff.outputs.diff
         run: |
           docker build -t ${{ matrix.tag }} ${{ matrix.context }} -f ${{ matrix.dockerfile }}
       - name: Run Snyk to check Docker image for vulnerabilities
-        if: steps.has_changes.outputs.build == 'true' && github.event_name == 'pull_request'
+        if: steps.diff.outputs.diff && github.event_name == 'pull_request'
         continue-on-error: true
         uses: snyk/actions/docker@master
         env:
@@ -72,12 +71,12 @@ jobs:
           image: your/image-to-test
           args: --file=${{ matrix.dockerfile }}
       - name: Upload result to GitHub Code Scanning
-        if: steps.has_changes.outputs.build == 'true' && github.event_name == 'pull_request'
+        if: steps.diff.outputs.diff && github.event_name == 'pull_request'
         uses: github/codeql-action/upload-sarif@v2
         with:
           sarif_file: snyk.sarif
       - name: Scan the Docker image with Snyk
-        if: steps.has_changes.outputs.build == 'true' && github.event_name == 'pull_request'
+        if: steps.diff.outputs.diff && github.event_name == 'pull_request'
         id: snyk_scan
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
@@ -85,7 +84,7 @@ jobs:
           snyk container test ${{ matrix.tag }} --file=${{ matrix.dockerfile }} --severity-threshold=high
           snyk container monitor ${{ matrix.tag }}
       - name: Comment PR with Snyk results
-        if: steps.has_changes.outputs.build == 'true' && github.event_name == 'pull_request'
+        if: steps.diff.outputs.diff && github.event_name == 'pull_request'
         uses: unsplash/comment-on-pr@v1.3.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -100,6 +99,6 @@ jobs:
         with:
           mask-password: 'false'
       - name: Build and push Docker image
-        if: steps.has_changes.outputs.build == 'true' && github.event_name == 'push'
+        if: steps.diff.outputs.diff && github.event_name == 'push'
         run: |
           docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ matrix.tag }}
