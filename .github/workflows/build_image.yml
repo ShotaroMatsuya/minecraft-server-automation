@@ -91,7 +91,7 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
-          snyk container test ${{ matrix.tag }} --file=${{ matrix.dockerfile }} --severity-threshold=high --fail-on=upgradable 
+          snyk container test ${{ matrix.tag }} --file=${{ matrix.dockerfile }} --severity-threshold=high --fail-on=all 
           snyk container monitor ${{ matrix.tag }}
       - name: Create comment with output
         uses: actions/github-script@v5
