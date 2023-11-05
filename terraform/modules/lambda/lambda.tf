@@ -28,7 +28,7 @@ module "user_action_filter_function" {
         "SNS:Publish"
       ],
       "Effect": "Allow",
-      "Resource": "*"
+      "Resource": "${var.sns_topic_arn}"
     },
     {
       "Sid": "",
@@ -37,7 +37,7 @@ module "user_action_filter_function" {
         "logs:CreateLogStream",
         "logs:PutLogEvents"
       ],
-      "Resource": "arn:aws:logs:*:*:*",
+      "Resource": "${var.log_group_arn}",
       "Effect": "Allow"
     }
   ]
