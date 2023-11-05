@@ -48,27 +48,26 @@ jobs:
         with:
           terraform_version: 1.4.1
 
-      - name: Check format
-        id: fmt
-        if: steps.diff.outputs.diff
+      - name: Terraform Format Check
+        id: check_fmt
         run: |
-          terraform fmt -check -recursive
-          if [ $? -ne 0 ]; then
-            echo "Terraform fiiles needs to be formatted. Formatting now..."
-            terraform fmt -recursive
-            echo "formatted=true" >> $GITHUB_OUTPUT
+          if terraform fmt -check -recursive ; then
+            echo "No changes needed."
+            echo "has-changes=false" >> $GITHUB_ENV
+          else
+            echo "Changes needed."
+            echo "has-changes=true" >> $GITHUB_ENV
           fi
-        working-directory: ${{ matrix.dir }}
-        continue-on-error: true
-      - name: Commit and push if needed
-        # if: steps.fmt.outputs.formatted == 'true'
+
+      - name: Format Terraform files if needed
+        if: ${{ env.has-changes }} == 'true'
         run: |
+          terraform fmt -recursive
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
           git add -u
-          git commit -m "Automated Terraform format fixes" || exit 0  # Exit 0 if no changes
-          git push origin HEAD:${{ github.head_ref }}
-
+          git commit -m "Automated Terraform formatting"
+          git push
       - name: Initialize
         id: init
         if: steps.diff.outputs.diff
