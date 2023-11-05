@@ -1,0 +1,103 @@
+name: Matrix Docker Build with Snyk Scan
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'docker/fluentbit/**'
+      - 'docker/minecraft/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'docker/fluentbit/**'
+      - 'docker/minecraft/**'
+permissions:
+  id-token: write
+  contents: read
+  actions: read
+
+jobs:
+  build-and-scan:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - context: 'docker/fluentbit'
+            dockerfile: 'docker/fluentbit/Dockerfile'
+            tag: 'minecraft/fluentbit:latest'
+            path: 'docker/fluentbit/**'
+          - context: 'docker/minecraft'
+            tag: 'minecraft/server:latest'
+            path: 'docker/minecraft/**'
+            dockerfile: 'docker/minecraft/Dockerfile'
+          - context: 'docker/minecraft'
+            tag: 'minecraft/server-restore:latest'
+            path: 'docker/minecraft/**'
+            dockerfile: 'docker/minecraft/Dockerfile.restore'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-1
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Determine if path has changes
+        id: has_changes
+        run: |
+          echo "build=false" >> $GITHUB_OUTPUT
+          if git diff --name-only ${{ github.event.before }} ${{ github.event.after }} | grep -q '${{ matrix.path }}'; then
+            echo "build=true" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build Docker image
+        if: steps.has_changes.outputs.build == 'true'
+        run: |
+          docker build -t ${{ matrix.tag }} ${{ matrix.context }} -f ${{ matrix.dockerfile }}
+      - name: Run Snyk to check Docker image for vulnerabilities
+        continue-on-error: true
+        uses: snyk/actions/docker@master
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        with:
+          image: your/image-to-test
+          args: --file=${{ matrix.dockerfile }}
+      - name: Upload result to GitHub Code Scanning
+        uses: github/codeql-action/upload-sarif@v2
+        with:
+          sarif_file: snyk.sarif
+      - name: Scan the Docker image with Snyk
+        if: steps.has_changes.outputs.build == 'true' && github.event_name == 'pull_request'
+        id: snyk_scan
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          snyk container test ${{ matrix.tag }} --file=${{ matrix.dockerfile }} --severity-threshold=high
+          snyk container monitor ${{ matrix.tag }}
+      - name: Comment PR with Snyk results
+        if: steps.has_changes.outputs.build == 'true' && github.event_name == 'pull_request'
+        uses: unsplash/comment-on-pr@v1.3.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          msg: "Snyk Vulnerability Scan Results:\n```\n${{ steps.snyk_scan.outputs.snyk_results }}\n```"
+          check_for_duplicate_msg: false
+
+      - name: Login to Amazon ECR
+        if: github.event_name == 'push'
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          mask-password: 'false'
+      - name: Build and push Docker image
+        if: github.event_name == 'push'
+        run: |
+          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ matrix.tag }}
