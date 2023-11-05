@@ -2,6 +2,7 @@
 [![Matrix Docker Build with Snyk Scan](https://github.com/ShotaroMatsuya/minecraft-server-automation/actions/workflows/build_image.yml/badge.svg)](https://github.com/ShotaroMatsuya/minecraft-server-automation/actions/workflows/build_image.yml)
 [![Start and Stop Workflow](https://github.com/ShotaroMatsuya/minecraft-server-automation/actions/workflows/schedule_job.yml/badge.svg)](https://github.com/ShotaroMatsuya/minecraft-server-automation/actions/workflows/schedule_job.yml)
 [![Terraform Continuous Integration By Official](https://github.com/ShotaroMatsuya/minecraft-server-automation/actions/workflows/terraform_ci.yml/badge.svg)](https://github.com/ShotaroMatsuya/minecraft-server-automation/actions/workflows/terraform_ci.yml)
+[![Apply](https://github.com/ShotaroMatsuya/minecraft-server-automation/actions/workflows/apply.yml/badge.svg)](https://github.com/ShotaroMatsuya/minecraft-server-automation/actions/workflows/apply.yml)
 # minecraft-server-automation
 
 Build a minecraft container execution environment using terraform.  
