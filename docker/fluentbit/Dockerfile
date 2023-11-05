@@ -1,4 +1,4 @@
-FROM amazon/aws-for-fluent-bit:latest
+FROM --platform=linux/x86_64 amazon/aws-for-fluent-bit:latest
 
 ENV TZ='Asia/Tokyo'
 COPY fluent-bit_custom.conf /fluent-bit/etc/fluent-bit_custom.conf
