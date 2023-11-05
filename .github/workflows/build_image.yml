@@ -71,36 +71,35 @@ jobs:
         if: steps.diff.outputs.diff
         run: |
           docker build -t ${{ matrix.tag }} ${{ matrix.context }} -f ${{ matrix.dockerfile }}
+
       - name: Scan the Docker image with Snyk
         if: steps.diff.outputs.diff && github.event_name == 'pull_request'
         continue-on-error: true
         id: snyk_scan
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: snyk container test ${{ matrix.tag }} --file=${{ matrix.dockerfile }} --severity-threshold=high --fail-on=all
-      - name: Create comment with output
+        run: |
+          OUTPUT=$(snyk container test ${{ matrix.tag }} --file=${{ matrix.dockerfile }} --severity-threshold=high --fail-on=all || true)
+          echo "::set-output name=result::${OUTPUT}"
+          echo "CLI_OUTPUT<<EOF" >> $GITHUB_ENV
+          echo "${OUTPUT}" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Comment CLI Output on GitHub
         if: steps.diff.outputs.diff && github.event_name == 'pull_request'
-        uses: actions/github-script@v3.2.0
-        env:
-          RESULTS: "Snyk Vulnerability Scan Results\n${{ steps.snyk_scan.outputs.stdout }}"
+        uses: actions/github-script@v5
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const output = `## \`${{ matrix.context }}\`
-
-            <details><summary>Show Plan</summary>
-
-            \`\`\`${process.env.RESULTS}\`\`\`
-
-            </details>`;
-
-            github.issues.createComment({
-              issue_number: context.issue.number,
+            const cliOutput = process.env.CLI_OUTPUT;
+            const issue_number = context.issue.number;
+            const commentBody = `CLI Command Output:\n\`\`\`\n${cliOutput}\n\`\`\``;
+            github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: output
-            })
-
+              issue_number: issue_number,
+              body: commentBody
+            });
       - name: Login to Amazon ECR
         if: github.event_name == 'push'
         id: login-ecr
