@@ -60,7 +60,7 @@ jobs:
             echo "Changes needed."
             echo "has-changes=true" >> $GITHUB_ENV
           fi
-
+        continue-on-error: true
       - name: Format Terraform files if needed
         if: ${{ env.has-changes }} == 'true'
         run: |
@@ -71,6 +71,7 @@ jobs:
           git commit -m "Automated Terraform formatting"
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
           git push origin HEAD:${{ github.head_ref }}
+        continue-on-error: true          
       - name: Initialize
         id: init
         if: steps.diff.outputs.diff
