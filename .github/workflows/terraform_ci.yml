@@ -54,10 +54,10 @@ jobs:
         id: check_fmt
         run: |
           if terraform fmt -check -recursive ; then
-            echo "No changes needed."
+            echo "result='No changes needed.'" >> $GITHUB_OUTPUT
             echo "has-changes=false" >> $GITHUB_ENV
           else
-            echo "Changes needed."
+            echo "result='Changes needed.'" >> $GITHUB_OUTPUT
             echo "has-changes=true" >> $GITHUB_ENV
           fi
         continue-on-error: true
@@ -104,7 +104,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const output = `## \`${{ matrix.dir }}\`
-            #### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Format and Style 🖌\`${{ steps.check_fmt.outputs.result }}\`
             #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
 
             <details><summary>Show Plan</summary>
