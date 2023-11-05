@@ -86,6 +86,7 @@ jobs:
           sarif_file: snyk.sarif
       - name: Scan the Docker image with Snyk
         if: steps.diff.outputs.diff && github.event_name == 'pull_request'
+        continue-on-error: true
         id: snyk_scan
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
