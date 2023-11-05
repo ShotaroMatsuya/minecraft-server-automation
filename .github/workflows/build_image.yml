@@ -1,0 +1,121 @@
+name: Matrix Docker Build with Snyk Scan
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'docker/fluentbit/**'
+      - 'docker/minecraft/**'
+  push:
+    branches:
+      - main
+    paths:
+      - 'docker/fluentbit/**'
+      - 'docker/minecraft/**'
+env:
+  S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+  S3_PREFIX_NAME: ${{ secrets.S3_PREFIX_NAME }}
+  WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
+permissions:
+  actions: write
+  contents: write
+  pull-requests: write
+  security-events: write
+
+jobs:
+  build-and-scan:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - context: 'docker/fluentbit'
+            dockerfile: 'docker/fluentbit/Dockerfile'
+            tag: 'minecraft/fluentbit:latest'
+            path: 'docker/fluentbit/**'
+          - context: 'docker/minecraft'
+            tag: 'minecraft/server:latest'
+            path: 'docker/minecraft/**'
+            dockerfile: 'docker/minecraft/Dockerfile'
+          - context: 'docker/minecraft'
+            tag: 'minecraft/server-restore:latest'
+            path: 'docker/minecraft/**'
+            dockerfile: 'docker/minecraft/Dockerfile.restore'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v1
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ap-northeast-1
+
+      - uses: actions/checkout@master
+      - uses: snyk/actions/setup@master
+      - uses: actions/setup-go@v1
+        with:
+          go-version: "1.13"
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - name: Check diff
+        id: diff
+        uses: technote-space/get-diff-action@v4.2.0
+        with:
+          PATTERNS: |
+            ${{ matrix.path }}
+
+      - name: Build Docker image
+        if: steps.diff.outputs.diff
+        run: |
+          docker build -t ${{ matrix.tag }} ${{ matrix.context }} -f ${{ matrix.dockerfile }}
+
+      - name: Scan the Docker image with Snyk
+        if: steps.diff.outputs.diff && github.event_name == 'pull_request'
+        continue-on-error: true
+        id: snyk_scan
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+        run: |
+          OUTPUT=$(snyk container test ${{ matrix.tag }} --file=${{ matrix.dockerfile }} --severity-threshold=high --fail-on=all || true)
+          # ANSIエスケープコードを削除
+          CLEAN_OUTPUT=$(echo "$OUTPUT" | sed 's/\x1b\[[0-9;]*m//g')
+          echo "::set-output name=result::${CLEAN_OUTPUT}"
+          echo "CLI_OUTPUT<<EOF" >> $GITHUB_ENV
+          echo "${CLEAN_OUTPUT}" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+      - name: Comment CLI Output on GitHub
+        if: steps.diff.outputs.diff && github.event_name == 'pull_request'
+        uses: actions/github-script@v5
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const cliOutput = process.env.CLI_OUTPUT;
+            const issue_number = context.issue.number;
+            const commentBody = `## Snyk Scan \`${{ matrix.dockerfile }}\`
+            
+            <details><summary>Show Results</summary>
+            
+            \`\`\`${cliOutput}\`\`\`
+            
+            </details>`;
+
+            github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue_number,
+              body: commentBody
+            });
+      - name: Login to Amazon ECR
+        if: github.event_name == 'push'
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+        with:
+          mask-password: 'false'
+      - name: Build and push Docker image
+        if: steps.diff.outputs.diff && github.event_name == 'push'
+        run: |
+          docker push ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ matrix.tag }}

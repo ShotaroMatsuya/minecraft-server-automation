@@ -32,7 +32,7 @@ cleanup() {
     fi
     FILE_NAME='minecraft-'${BACKUP_DATE_TIME}'.tar.gz'
     tar -zcvf backup/${PARTITION_DATE}/${FILE_NAME} -C /data/ world/
-    slack_notify ":creeper:バックアップを作成しました！！\n\nバックアップファイル名: *${S3_BUCKET}/${S3_PREFIX}/${PARTITION_DATE}/${FILE_NAME}* \n\n*削除*したい場合は、以下のリンクから削除を行ってください。\n\nhttps://s3.console.aws.amazon.com/s3/object/${S3_BUCKET}?region=ap-northeast-1&prefix=${S3_PREFIX}/${PARTITION_DATE}/${FILE_NAME}"
+    slack_notify "<!channel>\n\n:creeper:バックアップを作成しました！！\n\nバックアップファイル名: *${S3_BUCKET}/${S3_PREFIX}/${PARTITION_DATE}/${FILE_NAME}* \n\n*削除*したい場合は、以下のリンクから削除を行ってください。\n\nhttps://s3.console.aws.amazon.com/s3/object/${S3_BUCKET}?region=ap-northeast-1&prefix=${S3_PREFIX}/${PARTITION_DATE}/${FILE_NAME}"
     aws s3 cp backup/${PARTITION_DATE}/${FILE_NAME} s3://${S3_BUCKET}/${S3_PREFIX}/${PARTITION_DATE}/
 
     # ラッパースクリプトで先にSIGTERMをハンドリングする
@@ -48,7 +48,7 @@ LAST_MODIFIED=$(aws s3api head-object --bucket ${S3_BUCKET} --key ${LATEST_BACKU
 aws s3 cp s3://${S3_BUCKET}/${LATEST_BACKUP} /data/world/
 find /data/world/ -name "*.tar.gz" -exec tar -xvf {} \;
 rm -rf /data/world/*.tar.gz
-slack_notify ":creeper:バックアップをリストアしました！！\n\nバックアップファイルの作成日時: *${LAST_MODIFIED}*\nバックアップファイルPATH: *${S3_BUCKET}/${LATEST_BACKUP}*"
+slack_notify "<!channel>\n\n:creeper:バックアップをリストアしました！！\n\nバックアップファイルの作成日時: *${LAST_MODIFIED}*\nバックアップファイルPATH: *${S3_BUCKET}/${LATEST_BACKUP}*"
 
 
 # trap SIGTERM signal and call cleanup

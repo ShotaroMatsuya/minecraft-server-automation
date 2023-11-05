@@ -12,7 +12,7 @@ jobs:
     name: Terraform CI
     permissions:
       actions: read
-      contents: read
+      contents: write
       pull-requests: write
       security-events: write
     runs-on: ubuntu-latest
@@ -27,6 +27,8 @@ jobs:
       - name: Checkout code
         id: checkout
         uses: actions/checkout@v2
+        with:
+          ref: ${{ github.head_ref }}
       - name: Check diff
         id: diff
         uses: technote-space/get-diff-action@v4.2.0
@@ -48,13 +50,28 @@ jobs:
         with:
           terraform_version: 1.4.1
 
-      - name: Check format
-        id: fmt
-        if: steps.diff.outputs.diff
-        run: terraform fmt -check -recursive
-        working-directory: ${{ matrix.dir }}
+      - name: Terraform Format Check
+        id: check_fmt
+        run: |
+          if terraform fmt -check -recursive ; then
+            echo "result='No changes needed.'" >> $GITHUB_OUTPUT
+            echo "has-changes=false" >> $GITHUB_ENV
+          else
+            echo "result='Changes needed.'" >> $GITHUB_OUTPUT
+            echo "has-changes=true" >> $GITHUB_ENV
+          fi
         continue-on-error: true
-
+      - name: Format Terraform files if needed
+        if: ${{ env.has-changes }} == 'true'
+        run: |
+          terraform fmt -recursive
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+          git add -u
+          git commit -m "Automated Terraform formatting"
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
+          git push origin HEAD:${{ github.head_ref }}
+        continue-on-error: true          
       - name: Initialize
         id: init
         if: steps.diff.outputs.diff
@@ -87,7 +104,7 @@ jobs:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             const output = `## \`${{ matrix.dir }}\`
-            #### Terraform Format and Style 🖌\`${{ steps.fmt.outcome }}\`
+            #### Terraform Format and Style 🖌\`${{ steps.check_fmt.outputs.result }}\`
             #### Terraform Plan 📖\`${{ steps.plan.outcome }}\`
 
             <details><summary>Show Plan</summary>
