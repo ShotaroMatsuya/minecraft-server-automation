@@ -71,41 +71,26 @@ jobs:
         if: steps.diff.outputs.diff
         run: |
           docker build -t ${{ matrix.tag }} ${{ matrix.context }} -f ${{ matrix.dockerfile }}
-      - name: Run Snyk to check Docker image for vulnerabilities
-        if: steps.diff.outputs.diff && github.event_name == 'pull_request'
-        continue-on-error: true
-        uses: snyk/actions/docker@master
-        env:
-          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        with:
-          image: ${{ matrix.tag }}
-          args: --file=${{ matrix.dockerfile }}
-      - name: Upload result to GitHub Code Scanning
-        if: steps.diff.outputs.diff && github.event_name == 'pull_request'
-        uses: github/codeql-action/upload-sarif@v2
-        with:
-          sarif_file: snyk.sarif
       - name: Scan the Docker image with Snyk
         if: steps.diff.outputs.diff && github.event_name == 'pull_request'
         continue-on-error: true
         id: snyk_scan
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
-        run: |
-          RESULT=$(snyk container test ${{ matrix.tag }} --file=${{ matrix.dockerfile }} --severity-threshold=high --fail-on=all)
-          echo "result=${RESULT}" >> $GITHUB_OUTPUT
-          snyk container monitor ${{ matrix.tag }} --file=${{ matrix.dockerfile }}
+        run: snyk container test ${{ matrix.tag }} --file=${{ matrix.dockerfile }} --severity-threshold=high --fail-on=all
       - name: Create comment with output
-        uses: actions/github-script@v3.2.0
         if: steps.diff.outputs.diff && github.event_name == 'pull_request'
+        uses: actions/github-script@v3.2.0
+        env:
+          RESULTS: "Snyk Vulnerability Scan Results\n${{ steps.snyk_scan.outputs.stdout }}"
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const output = `## \`${{ matrix.tag }}\`
+            const output = `## \`${{ matrix.context }}\`
 
-            <details><summary>Snyk Vulnerability Scan Results</summary>
-            
-            \`\`\`${{ steps.snyk_scan.outputs.result }}\`\`\`
+            <details><summary>Show Plan</summary>
+
+            \`\`\`${process.env.RESULTS}\`\`\`
 
             </details>`;
 
