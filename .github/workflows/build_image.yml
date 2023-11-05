@@ -13,6 +13,10 @@ on:
     paths:
       - 'docker/fluentbit/**'
       - 'docker/minecraft/**'
+env:
+  S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+  S3_PREFIX: ${{ secrets.S3_BUCKET_NAME }}
+  WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
 permissions:
   id-token: write
   contents: read
@@ -68,7 +72,7 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         with:
-          image: your/image-to-test
+          image: ${{ matrix.tag }}
           args: --file=${{ matrix.dockerfile }}
       - name: Upload result to GitHub Code Scanning
         if: steps.diff.outputs.diff && github.event_name == 'pull_request'
