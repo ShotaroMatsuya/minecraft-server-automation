@@ -12,7 +12,7 @@ jobs:
     name: Terraform CI
     permissions:
       actions: read
-      contents: read
+      contents: write
       pull-requests: write
       security-events: write
     runs-on: ubuntu-latest
