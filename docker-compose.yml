@@ -22,7 +22,7 @@ services:
       - ~/.aws/credentials:/root/.aws/credentials:ro
       - ~/.aws/config:/root/.aws/config:ro
       # attach the relative directory 'data' to the container's /data path
-      # - ./docker/minecraft:/data
+      - log-data:/data
   fluent-bit:
     container_name: fluentbit
     depends_on: 
@@ -31,5 +31,7 @@ services:
       context: ./docker/fluentbit
       dockerfile: Dockerfile.local
     volumes:
-      - ./app:/data
+      - log-data:/data
     command: ["/fluent-bit/bin/fluent-bit", "-c", "/fluent-bit/etc/fluent-bit_custom-local.conf"]
+volumes:
+  log-data:
