@@ -66,8 +66,8 @@ jobs:
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
           git add -u
-          git commit -m "Automated Terraform format fixes"
-          git push
+          git commit -m "Automated Terraform format fixes" || exit 0  # Exit 0 if no changes
+          git push origin HEAD:${{ github.head_ref }}
 
       - name: Initialize
         id: init
