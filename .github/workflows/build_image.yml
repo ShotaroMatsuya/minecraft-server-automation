@@ -92,8 +92,8 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
-          result=$(snyk container test ${{ matrix.tag }} --file=${{ matrix.dockerfile }} --severity-threshold=high --fail-on=all)
-          echo result >> $GITHUB_OUTPUT
+          RESULT=$(snyk container test ${{ matrix.tag }} --file=${{ matrix.dockerfile }} --severity-threshold=high --fail-on=all)
+          echo "result=${RESULT}" >> $GITHUB_OUTPUT
           snyk container monitor ${{ matrix.tag }} --file=${{ matrix.dockerfile }}
       - name: Create comment with output
         uses: actions/github-script@v3.2.0
