@@ -13,7 +13,10 @@ def lambda_handler(event, context):
         base64.b64decode(event["awslogs"]["data"]), 16 + zlib.MAX_WBITS
     )
     data_dict = json.loads(data)
-    log_entire_json = json.loads(json.dumps(data_dict["logEvents"], ensure_ascii=False))
+    log_entire_json = json.loads(
+        json.dumps(
+            data_dict["logEvents"],
+            ensure_ascii=False))
     log_entire_len = len(log_entire_json)
     region = context.invoked_function_arn.split(":")[3]
     log_group_name = context.log_group_name
@@ -34,7 +37,8 @@ def lambda_handler(event, context):
 
 def post_sns_topic(log_entire_len: int, data_dict: dict, log_url: str):
     for i in range(log_entire_len):
-        log_dict = json.loads(json.dumps(data_dict["logEvents"][i], ensure_ascii=False))
+        log_dict = json.loads(
+            json.dumps(data_dict["logEvents"][i], ensure_ascii=False))
         try:
             message_str = log_dict["message"]
             message_dict = json.loads(message_str)
@@ -43,7 +47,7 @@ def post_sns_topic(log_entire_len: int, data_dict: dict, log_url: str):
             sns = boto3.client("sns")
 
             # SNS Publish
-            publishResponse = sns.publish(
+            sns.publish(
                 TopicArn=os.environ["SNS_TOPIC_ARN"],
                 Message=message,
                 Subject=os.environ["ALARM_SUBJECT"],
@@ -54,7 +58,9 @@ def post_sns_topic(log_entire_len: int, data_dict: dict, log_url: str):
 
 def post_to_slack(log_entire_len: int, data_dict: dict, log_url: str):
     for i in range(log_entire_len):
-        log_dict = json.loads(json.dumps(data_dict["logEvents"][i], ensure_ascii=False))
+        log_dict = json.loads(
+            json.dumps(data_dict["logEvents"][i], ensure_ascii=False)
+            )
         try:
             message_str = log_dict["message"]
             message_dict = json.loads(message_str)
