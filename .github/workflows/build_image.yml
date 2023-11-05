@@ -97,7 +97,7 @@ jobs:
         uses: actions/github-script@v5
         env:
           RESULT: "Snyk\n${{ steps.snyk_scan.outputs.stdout }}"
-        if: success() && steps.snyk_scan.outputs.result != ''
+        if: steps.diff.outputs.diff && github.event_name == 'pull_request'
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
