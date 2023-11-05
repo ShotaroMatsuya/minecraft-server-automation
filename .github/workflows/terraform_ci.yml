@@ -69,7 +69,8 @@ jobs:
           git config --global user.email 'github-actions@github.com'
           git add -u
           git commit -m "Automated Terraform formatting"
-          git push ${{ github.head_ref }}
+          git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
+          git push origin ${{ github.head_ref }}
       - name: Initialize
         id: init
         if: steps.diff.outputs.diff
