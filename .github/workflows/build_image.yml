@@ -91,23 +91,31 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
-          result=$(snyk container test ${{ matrix.tag }} --file=${{ matrix.dockerfile }} --severity-threshold=high)
-          echo "name=result::$result" >> $GITHUB_OUTPUTS
+          snyk container test ${{ matrix.tag }} --file=${{ matrix.dockerfile }} --severity-threshold=high --fail-on=upgradable 
           snyk container monitor ${{ matrix.tag }}
       - name: Create comment with output
         uses: actions/github-script@v5
+        env:
+          RESULT: "Snyk\n${{ steps.snyk_scan.outputs.stdout }}"
         if: success() && steps.snyk_scan.outputs.result != ''
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const output = `${{ steps.snyk_scan.outputs.result }}`;
-            const issue_number = context.payload.pull_request.number;
+            const output = `## \`${{ matrix.tag }}\`
+
+            <details><summary>Snyk Vulnerability Scan Results</summary>
+            
+            \`\`\`${process.env.RESULT}\`\`\`
+
+            </details>`;
+
             github.rest.issues.createComment({
+              issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              issue_number: issue_number,
-              body: `Snyk Vulnerability Scan Results:\n\`\`\`\n${output}\n\`\`\``
-            });
+              body: output
+            })
+
       - name: Login to Amazon ECR
         if: github.event_name == 'push'
         id: login-ecr
