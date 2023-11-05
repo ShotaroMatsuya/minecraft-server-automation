@@ -18,9 +18,10 @@ env:
   S3_PREFIX_NAME: ${{ secrets.S3_PREFIX_NAME }}
   WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
 permissions:
-  id-token: write
-  contents: read
   actions: read
+  contents: read
+  pull-requests: write
+  security-events: write
 
 jobs:
   build-and-scan:
@@ -94,7 +95,7 @@ jobs:
           snyk container test ${{ matrix.tag }} --file=${{ matrix.dockerfile }} --severity-threshold=high --fail-on=all 
           snyk container monitor ${{ matrix.tag }}
       - name: Create comment with output
-        uses: actions/github-script@v5
+        uses: actions/github-script@v3.2.0
         env:
           RESULT: "Snyk\n${{ steps.snyk_scan.outputs.stdout }}"
         if: steps.diff.outputs.diff && github.event_name == 'pull_request'
