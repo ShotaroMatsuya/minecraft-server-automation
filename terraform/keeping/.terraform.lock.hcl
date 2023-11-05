@@ -2,25 +2,23 @@
 # Manual edits may be lost in future updates.
 
 provider "registry.terraform.io/hashicorp/aws" {
-  version     = "4.59.0"
-  constraints = ">= 3.29.0, >= 3.73.0, 4.59.0"
+  version     = "4.67.0"
+  constraints = "4.67.0"
   hashes = [
-    "h1:uBpb5w197ACmg0JGuouIR8Dzbtg7V9OxcsabBZ8JxgQ=",
-    "zh:0341a460210463a0bebd5c12ce13dc49bd8cae2399b215418c5efa607fed84e4",
-    "zh:0544e9bbdd31d3551e7273bed7326d26a28653fd9c26b5cd06ac8ed76f188798",
-    "zh:3d13acd0363f0a48d2725cae9d224481df38dddb90ef4a66eb82303f0aa45a99",
-    "zh:416f5b92d41dce1d7ee1a1acb06ba8b0f10679eecee2fcc134853adbb09d9757",
-    "zh:80c9c3b901151cd697caa58bfa196816d4622e4ce11aa789e36efc460695313b",
-    "zh:8fc3659ebdae1ac9de899f57e5a3a50274a2e96c46aa2cf74be51ffdac56300a",
-    "zh:9b12af85486a96aedd8d7984b0ff811a4b42e3d88dad1a3fb4c0b580d04fa425",
-    "zh:a235b44ad074446a6138b3fb454dd0d234aacf7a1efea89d1eafac7284689d19",
-    "zh:a36a7f1cd7f9f6c45127d916a65b5441cc0430393535a5a3de4b646405c50c41",
-    "zh:c161c38727902271efa19020b95b69ebe0282989d575f31dff603a1d551bafd2",
-    "zh:d1562223347c49cbe3ff6e7295e25816a35dfef862d28cd8a7870e7be6ec8093",
-    "zh:e7a1d08bfe91d3789755ee587fc816907c3bea203342c717144c7459111ce20c",
-    "zh:e89d5a668c391669ed323d493c5ea131fe8833d562a6fe31f525bdcbe959056e",
-    "zh:f268ccd3e1a32ba7fd59bbf0c8d85611201c0c87462a2a5cddd02babde7b5fe8",
-    "zh:fe8c2eae8c367d2cb7cade250a8d5f6c411ac4a8214c46df0a1fd90d9eaf7152",
+    "h1:3t9uBosa4EwbJF7f8LONm4YO3vB9r5CFSgxKiP3UrYw=",
+    "h1:5Zfo3GfRSWBaXs4TGQNOflr1XaYj6pRnVJLX5VAjFX4=",
+    "h1:DWVybabEz2gCyQkRM9zop1SKTG1tkH7+ruekC9KQM5w=",
+    "h1:L5c1etFqHmzTzxe8SDT78dIuGfuETeXDtctyUtiBpRs=",
+    "h1:LfOuBkdYCzQhtiRvVIxdP/KGJODa3cRsKjn8xKCTbVY=",
+    "h1:Ohs//YZd3vzB0upovYRptLX5mTFKeyxFbeHgGajGj/A=",
+    "h1:P43vwcDPG99x5WBbmqwUPgfJrfXf6/ucAIbGlRb7k1w=",
+    "h1:QckVBFBnlQW8R0QvVqyad/9XNKsSistTpWhnoyeofcU=",
+    "h1:X3t1gUv5lJkCyzE/q/LbZzhNd55SD8M0liZfI3D76b0=",
+    "h1:dCRc4GqsyfqHEMjgtlM1EympBcgTmcTkWaJmtd91+KA=",
+    "h1:kxoaBW0OshdCEVEBM7d3eUGoiT8Lqmray9WkRYiQ28U=",
+    "h1:m+crorRcEqedJlwZs4Y89JWLPZHmiP7l/KlyNaywNGE=",
+    "h1:vm5aeYUHIJh2Znz+5SbxcR+O9P0u+890WWl4clfISN8=",
+    "h1:xzpipYzqP0dTwotCNTD+4DsIPOGoXlYsX3nJDqHRrZM=",
   ]
 }
 
