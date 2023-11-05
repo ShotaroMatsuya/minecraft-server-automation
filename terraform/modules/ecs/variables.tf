@@ -19,10 +19,12 @@ variable "fargate_memory" {
 
 variable "mc_image_uri" {
   type = string
+  sensitive = true
 }
 
 variable "fluentbit_image_uri" {
   type = string
+  sensitive = true
 }
 
 variable "mc_container_name" {
@@ -68,6 +70,7 @@ variable "public_subnets_ids" {
 
 variable "container_env" {
   description = "Mapping Environment Variable Files to ECS"
+  sensitive = true
 }
 
 variable "efs_id" {
