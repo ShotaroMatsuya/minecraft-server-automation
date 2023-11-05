@@ -92,11 +92,10 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
-          snyk container test ${{ matrix.tag }} --file=${{ matrix.dockerfile }} --severity-threshold=high --fail-on=all 
+          echo "result=$(snyk container test ${{ matrix.tag }} --file=${{ matrix.dockerfile }} --severity-threshold=high --fail-on=all)" >> $GITHUB_OUTPUT
+          snyk container monitor ${{ matrix.tag }} --file=${{ matrix.dockerfile }}
       - name: Create comment with output
         uses: actions/github-script@v3.2.0
-        env:
-          RESULT: "Snyk\n${{ steps.snyk_scan.outputs.stdout }}"
         if: steps.diff.outputs.diff && github.event_name == 'pull_request'
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -105,7 +104,7 @@ jobs:
 
             <details><summary>Snyk Vulnerability Scan Results</summary>
             
-            \`\`\`${process.env.RESULT}\`\`\`
+            \`\`\`${{ steps.snyk_scan.outputs.result }}\`\`\`
 
             </details>`;
 
