@@ -64,12 +64,11 @@ def post_to_slack(log_entire_len: int, data_dict: dict, log_url: str):
         try:
             message_str = log_dict["message"]
             message_dict = json.loads(message_str)
-            message_dict["log_url"] = log_url
-            message = json.dumps(message_dict)
+            user_action_info = message_dict["log"]
             send_data = {
-                "username": "notify_bot",
-                "icon_emoji": ":aws-logo:",
-                "text": "<@U01LV55GEP3> \n\n" + f"```{message}```",
+                "username": "【UserEvent Notification】",
+                "icon_emoji": ":loudspeaker:",
+                "text": f"```{user_action_info}```"
             }
             r = request.Request(
                 url=os.environ["WEB_HOOK_URL"],
