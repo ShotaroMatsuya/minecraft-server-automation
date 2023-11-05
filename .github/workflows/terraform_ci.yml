@@ -61,7 +61,7 @@ jobs:
         working-directory: ${{ matrix.dir }}
         continue-on-error: true
       - name: Commit and push if needed
-        if: steps.fmt.outputs.formatted == 'true'
+        # if: steps.fmt.outputs.formatted == 'true'
         run: |
           git config --global user.name 'github-actions'
           git config --global user.email 'github-actions@github.com'
