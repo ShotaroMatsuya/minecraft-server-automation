@@ -51,9 +51,23 @@ jobs:
       - name: Check format
         id: fmt
         if: steps.diff.outputs.diff
-        run: terraform fmt -check -recursive
+        run: |
+          terraform fmt -check -recursive
+          if [ $? -ne 0 ]; then
+            echo "Terraform fiiles needs to be formatted. Formatting now..."
+            terraform fmt -recursive
+            echo "name=formatted::true" >> $GITHUB_OUTPUTS
+          fi
         working-directory: ${{ matrix.dir }}
         continue-on-error: true
+      - name: Commit and push if needed
+        if: steps.fmt.outputs.formatted == 'true'
+        run: |
+          git config --global user.name 'github-actions'
+          git config --global user.email 'github-actions@github.com'
+          git add -u
+          git commit -m "Automated Terraform format fixes"
+          git push
 
       - name: Initialize
         id: init
