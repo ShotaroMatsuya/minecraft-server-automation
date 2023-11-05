@@ -18,8 +18,8 @@ env:
   S3_PREFIX_NAME: ${{ secrets.S3_PREFIX_NAME }}
   WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
 permissions:
-  actions: read
-  contents: read
+  actions: write
+  contents: write
   pull-requests: write
   security-events: write
 
@@ -92,7 +92,8 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
-          echo "result=$(snyk container test ${{ matrix.tag }} --file=${{ matrix.dockerfile }} --severity-threshold=high --fail-on=all)" >> $GITHUB_OUTPUT
+          result=$(snyk container test ${{ matrix.tag }} --file=${{ matrix.dockerfile }} --severity-threshold=high --fail-on=all)
+          echo result >> $GITHUB_OUTPUT
           snyk container monitor ${{ matrix.tag }} --file=${{ matrix.dockerfile }}
       - name: Create comment with output
         uses: actions/github-script@v3.2.0
