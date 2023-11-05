@@ -11,6 +11,7 @@ jobs:
   terraform-ci:
     name: Terraform CI
     permissions:
+      id-token: write
       actions: read
       contents: write
       pull-requests: write

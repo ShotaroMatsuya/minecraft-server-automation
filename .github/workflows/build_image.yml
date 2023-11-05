@@ -18,6 +18,7 @@ env:
   S3_PREFIX_NAME: ${{ secrets.S3_PREFIX_NAME }}
   WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
 permissions:
+  id-token: write
   actions: write
   contents: write
   pull-requests: write
