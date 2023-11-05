@@ -93,7 +93,7 @@ jobs:
           script: |
             const cliOutput = process.env.CLI_OUTPUT;
             const issue_number = context.issue.number;
-            const commentBody = `CLI Command Output:\n\`\`\`\n${cliOutput}\n\`\`\``;
+            const commentBody = `## Snyk Container Vulnerabilities \`${{ matrix.context }}\`<details><summary>Show Results</summary>\`\`\`${cliOutput}\`\`\`</details>`;
             github.rest.issues.createComment({
               owner: context.repo.owner,
               repo: context.repo.repo,
