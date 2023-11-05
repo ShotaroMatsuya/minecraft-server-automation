@@ -27,6 +27,8 @@ jobs:
       - name: Checkout code
         id: checkout
         uses: actions/checkout@v2
+        with:
+          ref: ${{ github.head_ref }}
       - name: Check diff
         id: diff
         uses: technote-space/get-diff-action@v4.2.0
@@ -67,7 +69,7 @@ jobs:
           git config --global user.email 'github-actions@github.com'
           git add -u
           git commit -m "Automated Terraform formatting"
-          git push
+          git push ${{ github.head_ref }}
       - name: Initialize
         id: init
         if: steps.diff.outputs.diff
