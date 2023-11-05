@@ -15,7 +15,7 @@ on:
       - 'docker/minecraft/**'
 env:
   S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
-  S3_PREFIX: ${{ secrets.S3_BUCKET_NAME }}
+  S3_PREFIX_NAME: ${{ secrets.S3_PREFIX_NAME }}
   WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
 permissions:
   id-token: write
