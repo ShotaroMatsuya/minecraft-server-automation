@@ -26,6 +26,7 @@ variable "sns_topic_arn" {
 variable "slack_webhook_url" {
   type        = string
   description = "webhook url for sending notification to specific slack channel"
+  sensitive   = true
 }
 
 
