@@ -24,9 +24,11 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v3
-    - uses: aws-actions/configure-aws-credentials@v1
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
       with:
-        role-to-assume: ${{ secrets.AWS_IAM_ROLE_ARN }}
+        role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
+        role-session-name: github-actions-test-session
         aws-region: ${{ env.AWS_REGION }}
 
     - name: terraform setup
