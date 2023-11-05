@@ -56,7 +56,7 @@ jobs:
           if [ $? -ne 0 ]; then
             echo "Terraform fiiles needs to be formatted. Formatting now..."
             terraform fmt -recursive
-            echo "name=formatted::true" >> $GITHUB_OUTPUTS
+            echo "formatted=true" >> $GITHUB_OUTPUTS
           fi
         working-directory: ${{ matrix.dir }}
         continue-on-error: true
