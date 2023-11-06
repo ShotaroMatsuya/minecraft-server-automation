@@ -41,8 +41,8 @@ jobs:
           DIFF=$(git diff --name-only HEAD^ terraform/modules ${{ matrix.dir }})
           if [[ ${DIFF} = *keeping* || ${DIFF} = *scheduling* || ${DIFF} = *modules* ]]; then
             cd ${{ matrix.dir }}
-            terraform init
+            terraform init -lock=false
             terraform get
-            terraform apply -auto-approve
+            terraform apply -lock=false -auto-approve
           fi
         shell: bash

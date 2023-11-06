@@ -40,15 +40,15 @@ jobs:
       if: github.event.schedule == '0 6 * * *'
       run: |
         ls -lha
-        terraform init
-        terraform apply -auto-approve
+        terraform init -lock=false
+        terraform apply -lock=false -auto-approve
 
     - name: Run stop.sh at 3 AM
       if: github.event.schedule == '0 18 * * *'
       run: |
         ls -lha
-        terraform init
-        terraform destroy -auto-approve
+        terraform init -lock=false
+        terraform destroy -lock=false -auto-approve
 
     - name: Slack Notification on Success
       uses: rtCamp/action-slack-notify@v2

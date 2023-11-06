@@ -8,6 +8,7 @@ env:
   SLACK_USERNAME: DriftDetectBot
   SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
   SLACK_WEBHOOK: "https://hooks.slack.com/services/${{ secrets.WEBHOOK_PATH }}"
+  WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
   TF_VERSION: 1.4.1
   AWS_REGION: ap-northeast-1
   AWS_IAM_ROLE_ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
