@@ -5,17 +5,20 @@ ENV S3_BUCKET_NAME="minecraftbucket"
 ENV S3_PREFIX_NAME="backups-path"
 ENV WEBHOOK_PATH="webhook-path"
 
-# install aws cli
-RUN apt-get update && apt-get install -y  \
+WORKDIR /data
+
+# install aws cli and cleanup
+RUN apt-get update && apt-get install -y \
     ca-certificates \
     curl \
     unzip \
     tini \
     && curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
     && unzip awscliv2.zip \
-    && ./aws/install -i /usr/local/aws-cli -b /usr/bin
-
-WORKDIR /data
+    && ./aws/install -i /usr/local/aws-cli -b /usr/bin \
+    && rm -rf awscliv2.zip \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY --chown=1000:1000 ./scripts /scripts
 RUN chmod -R 755 /scripts
