@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+env:
+  TF_VAR_WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
 permissions:
   id-token: write
   contents: read
