@@ -9,7 +9,7 @@ on:
 env:
   SLACK_USERNAME: DeployBot
   SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
-  SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK_URL }}
+  SLACK_WEBHOOK: https://hooks.slack.com/services/${{secrets.WEBHOOK_PATH}}
   TF_VAR_WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
   TF_VERSION: 1.4.1
   AWS_REGION: ap-northeast-1
