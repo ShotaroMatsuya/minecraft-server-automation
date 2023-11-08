@@ -38,7 +38,15 @@ jobs:
           role-to-assume: ${{ env.AWS_IAM_ROLE_ARN }}
           role-session-name: github-actions-test-session
           aws-region: ${{ env.AWS_REGION }}
-
+      - name: Create Mapping Yaml
+        run: |
+          cat << EOF > secrets.yaml
+          OPS: ${{ secrets.WHITELIST_PLAYERS }}
+          WHITELIST: ${{ secrets.WHITELIST_PLAYERS }}
+          WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
+          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+          S3_PREFIX_NAME: ${{ secrets.S3_PREFIX_NAME }}
+          EOF
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v1
         with:
@@ -49,9 +57,7 @@ jobs:
         working-directory: ${{ matrix.dir }}
 
       - name: Terraform Plan
-        run: terraform plan -lock=false
-          -var "assume_role_arn=${{ env.AWS_IAM_ROLE_ARN }}"
-          -detailed-exitcode
+        run: terraform plan -lock=false -detailed-exitcode
         working-directory: ${{ matrix.dir }}
 
       - name: Nothing Drift
