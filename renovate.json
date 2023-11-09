@@ -5,5 +5,17 @@
   ],
   "major": {
     "enabled": false
-  }
+  },
+  "docker": {
+    "enabled": true
+  },
+  "packageRules": [
+    {
+      "enabled": true,
+      "matchDatasources": [
+        "docker"
+      ],
+      "pinDigests": true
+    }
+  ]
 }
