@@ -1,17 +1,9 @@
-name-template: 'v$RESOLVED_VERSION'
-tag-template: 'v$RESOLVED_VERSION'
-
-exclude:
-  labels:
-    - ignore-for-release
-  authors:
-    - github-actions
+name-template: '🍏 $RESOLVED_VERSION'
+tag-template: '$RESOLVED_VERSION'
 categories:
   - title: '🚀 Features'
     labels:
       - 'feature'
-  - title: '💪 Enhancement'
-    labels:
       - 'enhancement'
   - title: '🐛 Bug Fixes'
     labels:
@@ -20,17 +12,6 @@ categories:
       - 'bug'
   - title: '🧰 Maintenance'
     label: 'chore'
-  - title: '🔧 Refactoring'
-    label: 'refactor'
-  - title: '📖 Documentation'
-    label: 'documentation'
-  - title: '⛓️ Dependency update'
-    label: 'dependencies'
-
-change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
-
-change-title-escapes: '\<*_&' # You can add # and @ to disable mentions, and add ` to disable code blocks.
-
 version-resolver:
   major:
     labels:
@@ -42,10 +23,10 @@ version-resolver:
     labels:
       - 'patch'
   default: patch
-
 template: |
-  ## Changes
+  ## What’s Changed
   $CHANGES
+
 
 autolabeler:
   - label: feature
