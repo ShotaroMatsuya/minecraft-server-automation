@@ -1,0 +1,95 @@
+name-template: 'v$RESOLVED_VERSION'
+tag-template: 'v$RESOLVED_VERSION'
+
+exclude:
+  labels:
+    - ignore-for-release
+  authors:
+    - github-actions
+categories:
+  - title: '🚀 Features'
+    labels:
+      - 'feature'
+  - title: '💪 Enhancement'
+    labels:
+      - 'enhancement'
+  - title: '🐛 Bug Fixes'
+    labels:
+      - 'fix'
+      - 'bugfix'
+      - 'bug'
+  - title: '🧰 Maintenance'
+    label: 'chore'
+  - title: '🔧 Refactoring'
+    label: 'refactor'
+  - title: '📖 Documentation'
+    label: 'documentation'
+  - title: '⛓️ Dependency update'
+    label: 'dependencies'
+
+change-template: '- $TITLE @$AUTHOR (#$NUMBER)'
+
+change-title-escapes: '\<*_&' # You can add # and @ to disable mentions, and add ` to disable code blocks.
+
+version-resolver:
+  major:
+    labels:
+      - 'major'
+  minor:
+    labels:
+      - 'minor'
+  patch:
+    labels:
+      - 'patch'
+  default: patch
+
+template: |
+  ## Changes
+  $CHANGES
+
+autolabeler:
+  - label: feature
+    branch:
+      - '/^feat(ure)?[/-].+/'
+  - label: bug
+    branch:
+      - '/fix[/-].+/'
+  - label: chore
+    branch:
+      - '/^chore[/-].+/'
+  - label: refactor
+    branch:
+      - '/(refactor|refactoring)[/-].+/'
+  - label: documentation
+    files:
+      - '*.md'
+  - label: app
+    files:
+      - 'app/**/*'
+  - label: docker
+    files:
+      - 'Dockerfile'
+      - 'Dockerfile.*'
+      - '.dockerignore'
+      - 'docker-compose.yaml'
+  - label: github
+    files:
+      - '.github/**/*'
+  - label: fluentbit
+    files:
+      - 'docker/fluentbit/**/*'
+  - label: minecraft
+    files:
+      - 'docker/minecraft/**/*'
+  - label: terraform
+    files:
+      - 'terraform/**/*'
+  - label: keeping
+    files:
+      - 'terraform/keeping/**/*'
+  - label: scheduling
+    files:
+      - 'terraform/scheduling/**/*'
+  - label: modules
+    files:
+      - 'terraform/modules/**/*'
