@@ -80,8 +80,8 @@ module "custom_ecs" {
   task_role_arn             = data.aws_iam_role.task_role.arn
   task_execution_role_arn   = data.aws_iam_role.task_execution_role.arn
   container_env             = local.container_env
-  set_recovery_point        = false
-  recovery_time             = "20231105005846"
+  set_recovery_point        = true
+  recovery_time             = "20231109213804"
   # efs_id                    = data.aws_efs_file_system.my_efs.id
 
   owners         = local.owners
