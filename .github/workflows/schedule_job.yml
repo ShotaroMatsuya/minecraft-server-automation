@@ -39,6 +39,7 @@ jobs:
         WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
         S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
         S3_PREFIX_NAME: ${{ secrets.S3_PREFIX_NAME }}
+        FILTERING_STRINGS: ${{ secrets.FILTERING_STRINGS }}
         EOF
 
     - name: terraform setup
