@@ -4,12 +4,8 @@
 # set -ex
 
 export S3_BUCKET=$S3_BUCKET_NAME # minecraft-backend
-S3_PREFIX=$S3_PREFIX_NAME # backups
-
-BACKUP_DATE_TIME=$(date +"%Y%m%d%H%M%S")
-PARTITION_DATE=$(date +"%Y")-$(date +"%m")-$(date +"%d")
-
-WEBHOOK_URL="https://hooks.slack.com/services/${WEBHOOK_PATH}"
+export S3_PREFIX=$S3_PREFIX_NAME # backups
+export WEBHOOK_URL="https://hooks.slack.com/services/${WEBHOOK_PATH}"
 
 # slack notification
 slack_notify() {
@@ -26,6 +22,8 @@ slack_notify() {
 
 # function executed when container is shutdown
 cleanup() {
+    BACKUP_DATE_TIME=$(date +"%Y%m%d%H%M%S")
+    PARTITION_DATE=$(date +"%Y")-$(date +"%m")-$(date +"%d")
     echo "Container is terminating. Uploading data from EFS to S3..."
     if [ ! -d backup/${PARTITION_DATE} ]; then
         mkdir -p backup/${PARTITION_DATE}
