@@ -59,9 +59,7 @@ jobs:
         working-directory: ${{ matrix.dir }}
 
       - name: Terraform Plan
-        run: terraform plan -lock=false
-          -var "assume_role_arn=${{ env.AWS_IAM_ROLE_ARN }}"
-          -detailed-exitcode
+        run: terraform plan -lock=false -detailed-exitcode
         working-directory: ${{ matrix.dir }}
 
       - name: Nothing Drift
