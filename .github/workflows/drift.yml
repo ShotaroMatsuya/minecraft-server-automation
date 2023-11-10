@@ -69,6 +69,7 @@ jobs:
         env:
           SLACK_TITLE: Nothing Drift
           SLACK_COLOR: good
+          SLACK_MESSAGE: ${{ matrix.dir }}にはDriftがありません
 
       - name: Detect Drift
         if: ${{ failure() }}
@@ -76,3 +77,4 @@ jobs:
         env:
           SLACK_TITLE: Detect Drift
           SLACK_COLOR: danger
+          SLACK_MESSAGE: ${{ matrix.dir }}でDriftを検知しました
