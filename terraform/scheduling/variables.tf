@@ -63,4 +63,9 @@ locals {
   }
   env_vars      = merge([for f in var.env_files : yamldecode(file(f))]...)
   container_env = [for var_name, val in local.env_vars : { name = var_name, value = val }]
+
+  filtering_strings = lookup(local.env_vars, "FILTERING_STRINGS")
+  formatted_strings = [for word in local.filtering_strings : format("($.log = \"%s\")", word)]
+  combined_string   = join(" || ", local.formatted_strings)
+
 }
