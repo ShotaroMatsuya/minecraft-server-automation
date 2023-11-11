@@ -53,6 +53,17 @@ variable "WEBHOOK_PATH" {
   sensitive = true
 }
 
+variable "set_recovery_point" {
+  description = "Whether to retrieve world data from a specific recovery point when restoring"
+  type        = bool
+  default     = false
+}
+
+variable "recovery_time" {
+  description = "Specify backup file creation time when set_recover_point is true"
+  type        = string
+}
+
 locals {
   owners      = var.owners
   environment = var.environment
@@ -61,11 +72,12 @@ locals {
     owners      = local.owners
     environment = local.environment
   }
-  env_vars      = merge([for f in var.env_files : yamldecode(file(f))]...)
-  container_env = [for var_name, val in local.env_vars : { name = var_name, value = val }]
 
-  filtering_strings = lookup(local.env_vars, "FILTERING_STRINGS")
+  merged_decoded_yaml = merge([for f in var.env_files : yamldecode(file(f))]...)
+  updated_list        = { for k, v in local.merged_decoded_yaml : k => v if k != "FILTERING_STRINGS" }
+  container_env       = [for var_name, val in local.updated_list : { name = var_name, value = val }]
+
+  filtering_strings = lookup(local.merged_decoded_yaml, "FILTERING_STRINGS")
   formatted_strings = [for word in local.filtering_strings : format("($.log = \"%s\")", word)]
   combined_string   = join(" || ", local.formatted_strings)
-
 }
