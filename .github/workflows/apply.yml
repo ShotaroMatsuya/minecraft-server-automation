@@ -61,3 +61,18 @@ jobs:
             terraform apply -lock=false -auto-approve
           fi
         shell: bash
+      - name: Force Apply for Schedule
+        if: "${{ contains(github.event.pull_request.labels.*.name, 'target: schedule') }}"
+        run: |
+          cd terraform/scheduling
+          terraform init -lock=false
+          terraform apply -lock=false -auto-approve
+        shell: bash
+
+      - name: Force Apply for Keeping
+        if: "${{ contains(github.event.pull_request.labels.*.name, 'target: keeping') }}"
+        run: |
+          cd terraform/keeping
+          terraform init -lock=false
+          terraform apply -lock=false -auto-approve
+        shell: bash
