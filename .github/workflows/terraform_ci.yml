@@ -72,7 +72,19 @@ jobs:
           git commit -m "Automated Terraform formatting"
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
           git push origin HEAD:${{ github.head_ref }}
-        continue-on-error: true          
+        continue-on-error: true
+      - name: Create Mapping Yaml(only scheduling)
+        if: ${{ matrix.dir }} == 'terraform/scheduling'
+        working-directory: ${{ matrix.dir }}
+        run: |
+          cat << EOF > secrets.yaml
+          OPS: ${{ secrets.WHITELIST_PLAYERS }}
+          WHITELIST: ${{ secrets.WHITELIST_PLAYERS }}
+          WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
+          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+          S3_PREFIX_NAME: ${{ secrets.S3_PREFIX_NAME }}
+          FILTERING_STRINGS: ${{ secrets.FILTERING_STRINGS }}
+          EOF          
       - name: Initialize
         id: init
         if: steps.diff.outputs.diff
