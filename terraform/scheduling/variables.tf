@@ -61,6 +61,8 @@ locals {
     owners      = local.owners
     environment = local.environment
   }
-  env_vars      = merge([for f in var.env_files : yamldecode(file(f))]...)
-  container_env = [for var_name, val in local.env_vars : { name = var_name, value = val }]
+
+  merged_decoded_yaml = merge([for f in var.env_files : yamldecode(file(f))]...)
+  updated_list        = { for k, v in local.merged_decoded_yaml : k => v if k != "FILTERING_STRINGS" }
+  container_env       = [for var_name, val in local.updated_list : { name = var_name, value = val }]
 }
