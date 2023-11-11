@@ -53,6 +53,17 @@ variable "WEBHOOK_PATH" {
   sensitive = true
 }
 
+variable "set_recovery_point" {
+  description = "Whether to retrieve world data from a specific recovery point when restoring"
+  type        = bool
+  default     = false
+}
+
+variable "recovery_time" {
+  description = "Specify backup file creation time when set_recover_point is true"
+  type        = string
+}
+
 locals {
   owners      = var.owners
   environment = var.environment
