@@ -10,6 +10,8 @@ module "user_action_filter_function" {
   publish                = true
   timeout                = 360
 
+  recreate_missing_package = false
+
   source_path = ["${path.module}/fixtures/python3.9/index.py"]
 
   environment_variables = {

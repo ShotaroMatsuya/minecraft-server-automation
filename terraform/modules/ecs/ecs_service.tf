@@ -36,6 +36,10 @@ resource "aws_ecs_service" "main" {
   scheduling_strategy = "REPLICA"
   task_definition     = aws_ecs_task_definition.main.family
 
+  lifecycle {
+    ignore_changes = [task_definition]
+  }
+
   depends_on = [
     aws_ecs_task_definition.main
   ]
