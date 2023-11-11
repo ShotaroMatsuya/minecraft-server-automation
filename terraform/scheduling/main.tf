@@ -80,8 +80,8 @@ module "custom_ecs" {
   task_role_arn             = data.aws_iam_role.task_role.arn
   task_execution_role_arn   = data.aws_iam_role.task_execution_role.arn
   container_env             = local.container_env
-  set_recovery_point        = var.set_recovery_point
-  recovery_time             = var.recovery_time
+  set_recovery_point        = false
+  recovery_time             = "20231109213804"
   # efs_id                    = data.aws_efs_file_system.my_efs.id
 
   owners         = local.owners
@@ -107,7 +107,7 @@ module "custom_lambda" {
   source            = "../modules/lambda"
   log_group_name    = "/aws/ecs/minecraft-firelens-logs"
   log_group_arn     = "arn:aws:logs:ap-northeast-1:528163014577:log-group:/aws/ecs/minecraft-firelens-logs:*"
-  filter_patterns   = ["{ ($.level = \"ERROR\") || ($.level = \"WARN\") || ($.level = \"INFO\")}"]
+  filter_patterns   = ["{ ($.level = \"ERROR\")}", "{${local.combined_string}}"]
   sns_topic_arn     = data.aws_sns_topic.my_sns.arn
   slack_webhook_url = "https://hooks.slack.com/services/${var.WEBHOOK_PATH}"
 

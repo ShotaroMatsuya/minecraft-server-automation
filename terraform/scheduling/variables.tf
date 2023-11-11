@@ -76,4 +76,8 @@ locals {
   merged_decoded_yaml = merge([for f in var.env_files : yamldecode(file(f))]...)
   updated_list        = { for k, v in local.merged_decoded_yaml : k => v if k != "FILTERING_STRINGS" }
   container_env       = [for var_name, val in local.updated_list : { name = var_name, value = val }]
+
+  filtering_strings = lookup(local.merged_decoded_yaml, "FILTERING_STRINGS")
+  formatted_strings = [for word in local.filtering_strings : format("($.log = \"%s\")", word)]
+  combined_string   = join(" || ", local.formatted_strings)
 }
