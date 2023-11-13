@@ -5,9 +5,16 @@
 
 RESTORE_DATE_TIME="$1"
 
-export S3_BUCKET=$S3_BUCKET_NAME # minecraft-backend
-export S3_PREFIX=$S3_PREFIX_NAME # backups
-export WEBHOOK_URL="https://hooks.slack.com/services/${WEBHOOK_PATH}"
+S3_BUCKET=$S3_BUCKET_NAME
+S3_PREFIX=$S3_PREFIX_NAME
+WEBHOOK_URL="https://hooks.slack.com/services/${WEBHOOK_PATH}"
+
+AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID:-default_access_key}
+AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-default_secret_key}
+
+# configuration.txt ファイル内のプレースホルダを置換
+sed -i "s/<aws-access-key-id>/$AWS_ACCESS_KEY_ID/" /data/plugins/dynmap/configuration.txt
+sed -i "s/<aws-secret-access-key>/$AWS_SECRET_ACCESS_KEY/" /data/plugins/dynmap/configuration.txt
 
 # slack notification
 slack_notify() {
