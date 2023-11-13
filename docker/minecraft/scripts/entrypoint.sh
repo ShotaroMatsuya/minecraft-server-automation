@@ -24,12 +24,12 @@ slack_notify() {
 cleanup() {
     BACKUP_DATE_TIME=$(date +"%Y%m%d%H%M%S")
     PARTITION_DATE=$(date +"%Y")-$(date +"%m")-$(date +"%d")
-    echo "Container is terminating. Uploading data from EFS to S3..."
+    echo "Container is terminating. Uploading data to S3..."
     if [ ! -d backup/${PARTITION_DATE} ]; then
         mkdir -p backup/${PARTITION_DATE}
     fi
     FILE_NAME='minecraft-'${BACKUP_DATE_TIME}'.tar.gz'
-    tar -zcvf backup/${PARTITION_DATE}/${FILE_NAME} -C /data/ world/
+    tar -zcvf backup/${PARTITION_DATE}/${FILE_NAME} -C /data world/ world_nether/ world_the_end/
     slack_notify "<!channel>\n\n:creeper:バックアップを作成しました！！\n\nバックアップファイル名: *${S3_BUCKET}/${S3_PREFIX}/${PARTITION_DATE}/${FILE_NAME}* \n\n*削除*したい場合は、以下のリンクから削除を行ってください。\n\nhttps://s3.console.aws.amazon.com/s3/object/${S3_BUCKET}?region=ap-northeast-1&prefix=${S3_PREFIX}/${PARTITION_DATE}/${FILE_NAME}"
     aws s3 cp backup/${PARTITION_DATE}/${FILE_NAME} s3://${S3_BUCKET}/${S3_PREFIX}/${PARTITION_DATE}/
 
@@ -44,7 +44,7 @@ LAST_MODIFIED=$(aws s3api head-object --bucket ${S3_BUCKET} --key ${LATEST_BACKU
 
 # donwload s3 and unzip it to /data/world/
 aws s3 cp s3://${S3_BUCKET}/${LATEST_BACKUP} /data/world/
-find /data/world/ -name "*.tar.gz" -exec tar -xvf {} \;
+find /data/world/ -name "*.tar.gz" -exec tar -xzvf {} -C /data \;
 rm -rf /data/world/*.tar.gz
 slack_notify "<!channel>\n\n:creeper:バックアップをリストアしました！！\n\nバックアップファイルの作成日時: *${LAST_MODIFIED}*\nバックアップファイルPATH: *${S3_BUCKET}/${LATEST_BACKUP}*"
 
