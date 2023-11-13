@@ -11,6 +11,7 @@ services:
     stdin_open: true
     ports:
       - "25565:25565"
+      - "8123:8123"
     environment:
       VERSION: 1.20.2
       EULA: "TRUE"
@@ -39,7 +40,7 @@ services:
       context: ./docker/fluentbit
       dockerfile: Dockerfile.local
     volumes:
-      - log-data:/data
+      - log-data:/data:ro
     command: ["/fluent-bit/bin/fluent-bit", "-c", "/fluent-bit/etc/fluent-bit_custom-local.conf"]
 volumes:
   log-data:
