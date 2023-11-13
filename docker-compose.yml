@@ -12,12 +12,20 @@ services:
     ports:
       - "25565:25565"
     environment:
+      VERSION: 1.20.2
       EULA: "TRUE"
+      # # # Use SPIGOT server type + install Plugins
+      TYPE: SPIGOT      
+      # SPIGET_RESOURCES: 274
+      # # # 
+
       WEBHOOK_PATH:
       S3_BUCKET_NAME:
       S3_PREFIX_NAME:
       WHITELIST: 05910308-229d-46bb-a466-e5574dba490c,6b4a177a-54ee-4dd6-a50b-d993503892c1,2fb94c76-d968-4f25-a7cc-91fdccd23868
       OPS: 05910308-229d-46bb-a466-e5574dba490c,6b4a177a-54ee-4dd6-a50b-d993503892c1,2fb94c76-d968-4f25-a7cc-91fdccd23868
+      AWS_ACCESS_KEY_ID:
+      AWS_SECRET_ACCESS_KEY:
     volumes:
       - ~/.aws/credentials:/root/.aws/credentials:ro
       - ~/.aws/config:/root/.aws/config:ro
