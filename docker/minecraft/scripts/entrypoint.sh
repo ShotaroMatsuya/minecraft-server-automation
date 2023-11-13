@@ -12,7 +12,7 @@ AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-default_secret_key}
 
 # configuration.txt ファイル内のプレースホルダを置換
 sed -i "s/<aws-access-key-id>/$AWS_ACCESS_KEY_ID/" /data/plugins/dynmap/configuration.txt
-sed -i "s/<aws-secret-access-key>/$AWS_SECRET_ACCESS_KEY/" /data/plugins/dynmap/configuration.txt
+sed -i "s|<aws-secret-access-key>|$AWS_SECRET_ACCESS_KEY|" /data/plugins/dynmap/configuration.txt
 
 # slack notification
 slack_notify() {
