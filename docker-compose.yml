@@ -6,18 +6,27 @@ services:
     container_name: minecraft
     build:
       context: ./docker/minecraft
-      dockerfile: Dockerfile.restore
+      dockerfile: Dockerfile.local
     tty: true
     stdin_open: true
     ports:
       - "25565:25565"
+      - "8123:8123"
     environment:
+      VERSION: 1.20.2
       EULA: "TRUE"
+      # # # Use SPIGOT server type + install Plugins
+      TYPE: SPIGOT      
+      # SPIGET_RESOURCES: 274
+      # # # 
+
       WEBHOOK_PATH:
       S3_BUCKET_NAME:
       S3_PREFIX_NAME:
       WHITELIST: 05910308-229d-46bb-a466-e5574dba490c,6b4a177a-54ee-4dd6-a50b-d993503892c1,2fb94c76-d968-4f25-a7cc-91fdccd23868
       OPS: 05910308-229d-46bb-a466-e5574dba490c,6b4a177a-54ee-4dd6-a50b-d993503892c1,2fb94c76-d968-4f25-a7cc-91fdccd23868
+      AWS_ACCESS_KEY_ID:
+      AWS_SECRET_ACCESS_KEY:
     volumes:
       - ~/.aws/credentials:/root/.aws/credentials:ro
       - ~/.aws/config:/root/.aws/config:ro
@@ -31,7 +40,7 @@ services:
       context: ./docker/fluentbit
       dockerfile: Dockerfile.local
     volumes:
-      - log-data:/data
+      - log-data:/data:ro
     command: ["/fluent-bit/bin/fluent-bit", "-c", "/fluent-bit/etc/fluent-bit_custom-local.conf"]
 volumes:
   log-data:
