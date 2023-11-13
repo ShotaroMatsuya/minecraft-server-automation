@@ -6,7 +6,7 @@ services:
     container_name: minecraft
     build:
       context: ./docker/minecraft
-      dockerfile: Dockerfile.restore
+      dockerfile: Dockerfile.local
     tty: true
     stdin_open: true
     ports:
