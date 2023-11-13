@@ -1,0 +1,1 @@
+https://dynmap.us/builds/dynmap/Dynmap-HEAD-spigot.jar
