@@ -49,6 +49,8 @@ jobs:
           S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
           S3_PREFIX_NAME: ${{ secrets.S3_PREFIX_NAME }}
           FILTERING_STRINGS: ${{ secrets.FILTERING_STRINGS }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}  
           EOF
 
       - name: Apply
