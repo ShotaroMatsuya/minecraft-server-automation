@@ -2,10 +2,10 @@ name: Start and Stop Workflow
 
 on:
   schedule:
-    # At 03:00 PM JST
-    - cron: '0 6 * * *'
-    # At 03:00 AM JST
-    - cron: '0 18 * * *'
+    # At 08:00 PM JST
+    - cron: '0 11 * * *'
+    # At 02:00 AM JST
+    - cron: '0 17 * * *'
 env:
   SLACK_USERNAME: DeployBot
   SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
@@ -49,15 +49,15 @@ jobs:
       with:
         terraform_version: ${{ env.TF_VERSION }}
 
-    - name: Run start.sh at 3 PM
-      if: github.event.schedule == '0 6 * * *'
+    - name: Run start.sh at 20 PM
+      if: github.event.schedule == '0 11 * * *'
       run: |
         ls -lha
         terraform init -lock=false
         terraform apply -lock=false -auto-approve
 
-    - name: Run stop.sh at 3 AM
-      if: github.event.schedule == '0 18 * * *'
+    - name: Run stop.sh at 2 AM
+      if: github.event.schedule == '0 17 * * *'
       run: |
         ls -lha
         terraform init -lock=false
