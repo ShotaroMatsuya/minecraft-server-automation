@@ -33,4 +33,3 @@ jobs:
             --container ${CONTAINER_NAME}\
             --command "/bin/sh -c '/scripts/backup.sh'" \
             --interactive
-            --command "backup.sh"
