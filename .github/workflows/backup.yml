@@ -31,4 +31,4 @@ jobs:
             --cluster   ${CLUSTER} \
             --task      ${TASK_ARN} \
             --container ${CONTAINER_NAME}\
-            --command "/bin/sh backup.sh"
+            --command "backup.sh"
