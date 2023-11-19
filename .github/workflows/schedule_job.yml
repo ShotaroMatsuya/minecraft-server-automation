@@ -50,14 +50,16 @@ jobs:
         terraform_version: ${{ env.TF_VERSION }}
 
     - name: Run start.sh at 20 PM
-      if: github.event.schedule == '0 11 * * *'
+      if: github.event.schedule == '0 11 * * 6-7'
       run: |
         ls -lha
         terraform init -lock=false
-        terraform apply -lock=false -auto-approve
+        terraform apply -lock=false \
+          -var set_recovery_point=false \
+          -auto-approve
 
     - name: Run stop.sh at 2 AM
-      if: github.event.schedule == '0 17 * * *'
+      if: github.event.schedule == '0 17 * * 6-7'
       run: |
         ls -lha
         terraform init -lock=false
