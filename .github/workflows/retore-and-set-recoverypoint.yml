@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       recovery_date:
-        description: 'Date in YYYYmmdd format'
+        description: 'Date in %Y%m%d%H%M%S format'
         required: true
-        default: '20230101'
+        default: '20230101010101'
 
 env:
   TF_VAR_WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
@@ -55,6 +55,7 @@ jobs:
 
     - name: Terraform Plan
       id: plan
+      working-directory: terraform/scheduling
       run: |
         terraform plan -no-color
         echo "TF_PLAN=$(terraform plan -no-color -detailed-exitcode \
