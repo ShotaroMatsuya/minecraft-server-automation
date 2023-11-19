@@ -64,6 +64,7 @@ jobs:
             -var recovery_time=${{ github.event.inputs.recovery_datetime }} \
             -var set_recovery_point=true 
         TF_PLAN_EXIT_CODE=$?
+        echo "exit code is ${TF_PLAN_EXIT_CODE}"
         echo "TF_PLAN_EXIT_CODE=${TF_PLAN_EXIT_CODE}" >> $GITHUB_ENV
 
     - name: Apply Terraform
