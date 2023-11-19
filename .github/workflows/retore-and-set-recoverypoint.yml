@@ -60,7 +60,7 @@ jobs:
       id: plan
       working-directory: terraform/scheduling
       run: |
-        terraform plan -no-color -lock=false \
+        terraform plan -no-color -lock=false -detailed-exitcode \
             -var recovery_time=${{ github.event.inputs.recovery_datetime }} \
             -var set_recovery_point=true 
         TF_PLAN_EXIT_CODE=$?
