@@ -79,7 +79,6 @@ jobs:
           -auto-approve
 
     - name: Update ECS Service
-      if: ${{ env.TF_PLAN_EXIT_CODE == 0 }}
       working-directory: terraform/scheduling
       run: |
         # Replace with your AWS CLI command to update ECS service
