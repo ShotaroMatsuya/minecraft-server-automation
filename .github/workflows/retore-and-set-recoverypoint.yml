@@ -66,7 +66,7 @@ jobs:
         echo "TF_PLAN=${?}" >> $GITHUB_ENV
 
     - name: Apply Terraform
-      if: ${{ env.TF_PLAN }} == '2'
+      if: ${{ env.TF_PLAN == 2 }}
       working-directory: terraform/scheduling
       run: |
         terraform apply -lock=false \
@@ -75,7 +75,7 @@ jobs:
           -auto-approve
 
     - name: Update ECS Service
-      if: ${{ env.TF_PLAN }} == '0'
+      if: ${{ env.TF_PLAN == 0 }}
       working-directory: terraform/scheduling
       run: |
         # Replace with your AWS CLI command to update ECS service
