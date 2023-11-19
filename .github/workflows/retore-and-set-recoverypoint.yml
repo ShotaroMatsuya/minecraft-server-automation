@@ -50,7 +50,7 @@ jobs:
     - name: Set Terraform variables
       run: |
         echo "TF_VAR_recovery_time=${{ github.event.inputs.recovery_datetime }}" >> $GITHUB_ENV
-        echo "TF_VAR_set_recovery_time=true" >> $GITHUB_ENV
+        echo "TF_VAR_set_recovery_point=true" >> $GITHUB_ENV
 
     - name: Initialize Terraform
       working-directory: terraform/scheduling
@@ -71,7 +71,7 @@ jobs:
       run: |
         terraform apply -lock=false \
           -var recovery_time=${{ github.event.inputs.recovery_datetime }} \
-          -var set_recovery_time=true \
+          -var set_recovery_point=true \
           -auto-approve
 
     - name: Update ECS Service
