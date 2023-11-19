@@ -1,0 +1,81 @@
+name: Terraform Plan and Conditional Apply or ECS Update
+
+on:
+  workflow_dispatch:
+    inputs:
+      recovery_date:
+        description: 'Date in YYYYmmdd format'
+        required: true
+        default: '20230101'
+
+env:
+  TF_VAR_WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  terraform-plan-apply:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v1
+      with:
+        role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
+        role-session-name: github-actions-test-session
+        aws-region: ap-northeast-1
+      
+    - name: Install Terraform
+      uses: hashicorp/setup-terraform@v2
+      with:
+        terraform_version: 1.3.9
+    - name: Create Mapping Yaml
+      working-directory: terraform/scheduling
+      run: |
+        cat << EOF > secrets.yaml
+        OPS: ${{ secrets.WHITELIST_PLAYERS }}
+        WHITELIST: ${{ secrets.WHITELIST_PLAYERS }}
+        WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
+        S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+        S3_PREFIX_NAME: ${{ secrets.S3_PREFIX_NAME }}
+        FILTERING_STRINGS: ${{ secrets.FILTERING_STRINGS }}
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}  
+        EOF
+    - name: Set Terraform variables
+      run: |
+        echo "TF_VAR_recovery_time=${{ github.event.inputs.recovery_date }}" >> $GITHUB_ENV
+        echo "TF_VAR_set_recovery_time=true" >> $GITHUB_ENV
+
+    - name: Initialize Terraform
+      working-directory: terraform/scheduling
+      run: terraform init -lock=false
+
+    - name: Terraform Plan
+      id: plan
+      run: |
+        terraform plan -no-color
+        echo "TF_PLAN=$(terraform plan -no-color -detailed-exitcode \
+            -var recovery_time=${{ github.event.inputs.recovery_date }} \
+            -var set_recovery_time=true)" >> $GITHUB_ENV
+
+    - name: Apply Terraform
+      if: ${{ env.TF_PLAN }} == 1
+      working-directory: terraform/scheduling
+      run: |
+        terraform apply -lock=false \
+          -var recovery_time=${{ github.event.inputs.recovery_date }} \
+          -var set_recovery_time=true \
+          -auto-approve
+
+    - name: Update ECS Service
+      if: ${{ env.TF_PLAN }} != 1
+      working-directory: terraform/scheduling
+      run: |
+        # Replace with your AWS CLI command to update ECS service
+        CLUSTER=$(aws ecs list-clusters | jq -r '.clusterArns[0]' )
+        SVC=$(aws ecs list-services --cluster ${CLUSTER} | jq -r '.serviceArns[0]' | sed -E 's/.+cluster\///g')
+
+        aws ecs update-service --force-new-deployment --cluster ${CLUSTER} --service ${SVC}
