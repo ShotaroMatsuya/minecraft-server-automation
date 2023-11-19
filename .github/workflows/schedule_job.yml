@@ -55,7 +55,7 @@ jobs:
         ls -lha
         terraform init -lock=false
         terraform apply -lock=false \
-          -var set_recovery_point=true \
+          -var set_recovery_point=false \
           -auto-approve
 
     - name: Run stop.sh at 2 AM
