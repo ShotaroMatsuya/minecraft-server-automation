@@ -9,6 +9,9 @@ on:
         default: '20230101010101'
 
 env:
+  SLACK_USERNAME: RestoreActionBot
+  SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
+  SLACK_WEBHOOK: "https://hooks.slack.com/services/${{ secrets.WEBHOOK_PATH }}"
   TF_VAR_WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
 permissions:
   id-token: write
@@ -80,3 +83,19 @@ jobs:
         SVC=$(aws ecs list-services --cluster ${CLUSTER} | jq -r '.serviceArns[0]' | sed -E 's/.+cluster\///g')
 
         aws ecs update-service --force-new-deployment --cluster ${CLUSTER} --service ${SVC}
+    - name: Slack Notification for Success
+      if: ${{ success() }}
+      uses: rtCamp/action-slack-notify@v2
+      env:
+        SLACK_TITLE: 'Operation Successful'
+        SLACK_COLOR: good
+        SLACK_MESSAGE: 'Backup restored successfully for date: ${{ github.event.inputs.recovery_datetime }} :rocket:' 
+
+    - name: Slack Notification for Failure
+      if: ${{ failure() }}
+      uses: rtCamp/action-slack-notify@v2
+      env:
+        SLACK_TITLE: 'Operation Failed'
+        SLACK_COLOR: danger
+        SLACK_MESSAGE: "Workflow failed. Check details here: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+  
