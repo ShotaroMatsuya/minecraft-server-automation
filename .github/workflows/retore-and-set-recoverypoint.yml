@@ -63,7 +63,7 @@ jobs:
       run: |
         terraform plan -no-color -lock=false -detailed-exitcode \
             -var recovery_time=${{ github.event.inputs.recovery_datetime }} \
-            -var set_recovery_point=true 
+            -var set_recovery_point=true || true
         TF_PLAN_EXIT_CODE=$?
         echo "exit code is ${TF_PLAN_EXIT_CODE}"
         echo "TF_PLAN_EXIT_CODE=${TF_PLAN_EXIT_CODE}" >> $GITHUB_ENV
