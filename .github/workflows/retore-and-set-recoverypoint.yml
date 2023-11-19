@@ -50,7 +50,7 @@ jobs:
     - name: Set Terraform variables
       run: |
         echo "TF_VAR_recovery_time=${{ github.event.inputs.recovery_datetime }}" >> $GITHUB_ENV
-        echo "TF_VAR_set_recovery_point=true" >> $GITHUB_ENV
+        echo "TF_VAR_set_recovery_time=true" >> $GITHUB_ENV
 
     - name: Initialize Terraform
       working-directory: terraform/scheduling
@@ -62,20 +62,20 @@ jobs:
       run: |
         terraform plan -no-color -lock=false \
             -var recovery_time=${{ github.event.inputs.recovery_datetime }} \
-            -var set_recovery_point=true
+            -var set_recovery_point=true -detailed-exitcode
         echo "TF_PLAN=${?}" >> $GITHUB_ENV
 
     - name: Apply Terraform
-      if: ${{ env.TF_PLAN }} == 2
+      if: ${{ env.TF_PLAN }} == '2'
       working-directory: terraform/scheduling
       run: |
         terraform apply -lock=false \
           -var recovery_time=${{ github.event.inputs.recovery_datetime }} \
-          -var set_recovery_point=true \
+          -var set_recovery_time=true \
           -auto-approve
 
     - name: Update ECS Service
-      if: ${{ env.TF_PLAN }} == 0
+      if: ${{ env.TF_PLAN }} == '0'
       working-directory: terraform/scheduling
       run: |
         # Replace with your AWS CLI command to update ECS service
