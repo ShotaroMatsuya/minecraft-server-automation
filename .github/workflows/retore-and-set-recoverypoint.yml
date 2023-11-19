@@ -81,8 +81,16 @@ jobs:
         # Replace with your AWS CLI command to update ECS service
         CLUSTER=$(aws ecs list-clusters | jq -r '.clusterArns[0]' )
         SVC=$(aws ecs list-services --cluster ${CLUSTER} | jq -r '.serviceArns[0]' | sed -E 's/.+cluster\///g')
+        TASK_REVISION=$(aws ecs describe-task-definition \
+          --task-definition minecraft-test \
+          --query 'taskDefinition.revision' \
+          --output text)
 
-        aws ecs update-service --force-new-deployment --cluster ${CLUSTER} --service ${SVC}
+        aws ecs update-service --cluster ${CLUSTER} \
+          --service ${SVC} \
+          --task-definition minecraft-test:${TASK_REVISION} \
+          --force-new-deployment
+          
     - name: Slack Notification for Success
       if: ${{ success() }}
       uses: rtCamp/action-slack-notify@v2
