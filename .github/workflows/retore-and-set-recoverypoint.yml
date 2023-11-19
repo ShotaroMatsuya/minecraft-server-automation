@@ -1,4 +1,4 @@
-namRestore action
+name: Restore world action
 
 on:
   workflow_dispatch:
