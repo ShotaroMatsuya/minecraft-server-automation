@@ -2,8 +2,8 @@ name: drift
 
 on:
   schedule:
-    # At 06:00 PM JST
-    - cron: "0 9 * * *"
+    # At 10:00 PM JST
+    - cron: "0 13 * * 6,0"
 env:
   SLACK_USERNAME: DriftDetectBot
   SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
