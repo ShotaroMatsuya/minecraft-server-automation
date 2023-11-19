@@ -6,7 +6,7 @@ on:
       recovery_datetime:
         description: 'Date in %Y%m%d%H%M%S format'
         required: true
-        default: '20230101010101'
+        default: '20231118225051'
 
 env:
   SLACK_USERNAME: RestoreActionBot
@@ -34,7 +34,7 @@ jobs:
       uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: 1.3.9
-        terraform_wrapper: false
+        terraform_wrapper: false # workarround ref:https://stackoverflow.com/questions/77243030/detailed-exitcode-flag-of-terraform-not-working-inside-github-action
     - name: Create Mapping Yaml
       working-directory: terraform/scheduling
       run: |
@@ -60,10 +60,11 @@ jobs:
     - name: Terraform Plan
       id: plan
       working-directory: terraform/scheduling
+      shell: /usr/bin/bash {0} # workaround ref:https://qiita.com/mkiken/items/3d2999217832704fcf01
       run: |
         terraform plan -no-color -lock=false -detailed-exitcode \
             -var recovery_time=${{ github.event.inputs.recovery_datetime }} \
-            -var set_recovery_point=true || true
+            -var set_recovery_point=true
         TF_PLAN_EXIT_CODE=$?
         echo "exit code is ${TF_PLAN_EXIT_CODE}"
         echo "TF_PLAN_EXIT_CODE=${TF_PLAN_EXIT_CODE}" >> $GITHUB_ENV
