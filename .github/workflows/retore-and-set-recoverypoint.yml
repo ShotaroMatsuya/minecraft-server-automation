@@ -3,7 +3,7 @@ name: Restore world action
 on:
   workflow_dispatch:
     inputs:
-      recovery_date:
+      recovery_datetime:
         description: 'Date in %Y%m%d%H%M%S format'
         required: true
         default: '20230101010101'
@@ -46,7 +46,7 @@ jobs:
         EOF
     - name: Set Terraform variables
       run: |
-        echo "TF_VAR_recovery_time=${{ github.event.inputs.recovery_date }}" >> $GITHUB_ENV
+        echo "TF_VAR_recovery_time=${{ github.event.inputs.recovery_datetime }}" >> $GITHUB_ENV
         echo "TF_VAR_set_recovery_time=true" >> $GITHUB_ENV
 
     - name: Initialize Terraform
@@ -58,7 +58,7 @@ jobs:
       working-directory: terraform/scheduling
       run: |
         terraform plan -no-color
-        echo "TF_PLAN=$(terraform plan -no-color -detailed-exitcode \
+            -var recovery_time=${{ github.event.inputs.recovery_datetime }} \
             -var recovery_time=${{ github.event.inputs.recovery_date }} \
             -var set_recovery_time=true)" >> $GITHUB_ENV
 
@@ -67,7 +67,7 @@ jobs:
       working-directory: terraform/scheduling
       run: |
         terraform apply -lock=false \
-          -var recovery_time=${{ github.event.inputs.recovery_date }} \
+          -var recovery_time=${{ github.event.inputs.recovery_datetime }} \
           -var set_recovery_time=true \
           -auto-approve
 
