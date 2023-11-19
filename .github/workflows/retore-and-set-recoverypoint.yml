@@ -3,12 +3,15 @@ name: Restore world action
 on:
   workflow_dispatch:
     inputs:
-      recovery_date:
+      recovery_datetime:
         description: 'Date in %Y%m%d%H%M%S format'
         required: true
         default: '20230101010101'
 
 env:
+  SLACK_USERNAME: RestoreActionBot
+  SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
+  SLACK_WEBHOOK: "https://hooks.slack.com/services/${{ secrets.WEBHOOK_PATH }}"
   TF_VAR_WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
 permissions:
   id-token: write
@@ -46,7 +49,7 @@ jobs:
         EOF
     - name: Set Terraform variables
       run: |
-        echo "TF_VAR_recovery_time=${{ github.event.inputs.recovery_date }}" >> $GITHUB_ENV
+        echo "TF_VAR_recovery_time=${{ github.event.inputs.recovery_datetime }}" >> $GITHUB_ENV
         echo "TF_VAR_set_recovery_time=true" >> $GITHUB_ENV
 
     - name: Initialize Terraform
@@ -57,22 +60,22 @@ jobs:
       id: plan
       working-directory: terraform/scheduling
       run: |
-        terraform plan -no-color
-        echo "TF_PLAN=$(terraform plan -no-color -detailed-exitcode \
-            -var recovery_time=${{ github.event.inputs.recovery_date }} \
-            -var set_recovery_time=true)" >> $GITHUB_ENV
+        terraform plan -no-color -lock=false \
+            -var recovery_time=${{ github.event.inputs.recovery_datetime }} \
+            -var set_recovery_point=true
+        echo "TF_PLAN=${?}" >> $GITHUB_ENV
 
     - name: Apply Terraform
-      if: ${{ env.TF_PLAN }} == 1
+      if: ${{ env.TF_PLAN }} == 2
       working-directory: terraform/scheduling
       run: |
         terraform apply -lock=false \
-          -var recovery_time=${{ github.event.inputs.recovery_date }} \
+          -var recovery_time=${{ github.event.inputs.recovery_datetime }} \
           -var set_recovery_time=true \
           -auto-approve
 
     - name: Update ECS Service
-      if: ${{ env.TF_PLAN }} != 1
+      if: ${{ env.TF_PLAN }} == 0
       working-directory: terraform/scheduling
       run: |
         # Replace with your AWS CLI command to update ECS service
@@ -80,3 +83,19 @@ jobs:
         SVC=$(aws ecs list-services --cluster ${CLUSTER} | jq -r '.serviceArns[0]' | sed -E 's/.+cluster\///g')
 
         aws ecs update-service --force-new-deployment --cluster ${CLUSTER} --service ${SVC}
+    - name: Slack Notification for Success
+      if: ${{ success() }}
+      uses: rtCamp/action-slack-notify@v2
+      env:
+        SLACK_TITLE: 'Operation Successful'
+        SLACK_COLOR: good
+        SLACK_MESSAGE: 'Backup restored successfully for date: ${{ github.event.inputs.recovery_datetime }} :rocket:' 
+
+    - name: Slack Notification for Failure
+      if: ${{ failure() }}
+      uses: rtCamp/action-slack-notify@v2
+      env:
+        SLACK_TITLE: 'Operation Failed'
+        SLACK_COLOR: danger
+        SLACK_MESSAGE: "Workflow failed. Check details here: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+  
