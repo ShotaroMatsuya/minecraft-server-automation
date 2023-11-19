@@ -60,13 +60,13 @@ jobs:
       id: plan
       working-directory: terraform/scheduling
       run: |
-        terraform plan -no-color
+        terraform plan -no-color -lock=false \
             -var recovery_time=${{ github.event.inputs.recovery_datetime }} \
-            -var recovery_time=${{ github.event.inputs.recovery_date }} \
-            -var set_recovery_time=true)" >> $GITHUB_ENV
+            -var set_recovery_point=true
+        echo "TF_PLAN=${?}" >> $GITHUB_ENV
 
     - name: Apply Terraform
-      if: ${{ env.TF_PLAN }} == 1
+      if: ${{ env.TF_PLAN }} == 2
       working-directory: terraform/scheduling
       run: |
         terraform apply -lock=false \
@@ -75,7 +75,7 @@ jobs:
           -auto-approve
 
     - name: Update ECS Service
-      if: ${{ env.TF_PLAN }} != 1
+      if: ${{ env.TF_PLAN }} == 0
       working-directory: terraform/scheduling
       run: |
         # Replace with your AWS CLI command to update ECS service
