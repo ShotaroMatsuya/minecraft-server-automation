@@ -41,30 +41,6 @@ This is useful when you want to travel back in time to your precious world.
 
 ## Utilities
 
-### ECS Exec実行
-
-```bash
-cl=$(aws ecs list-clusters | jq -r '.clusterArns[0]' )
-prefix=`echo ${cl} | sed -E 's/.+cluster\///g' `
-taskarn=$(aws ecs list-tasks --cluster ${cl} | jq -r '.taskArns[0]')
-taskid=`echo ${taskarn} | sed -E 's/.+task\/.+\///g' `
-CONTAINER_NAME="minecraft"
-
-echo ${cl};     \
-echo ${prefix} ; \
-echo ${taskarn}; \
-echo ${taskid};  \
-echo ${CONTAINER_NAME};  \
-
-aws ecs execute-command  \
- --region    ap-northeast-1 \
- --cluster   ${cl} \
- --task      ${taskarn} \
- --container ${CONTAINER_NAME}\
- --command "/bin/sh" \
- --interactive
-```
-
 ### Simple Load Test
 
 CPU load by repeatedly hitting the yes command
@@ -117,18 +93,33 @@ chmod +x load-memory.sh
 ./load-memory.sh
 ```
 
-### Restart ECS Cluster
-```bash
-cl=$(aws ecs list-clusters | jq -r '.clusterArns[0]' )
-svc=$(aws ecs list-services --cluster ${cl} | jq -r '.serviceArns[0]' | sed -E 's/.+cluster\///g')
-
-aws ecs update-service --force-new-deployment --cluster ${cl} --service ${svc}
-
-```
-
 ### Bulk deletion of all backup vaults
 ```bash
 aws backup list-backup-jobs | jq -r '.BackupJobs[] | select(.BackupVaultName == "minecraft-vault" )' | jq -r '.RecoveryPointArn' | xargs -L 1 aws backup delete-recovery-point --backup-vault-name minecraft-vault --recovery-point-arn
+```
+
+### ECS Exec実行
+
+```bash
+cl=$(aws ecs list-clusters | jq -r '.clusterArns[0]' )
+prefix=`echo ${cl} | sed -E 's/.+cluster\///g' `
+taskarn=$(aws ecs list-tasks --cluster ${cl} | jq -r '.taskArns[0]')
+taskid=`echo ${taskarn} | sed -E 's/.+task\/.+\///g' `
+CONTAINER_NAME="minecraft"
+
+echo ${cl};     \
+echo ${prefix} ; \
+echo ${taskarn}; \
+echo ${taskid};  \
+echo ${CONTAINER_NAME};  \
+
+aws ecs execute-command  \
+ --region    ap-northeast-1 \
+ --cluster   ${cl} \
+ --task      ${taskarn} \
+ --container ${CONTAINER_NAME}\
+ --command "/bin/sh" \
+ --interactive
 ```
 
 ### Confirm environment variables in local
