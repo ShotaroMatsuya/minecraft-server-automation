@@ -55,6 +55,7 @@ jobs:
 
     - name: Terraform Plan
       id: plan
+      working-directory: terraform/scheduling
       run: |
         terraform plan -no-color
         echo "TF_PLAN=$(terraform plan -no-color -detailed-exitcode \
