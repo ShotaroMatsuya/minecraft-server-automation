@@ -31,7 +31,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          PR_NUMBER=$(gh pr list --search "${{ github.sha }}" --json number --jq ".[0].number")
+          PR_NUMBER=$(git log -1 --pretty=format:%B | grep 'Merge pull request #' | cut -d '#' -f2 | cut -d ' ' -f1)
           echo "Associated PR number is ${PR_NUMBER}"
           echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
           
