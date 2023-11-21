@@ -58,7 +58,7 @@ jobs:
           terraform_version: 1.3.9
       
       - name: Create Mapping Yaml
-        if: ${{ matrix.dir }} == 'terraform/scheduling' && ${{ !contains(steps.pr_labels.outputs.labels, 'no-apply') }}
+        if: (${{ matrix.dir }} == 'terraform/scheduling') && (${{ !contains(steps.pr_labels.outputs.labels, 'no-apply') }})
         working-directory: ${{ matrix.dir }}
         run: |
           cat << EOF > secrets.yaml
