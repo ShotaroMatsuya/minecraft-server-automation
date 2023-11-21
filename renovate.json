@@ -9,6 +9,10 @@
   },
   "packageRules": [
     {
+      "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
+      "automerge": true
+    },
+    {
       "enabled": true,
       "matchDatasources": [
         "docker"
@@ -30,6 +34,6 @@
         ".github/workflows/**"
       ],
       "prPriority": 2
-    },
+    }
   ]
 }
