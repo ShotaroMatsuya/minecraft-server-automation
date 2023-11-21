@@ -2,8 +2,8 @@ name: drift
 
 on:
   schedule:
-    # At 06:00 PM JST
-    - cron: "0 9 * * *"
+    # At 10:00 PM JST
+    - cron: "0 13 * * 6,0"
 env:
   SLACK_USERNAME: DriftDetectBot
   SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
@@ -33,7 +33,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v1
+        uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ env.AWS_IAM_ROLE_ARN }}
           role-session-name: github-actions-test-session
@@ -53,7 +53,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}  
           EOF
       - name: Setup Terraform
-        uses: hashicorp/setup-terraform@v1
+        uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: ${{ env.TF_VERSION }}
 
