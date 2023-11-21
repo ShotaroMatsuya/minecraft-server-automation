@@ -36,7 +36,7 @@ jobs:
         with:
           PATTERNS: |
             terraform/modules/**/*.tf
-            ${{ matrix.dir }}/**/*.tf
+            ${{ matrix.dir }}/**/*
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
