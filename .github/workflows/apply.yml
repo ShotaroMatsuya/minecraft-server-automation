@@ -41,7 +41,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           PR_NUMBER=${{ steps.pr_search.outputs.pr_number }}
-          LABELS=$(gh pr view $PR_NUMBER --json labels --jq '.labels[].name')
+          LABELS=$(gh pr view $PR_NUMBER --json labels --jq '.labels[].name'| tr '\n' ' ')
           echo "Labels are ${LABELS}"
           echo "labels=${LABELS}" >> $GITHUB_OUTPUT
       - name: Configure AWS Credentials
