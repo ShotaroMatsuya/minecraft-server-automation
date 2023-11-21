@@ -4,7 +4,7 @@
     "config:base"
   ],
   "labels": ["no-apply"],
-  "docker": {
+  "major": {
     "enabled": true
   },
   "packageRules": [
