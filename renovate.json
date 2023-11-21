@@ -3,6 +3,7 @@
   "extends": [
     "config:base"
   ],
+  "labels": ["no-apply"],
   "docker": {
     "enabled": true
   },
@@ -10,25 +11,25 @@
     {
       "enabled": true,
       "matchDatasources": [
-        "docker",
+        "docker"
       ],
       "pinDigests": true
     },
     {
       "matchPackageNames": ["aws"],
       "matchManagers": ["terraform"],
-      "prPriority": -2,
+      "prPriority": -2
     },
     {
       "matchPackageNames": ["hashicorp/terraform"],
       "separateMinorPatch": true,
-      "prPriority": -1,
+      "prPriority": -1
     },
     {
       "matchFileNames": [
-        ".github/workflows/**",
+        ".github/workflows/**"
       ],
-      "prPriority": 2,
+      "prPriority": 2
     },
   ]
 }
