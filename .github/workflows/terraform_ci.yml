@@ -93,12 +93,12 @@ jobs:
         uses: actions/github-script@v6
         with: 
           script: |
+            cd ${{ matrix.dir }}
             terraform init -lock=false -upgrade >init-output.log 2>&1
             echo "exit_code=$(echo $?)" >> $GITHUB_OUTPUT
             const name = 'output'
             const value = "$(cat init-output.log)"
             core.setOutput(name, value)
-        working-directory: ${{ matrix.dir }}
 
       - name: Download modules
         if: steps.diff.outputs.diff
@@ -111,12 +111,12 @@ jobs:
         uses: actions/github-script@v6
         with: 
           script: |
+            cd ${{ matrix.dir }}
             terraform validate >validate-output.log 2>&1
             echo "exit_code=$(echo $?)" >> $GITHUB_OUTPUT
             const name = 'output'
             const value = "$(cat validate-output.log)"
             core.setOutput(name, value)
-        working-directory: ${{ matrix.dir }}
 
       - name: Plan
         if: steps.diff.outputs.diff
