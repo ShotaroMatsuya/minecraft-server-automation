@@ -90,7 +90,8 @@ jobs:
       - name: Initialize
         id: init
         if: steps.diff.outputs.diff
-        run: terraform init -lock=false -upgrade
+        run: |
+          terraform init -lock=false -upgrade 2>init-error.log || echo "init-failed" >> $GITHUB_ENV
         working-directory: ${{ matrix.dir }}
 
       - name: Download modules
@@ -100,7 +101,8 @@ jobs:
 
       - name: Validate
         if: steps.diff.outputs.diff
-        run: terraform validate
+        run: |
+          terraform validate 2>validate-error.log || echo "validate-failed" >> $GITHUB_ENV
         working-directory: ${{ matrix.dir }}
 
       - name: Plan
@@ -162,4 +164,26 @@ jobs:
         with:
           # Path to SARIF file relative to the root of the repository
           sarif_file: tfsec.sarif  
-
+      - name: Post Terraform Error Comment
+        if: env.init-failed || env.validate-failed
+        uses: actions/github-script@v3.2.0
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const initError = fs.existsSync('init-error.log') ? fs.readFileSync('init-error.log', 'utf8') : '';
+            const validateError = fs.existsSync('validate-error.log') ? fs.readFileSync('validate-error.log', 'utf8') : '';
+            let comment = '### Terraform Errors in ' + '${{ matrix.dir }}' + '\n';
+            if (initError) {
+              comment += '**Init Error:**\n```\n' + initError + '\n```\n';
+            }
+            if (validateError) {
+              comment += '**Validate Error:**\n```\n' + validateError + '\n```\n';
+            }
+            github.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
+      
