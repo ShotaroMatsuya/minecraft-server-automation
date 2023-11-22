@@ -92,8 +92,8 @@ jobs:
         if: steps.diff.outputs.diff
         run: |
           terraform init -lock=false -upgrade >init-output.log 2>&1
-          echo "init_exit_code=$?" >> $GITHUB_ENV
-          echo "init_output=$(<init-output.log)" >> $GITHUB_ENV
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+          echo "output=$(cat init-output.log)" >> $GITHUB_OUTPUT
         working-directory: ${{ matrix.dir }}
 
       - name: Download modules
@@ -106,8 +106,8 @@ jobs:
         if: steps.diff.outputs.diff
         run: |
           terraform validate >validate-output.log 2>&1
-          echo "validate_exit_code=$?" >> $GITHUB_ENV
-          echo "validate_output=$(<validate-output.log)" >> $GITHUB_ENV
+          echo "exit_code=$?" >> $GITHUB_OUTPUT
+          echo "output=$(cat validate-output.log)" >> $GITHUB_OUTPUT
         working-directory: ${{ matrix.dir }}
 
       - name: Plan
@@ -170,17 +170,17 @@ jobs:
           # Path to SARIF file relative to the root of the repository
           sarif_file: tfsec.sarif  
       - name: Post Terraform Error Comment
-        if: env.init_exit_code != '0' || env.validate_exit_code != '0'
+        if: steps.init.outputs.exit_code != '0' || steps.validate.outputs.exit_code != '0'
         uses: actions/github-script@v3.2.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
             let comment = '### Terraform Errors in ' + '${{ matrix.dir }}' + '\n';
-            if (${env.init_exit_code} != 0) {
-              comment += '**Init Error:**\n```\n' + '${{ env.init_output }}' + '\n```\n';
+            if ('${{ steps.init.outputs.exit_code }}' != '0') {
+              comment += '**Init Error:**\n```\n' + '${{ steps.init.outputs.output }}' + '\n```\n';
             }
-            if (${env.validate_exit_code} != 0) {
-              comment += '**Validate Error:**\n```\n' + '${{ env.validate_output }}' + '\n```\n';
+            if ('${{ steps.validate.outputs.exit_code }}' != '0') {
+              comment += '**Validate Error:**\n```\n' + '${{ steps.validate.outputs.output }}' + '\n```\n';
             }
             github.issues.createComment({
               issue_number: context.issue.number,
@@ -188,4 +188,3 @@ jobs:
               repo: context.repo.repo,
               body: comment
             });
-            
