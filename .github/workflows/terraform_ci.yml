@@ -91,7 +91,9 @@ jobs:
         id: init
         if: steps.diff.outputs.diff
         run: |
-          terraform init -lock=false -upgrade 2>init-error.log || echo "init-failed" >> $GITHUB_ENV
+          terraform init -lock=false -upgrade >init-output.log 2>&1
+          echo "init_exit_code=$?" >> $GITHUB_ENV
+          echo "init_output=$(<init-output.log)" >> $GITHUB_ENV
         working-directory: ${{ matrix.dir }}
 
       - name: Download modules
@@ -100,9 +102,12 @@ jobs:
         working-directory: ${{ matrix.dir }}
 
       - name: Validate
+        id: validate
         if: steps.diff.outputs.diff
         run: |
-          terraform validate 2>validate-error.log || echo "validate-failed" >> $GITHUB_ENV
+          terraform validate >validate-output.log 2>&1
+          echo "validate_exit_code=$?" >> $GITHUB_ENV
+          echo "validate_output=$(<validate-output.log)" >> $GITHUB_ENV
         working-directory: ${{ matrix.dir }}
 
       - name: Plan
@@ -165,20 +170,17 @@ jobs:
           # Path to SARIF file relative to the root of the repository
           sarif_file: tfsec.sarif  
       - name: Post Terraform Error Comment
-        if: env.init-failed || env.validate-failed
+        if: env.init_exit_code != '0' || env.validate_exit_code != '0'
         uses: actions/github-script@v3.2.0
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            const fs = require('fs');
-            const initError = fs.existsSync('init-error.log') ? fs.readFileSync('init-error.log', 'utf8') : '';
-            const validateError = fs.existsSync('validate-error.log') ? fs.readFileSync('validate-error.log', 'utf8') : '';
             let comment = '### Terraform Errors in ' + '${{ matrix.dir }}' + '\n';
-            if (initError) {
-              comment += '**Init Error:**\n```\n' + initError + '\n```\n';
+            if (${env.init_exit_code} != 0) {
+              comment += '**Init Error:**\n```\n' + '${{ env.init_output }}' + '\n```\n';
             }
-            if (validateError) {
-              comment += '**Validate Error:**\n```\n' + validateError + '\n```\n';
+            if (${env.validate_exit_code} != 0) {
+              comment += '**Validate Error:**\n```\n' + '${{ env.validate_output }}' + '\n```\n';
             }
             github.issues.createComment({
               issue_number: context.issue.number,
@@ -186,4 +188,4 @@ jobs:
               repo: context.repo.repo,
               body: comment
             });
-      
+            
