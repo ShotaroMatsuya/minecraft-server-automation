@@ -91,12 +91,13 @@ jobs:
         id: init
         if: steps.diff.outputs.diff
         uses: actions/github-script@v6
-        run: |
-          terraform init -lock=false -upgrade >init-output.log 2>&1
-          echo "exit_code=$(echo $?)" >> $GITHUB_OUTPUT
-          const name = 'output'
-          const value = "$(cat init-output.log)"
-          core.setOutput(name, value)
+        with: 
+          script: |
+            terraform init -lock=false -upgrade >init-output.log 2>&1
+            echo "exit_code=$(echo $?)" >> $GITHUB_OUTPUT
+            const name = 'output'
+            const value = "$(cat init-output.log)"
+            core.setOutput(name, value)
         working-directory: ${{ matrix.dir }}
 
       - name: Download modules
@@ -107,12 +108,14 @@ jobs:
       - name: Validate
         id: validate
         if: steps.diff.outputs.diff
-        run: |
-          terraform validate >validate-output.log 2>&1
-          echo "exit_code=$(echo $?)" >> $GITHUB_OUTPUT
-          const name = 'output'
-          const value = "$(cat validate-output.log)"
-          core.setOutput(name, value)
+        uses: actions/github-script@v6
+        with: 
+          script: |
+            terraform validate >validate-output.log 2>&1
+            echo "exit_code=$(echo $?)" >> $GITHUB_OUTPUT
+            const name = 'output'
+            const value = "$(cat validate-output.log)"
+            core.setOutput(name, value)
         working-directory: ${{ matrix.dir }}
 
       - name: Plan
