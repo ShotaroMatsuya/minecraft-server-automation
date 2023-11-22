@@ -1,6 +1,6 @@
 module "user_action_filter_function" {
   source                 = "terraform-aws-modules/lambda/aws"
-  version                = "4.1.1"
+  version                = "6.5.0"
   function_name          = "user-action-filter-function"
   description            = "My awsome lambda function"
   handler                = "index.lambda_handler"
