@@ -104,7 +104,7 @@ jobs:
                 core.setFailed(`Terraform init failed: ${stderr}`);
               }
             });
-        continue-on-error: true
+        continue-on-error: false
             
       - name: Download modules
         if: steps.diff.outputs.diff
@@ -126,7 +126,7 @@ jobs:
                 core.setFailed(`Terraform validate failed: ${stderr}`);
               }
             });
-        continue-on-error: true
+        continue-on-error: false
             
       - name: Plan
         if: steps.diff.outputs.diff
