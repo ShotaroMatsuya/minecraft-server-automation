@@ -96,12 +96,8 @@ jobs:
             const { exec } = require('child_process');
             const path = `${{ matrix.dir }}`;
             exec(`cd ${path} && terraform init -lock=false -upgrade`, (error, stdout, stderr) => {
-              if (error) {
-                core.setFailed(`Init error: ${error}`);
-                return;
-              }
               core.setOutput('output', stdout);
-              core.setOutput('exit_code', error ? error.code : '0');
+              core.setOutput('exit_code', error ? error.code.toString() : '0');
             });
             
       - name: Download modules
@@ -115,15 +111,10 @@ jobs:
         uses: actions/github-script@v6
         with: 
           script: |
-            const { exec } = require('child_process');
             const path = `${{ matrix.dir }}`;
             exec(`cd ${path} && terraform validate`, (error, stdout, stderr) => {
-              if (error) {
-                core.setFailed(`Validate error: ${error}`);
-                return;
-              }
               core.setOutput('output', stdout);
-              core.setOutput('exit_code', error ? error.code : '0');
+              core.setOutput('exit_code', error ? error.code.toString() : '0');
             });
             
       - name: Plan
