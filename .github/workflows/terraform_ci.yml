@@ -61,6 +61,7 @@ jobs:
             echo "has-changes=true" >> $GITHUB_ENV
           fi
         continue-on-error: true
+        
       - name: Format Terraform files if needed
         if: ${{ env.has-changes }} == 'true'
         run: |
@@ -72,6 +73,7 @@ jobs:
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
           git push origin HEAD:${{ github.head_ref }}
         continue-on-error: true
+        
       - name: Create Mapping Yaml(only scheduling)
         if: ${{ matrix.dir }} == 'terraform/scheduling'
         working-directory: ${{ matrix.dir }}
@@ -86,6 +88,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}  
           EOF          
+          
       - name: Initialize
         id: init
         if: steps.diff.outputs.diff
@@ -97,7 +100,11 @@ jobs:
             execCommand(`cd ${path} && terraform init -no-color -lock=false -upgrade`, (error, stdout, stderr) => {
               core.setOutput('output', stdout);
               core.setOutput('exit_code', error ? error.code.toString() : '0');
+              if (error) {
+                core.setFailed(`Terraform init failed: ${stderr}`);
+              }
             });
+        continue-on-error: true
             
       - name: Download modules
         if: steps.diff.outputs.diff
@@ -115,7 +122,11 @@ jobs:
             execCommand(`cd ${path} && terraform validate -no-color`, (error, stdout, stderr) => {
               core.setOutput('output', stdout);
               core.setOutput('exit_code', error ? error.code.toString() : '0');
+              if (error) {
+                core.setFailed(`Terraform validate failed: ${stderr}`);
+              }
             });
+        continue-on-error: true
             
       - name: Plan
         if: steps.diff.outputs.diff
