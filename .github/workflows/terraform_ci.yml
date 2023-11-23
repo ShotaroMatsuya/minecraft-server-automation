@@ -45,7 +45,6 @@ jobs:
           role-session-name: github-actions-test-session
           aws-region: ap-northeast-1
 
-        
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -90,19 +89,34 @@ jobs:
       - name: Initialize
         id: init
         if: steps.diff.outputs.diff
-        run: terraform init -lock=false -upgrade
-        working-directory: ${{ matrix.dir }}
-
+        uses: actions/github-script@v6
+        with: 
+          script: |
+            const { exec: execCommand } = require('child_process');
+            const path = `${{ matrix.dir }}`;
+            execCommand(`cd ${path} && terraform init -no-color -lock=false -upgrade`, (error, stdout, stderr) => {
+              core.setOutput('output', stdout);
+              core.setOutput('exit_code', error ? error.code.toString() : '0');
+            });
+            
       - name: Download modules
         if: steps.diff.outputs.diff
         run: terraform get
         working-directory: ${{ matrix.dir }}
 
       - name: Validate
+        id: validate
         if: steps.diff.outputs.diff
-        run: terraform validate
-        working-directory: ${{ matrix.dir }}
-
+        uses: actions/github-script@v6
+        with: 
+          script: |
+            const { exec: execCommand } = require('child_process');
+            const path = `${{ matrix.dir }}`;
+            execCommand(`cd ${path} && terraform validate -no-color`, (error, stdout, stderr) => {
+              core.setOutput('output', stdout);
+              core.setOutput('exit_code', error ? error.code.toString() : '0');
+            });
+            
       - name: Plan
         if: steps.diff.outputs.diff
         id: plan
@@ -128,7 +142,7 @@ jobs:
 
             </details>`;
 
-            github.issues.createComment({
+            github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
@@ -162,4 +176,21 @@ jobs:
         with:
           # Path to SARIF file relative to the root of the repository
           sarif_file: tfsec.sarif  
-
+      - name: Post Terraform Error Comment
+        if: steps.init.outputs.exit_code != '0' || steps.validate.outputs.exit_code != '0'
+        uses: actions/github-script@v6
+        with:
+          script: |
+            let comment = '### Terraform Errors in ' + `${{ matrix.dir }}` + '\n';
+            if ('${{ steps.init.outputs.exit_code }}' != '0') {
+              comment += '**Init Error:**\n```\n' + `${{ steps.init.outputs.output }}` + '\n```\n';
+            }
+            if ('${{ steps.validate.outputs.exit_code }}' != '0') {
+              comment += '**Validate Error:**\n```\n' + `${{ steps.validate.outputs.output }}` + '\n```\n';
+            }
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
