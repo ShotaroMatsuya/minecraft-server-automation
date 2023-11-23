@@ -101,7 +101,8 @@ jobs:
               core.setOutput('output', stdout);
               core.setOutput('exit_code', error ? error.code.toString() : '0');
               if (error) {
-                core.setFailed(`Terraform init failed: ${stderr}`);
+                core.setOutput('output', stderr);
+                core.setFailed(`Terraform validate failed: ${stderr}`);
               }
             });
         continue-on-error: false
@@ -123,6 +124,7 @@ jobs:
               core.setOutput('output', stdout);
               core.setOutput('exit_code', error ? error.code.toString() : '0');
               if (error) {
+                core.setOutput('output', stderr);
                 core.setFailed(`Terraform validate failed: ${stderr}`);
               }
             });
