@@ -45,7 +45,6 @@ jobs:
           role-session-name: github-actions-test-session
           aws-region: ap-northeast-1
 
-        
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v3
         with:
@@ -93,7 +92,7 @@ jobs:
         uses: actions/github-script@v6
         with: 
           script: |
-            const { exec } = require('child_process');
+            const { exec: execCommand } = require('child_process');
             const path = `${{ matrix.dir }}`;
             exec(`cd ${path} && terraform init -lock=false -upgrade`, (error, stdout, stderr) => {
               core.setOutput('output', stdout);
@@ -111,6 +110,7 @@ jobs:
         uses: actions/github-script@v6
         with: 
           script: |
+            const { exec: execCommand } = require('child_process');
             const path = `${{ matrix.dir }}`;
             exec(`cd ${path} && terraform validate`, (error, stdout, stderr) => {
               core.setOutput('output', stdout);
