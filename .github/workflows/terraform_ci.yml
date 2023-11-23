@@ -93,12 +93,16 @@ jobs:
         uses: actions/github-script@v6
         with: 
           script: |
-            cd ${{ matrix.dir }}
-            terraform init -lock=false -upgrade >init-output.log 2>&1
-            echo "exit_code=$(echo $?)" >> $GITHUB_OUTPUT
-            const name = 'output'
-            const value = "$(cat init-output.log)"
-            core.setOutput(name, value)
+            const { exec } = require('child_process');
+            const path = `${{ matrix.dir }}`;
+            exec(`cd ${path} && terraform init -lock=false -upgrade`, (error, stdout, stderr) => {
+              if (error) {
+                core.setFailed(`Init error: ${error}`);
+                return;
+              }
+              core.setOutput('output', stdout);
+              core.setOutput('exit_code', error ? error.code : '0');
+            });
             
       - name: Download modules
         if: steps.diff.outputs.diff
@@ -111,12 +115,17 @@ jobs:
         uses: actions/github-script@v6
         with: 
           script: |
-            cd ${{ matrix.dir }}
-            terraform validate >validate-output.log 2>&1
-            echo "exit_code=$(echo $?)" >> $GITHUB_OUTPUT
-            const name = 'output'
-            const value = "$(cat validate-output.log)"
-            core.setOutput(name, value)
+            const { exec } = require('child_process');
+            const path = `${{ matrix.dir }}`;
+            exec(`cd ${path} && terraform validate`, (error, stdout, stderr) => {
+              if (error) {
+                core.setFailed(`Validate error: ${error}`);
+                return;
+              }
+              core.setOutput('output', stdout);
+              core.setOutput('exit_code', error ? error.code : '0');
+            });
+            
       - name: Plan
         if: steps.diff.outputs.diff
         id: plan
@@ -178,18 +187,17 @@ jobs:
           sarif_file: tfsec.sarif  
       - name: Post Terraform Error Comment
         if: steps.init.outputs.exit_code != '0' || steps.validate.outputs.exit_code != '0'
-        uses: actions/github-script@v3.2.0
+        uses: actions/github-script@v6
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
           script: |
-            let comment = '### Terraform Errors in ' + '${{ matrix.dir }}' + '\n';
+            let comment = '### Terraform Errors in ' + `${{ matrix.dir }}` + '\n';
             if ('${{ steps.init.outputs.exit_code }}' != '0') {
-              comment += '**Init Error:**\n```\n' + '${{ steps.init.outputs.output }}' + '\n```\n';
+              comment += '**Init Error:**\n```\n' + `${{ steps.init.outputs.output }}` + '\n```\n';
             }
             if ('${{ steps.validate.outputs.exit_code }}' != '0') {
-              comment += '**Validate Error:**\n```\n' + '${{ steps.validate.outputs.output }}' + '\n```\n';
+              comment += '**Validate Error:**\n```\n' + `${{ steps.validate.outputs.output }}` + '\n```\n';
             }
-            github.issues.createComment({
+            github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
