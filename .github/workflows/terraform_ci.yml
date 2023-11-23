@@ -188,7 +188,7 @@ jobs:
           # Path to SARIF file relative to the root of the repository
           sarif_file: tfsec.sarif  
       - name: Post Terraform Error Comment
-        if: steps.init.outputs.exit_code != '0' || steps.validate.outputs.exit_code != '0'
+        if: always() && steps.init.outputs.exit_code != '0' || steps.validate.outputs.exit_code != '0'
         uses: actions/github-script@v7
         with:
           script: |
