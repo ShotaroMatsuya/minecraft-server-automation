@@ -94,7 +94,7 @@ jobs:
           script: |
             const { exec: execCommand } = require('child_process');
             const path = `${{ matrix.dir }}`;
-            execCommand(`cd ${path} && terraform init -lock=false -upgrade`, (error, stdout, stderr) => {
+            execCommand(`cd ${path} && terraform init -no-color -lock=false -upgrade`, (error, stdout, stderr) => {
               core.setOutput('output', stdout);
               core.setOutput('exit_code', error ? error.code.toString() : '0');
             });
@@ -112,7 +112,7 @@ jobs:
           script: |
             const { exec: execCommand } = require('child_process');
             const path = `${{ matrix.dir }}`;
-            execCommand(`cd ${path} && terraform validate`, (error, stdout, stderr) => {
+            execCommand(`cd ${path} && terraform validate -no-color`, (error, stdout, stderr) => {
               core.setOutput('output', stdout);
               core.setOutput('exit_code', error ? error.code.toString() : '0');
             });
