@@ -6,7 +6,7 @@ on:
 
 jobs:
   assign:
-    if: github.actor != 'dependabot[bot]'
+    if: github.actor != 'dependabot[bot]' && github.actor != 'renovate'
 
     name: Assign author to PR
     runs-on: ubuntu-latest
