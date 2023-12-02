@@ -3,8 +3,6 @@ name: Auto Assign Author
 on:
   pull_request:
     types: [ opened, reopened ]
-permissions:
-  id-token: write # This is required for requesting the JWT
 jobs:
   assign:
     if: github.actor != 'dependabot[bot]' && github.actor != 'renovate'
