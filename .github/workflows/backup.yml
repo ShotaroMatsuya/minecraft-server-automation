@@ -21,8 +21,8 @@ jobs:
       - name: Login to running container in ECS service and Execute back up cmd
         run: |
           CLUSTER="$(aws ecs list-clusters | jq -r '.clusterArns[0]' )"
-          # PREFIX="$(echo ${CLUSTER} | sed -E 's/.+cluster\///g' )"
-          TASK_ARN="$(aws ecs list-tasks --cluster ${CLUSTER} | jq -r '.taskArns[0]')"
+          # PREFIX="$(echo "${CLUSTER}" | sed -E 's/.+cluster\///g' )"
+          TASK_ARN="$(aws ecs list-tasks --cluster "${CLUSTER}" | jq -r '.taskArns[0]')"
           # TASK_ID="$(echo ${TASK_ARN} | sed -E 's/.+task\/.+\///g' )"
           CONTAINER_NAME="minecraft"
 
