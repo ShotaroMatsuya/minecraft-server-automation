@@ -63,7 +63,7 @@ jobs:
         continue-on-error: true
         
       - name: Format Terraform files if needed
-        if: ${{ env.has-changes }} == 'true'
+        if: ${{ env.has-changes  == 'true' }}
         run: |
           terraform fmt -recursive
           git config --global user.name 'github-actions'
@@ -75,7 +75,7 @@ jobs:
         continue-on-error: true
         
       - name: Create Mapping Yaml(only scheduling)
-        if: ${{ matrix.dir }} == 'terraform/scheduling'
+        if: ${{ matrix.dir == 'terraform/scheduling' }}
         working-directory: ${{ matrix.dir }}
         run: |
           cat << EOF > secrets.yaml
