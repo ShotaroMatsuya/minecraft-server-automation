@@ -33,7 +33,7 @@ jobs:
         run: |
           PR_NUMBER="$(git log -1 --pretty=format:%B | grep 'Merge pull request #' | cut -d '#' -f2 | cut -d ' ' -f1)"
           echo "Associated PR number is ${PR_NUMBER}"
-          echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
+          echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
           
       - name: Get PR labels
         id: pr_labels
@@ -43,7 +43,7 @@ jobs:
           PR_NUMBER=${{ steps.pr_search.outputs.pr_number }}
           LABELS="$(gh pr view $PR_NUMBER --json labels --jq '.labels[].name'| tr '\n' ' ')"
           echo "Labels are ${LABELS}"
-          echo "labels=${LABELS}" >> $GITHUB_OUTPUT
+          echo "labels=${LABELS}" >> "$GITHUB_OUTPUT"
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
