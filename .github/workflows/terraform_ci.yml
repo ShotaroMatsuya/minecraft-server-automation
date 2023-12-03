@@ -54,11 +54,11 @@ jobs:
         id: check_fmt
         run: |
           if terraform fmt -check -recursive ; then
-            echo "result='No changes needed.'" >> $GITHUB_OUTPUT
-            echo "has-changes=false" >> $GITHUB_ENV
+            echo "result='No changes needed.'" >> "$GITHUB_OUTPUT"
+            echo "has-changes=false" >> "$GITHUB_ENV"
           else
-            echo "result='Changes needed.'" >> $GITHUB_OUTPUT
-            echo "has-changes=true" >> $GITHUB_ENV
+            echo "result='Changes needed.'" >> "$GITHUB_OUTPUT"
+            echo "has-changes=true" >> "$GITHUB_ENV"
           fi
         continue-on-error: true
         
