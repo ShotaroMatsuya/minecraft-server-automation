@@ -82,7 +82,7 @@ jobs:
         env:
           SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
         run: |
-          OUTPUT=$(snyk container test ${{ matrix.tag }} --file=${{ matrix.dockerfile }} --severity-threshold=high --fail-on=all || true)
+          OUTPUT="$(snyk container test ${{ matrix.tag }} --file=${{ matrix.dockerfile }} --severity-threshold=high --fail-on=all || true)"
           # ANSIエスケープコードを削除
           CLEAN_OUTPUT="$(echo "$OUTPUT" | sed 's/\x1b\[[0-9;]*m//g')"
           echo "::set-output name=result::${CLEAN_OUTPUT}"
