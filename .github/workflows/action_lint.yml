@@ -17,5 +17,5 @@ jobs:
         shell: bash
 
       - name: Check workflow files
-        run: ${{ steps.get_actionlint.outputs.executable }} -color -ignore '${variable//search/replace}'
+        run: ${{ steps.get_actionlint.outputs.executable }} -color -ignore 'See if you can use ".+"'
         shell: bash
