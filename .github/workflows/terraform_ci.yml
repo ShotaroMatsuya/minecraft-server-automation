@@ -54,6 +54,7 @@ jobs:
 
       - name: Terraform Format Check
         id: check_fmt
+        working-directory: ${{ matrix.dir }}
         run: |
           if terraform fmt -check -recursive ; then
             echo "result='No changes needed.'" >> "$GITHUB_OUTPUT"
@@ -65,7 +66,8 @@ jobs:
         continue-on-error: true
         
       - name: Format Terraform files if needed
-        if: ${{ env.has-changes  == 'true' }}
+        working-directory: ${{ matrix.dir }}
+        if: ${{ env.has-changes == 'true' }}
         run: |
           terraform fmt -recursive
           git config --global user.name 'github-actions'
