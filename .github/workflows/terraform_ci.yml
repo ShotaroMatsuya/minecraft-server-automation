@@ -7,6 +7,8 @@ on:
 env:
   TF_VAR_WEBHOOK_PATH: ${{secrets.WEBHOOK_PATH}}
   TF_VAR_env_files: ${{secrets.ENV_FILES}}
+  HEAD_REF: ${{ github.head_ref }} # "github.head_ref" is potentially untrusted. avoid using it directly in inline scripts. instead, pass it through an environment variable. see https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions for more details
+  
 jobs:
   terraform-ci:
     name: Terraform CI
@@ -71,7 +73,7 @@ jobs:
           git add -u
           git commit -m "Automated Terraform formatting"
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
-          git push origin HEAD:${{ github.head_ref }}
+          git push origin HEAD:"$HEAD_REF"
         continue-on-error: true
         
       - name: Create Mapping Yaml(only scheduling)
