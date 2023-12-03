@@ -84,7 +84,7 @@ jobs:
         run: |
           OUTPUT="$(snyk container test ${{ matrix.tag }} --file=${{ matrix.dockerfile }} --severity-threshold=high --fail-on=all || true)"
           # ANSIエスケープコードを削除
-          CLEAN_OUTPUT="${OUTPUT//$'\x1b\['[0-9;]*m/}"
+          CLEAN_OUTPUT="${OUTPUT//$'\033'\[[0-9;]*m/}"
           {
             echo "CLI_OUTPUT<<EOF"
             echo "${CLEAN_OUTPUT}"
