@@ -85,7 +85,7 @@ jobs:
           OUTPUT="$(snyk container test ${{ matrix.tag }} --file=${{ matrix.dockerfile }} --severity-threshold=high --fail-on=all || true)"
           # ANSIエスケープコードを削除
           CLEAN_OUTPUT="$(echo "$OUTPUT" | sed 's/\x1b\[[0-9;]*m//g')"
-          echo "::set-output name=result::${CLEAN_OUTPUT}"
+          echo "result=${CLEAN_OUTPUT}" >> "$GITHUB_OUTPUT"
           echo "CLI_OUTPUT<<EOF" >> "$GITHUB_ENV"
           echo "${CLEAN_OUTPUT}" >> "$GITHUB_ENV"
           echo "EOF" >> "$GITHUB_ENV"
