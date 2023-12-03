@@ -7,6 +7,8 @@ on:
 env:
   TF_VAR_WEBHOOK_PATH: ${{secrets.WEBHOOK_PATH}}
   TF_VAR_env_files: ${{secrets.ENV_FILES}}
+  HEAD_REF: ${{ github.head_ref }} # "github.head_ref" is potentially untrusted. avoid using it directly in inline scripts. instead, pass it through an environment variable. see https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions for more details
+  
 jobs:
   terraform-ci:
     name: Terraform CI
@@ -55,11 +57,11 @@ jobs:
         working-directory: ${{ matrix.dir }}
         run: |
           if terraform fmt -check -recursive ; then
-            echo "result='No changes needed.'" >> $GITHUB_OUTPUT
-            echo "has-changes=false" >> $GITHUB_ENV
+            echo "result='No changes needed.'" >> "$GITHUB_OUTPUT"
+            echo "has-changes=false" >> "$GITHUB_ENV"
           else
-            echo "result='Changes needed.'" >> $GITHUB_OUTPUT
-            echo "has-changes=true" >> $GITHUB_ENV
+            echo "result='Changes needed.'" >> "$GITHUB_OUTPUT"
+            echo "has-changes=true" >> "$GITHUB_ENV"
           fi
         continue-on-error: true
         
@@ -73,7 +75,7 @@ jobs:
           git add -u
           git commit -m "Automated Terraform formatting"
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
-          git push origin HEAD:${{ github.head_ref }}
+          git push origin HEAD:"$HEAD_REF"
         continue-on-error: true
         
       - name: Create Mapping Yaml(only scheduling)
@@ -88,8 +90,8 @@ jobs:
           S3_PREFIX_NAME: ${{ secrets.S3_PREFIX_NAME }}
           FILTERING_STRINGS: ${{ secrets.FILTERING_STRINGS }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}  
-          EOF          
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          EOF
           
       - name: Initialize
         id: init
