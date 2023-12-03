@@ -50,8 +50,8 @@ jobs:
         EOF
     - name: Set Terraform variables
       run: |
-        echo "TF_VAR_recovery_time=${{ github.event.inputs.recovery_datetime }}" >> $GITHUB_ENV
-        echo "TF_VAR_set_recovery_point=true" >> $GITHUB_ENV
+        echo "TF_VAR_recovery_time=${{ github.event.inputs.recovery_datetime }}" >> "$GITHUB_ENV"
+        echo "TF_VAR_set_recovery_point=true" >> "$GITHUB_ENV"
 
     - name: Initialize Terraform
       working-directory: terraform/scheduling
@@ -67,7 +67,7 @@ jobs:
             -var set_recovery_point=true
         TF_PLAN_EXIT_CODE=$?
         echo "exit code is ${TF_PLAN_EXIT_CODE}"
-        echo "TF_PLAN_EXIT_CODE=${TF_PLAN_EXIT_CODE}" >> $GITHUB_ENV
+        echo "TF_PLAN_EXIT_CODE=${TF_PLAN_EXIT_CODE}" >> "$GITHUB_ENV"
 
     - name: Apply Terraform
       if: ${{ env.TF_PLAN_EXIT_CODE == 2 }}
@@ -82,16 +82,16 @@ jobs:
       working-directory: terraform/scheduling
       run: |
         # Replace with your AWS CLI command to update ECS service
-        CLUSTER=$(aws ecs list-clusters | jq -r '.clusterArns[0]' )
-        SVC=$(aws ecs list-services --cluster ${CLUSTER} | jq -r '.serviceArns[0]' | sed -E 's/.+cluster\///g')
-        TASK_REVISION=$(aws ecs describe-task-definition \
+        CLUSTER="$(aws ecs list-clusters | jq -r '.clusterArns[0]' )"
+        SVC="$(aws ecs list-services --cluster "${CLUSTER}" | jq -r '.serviceArns[0]' | sed -E 's/.+cluster\///g')"
+        TASK_REVISION="$(aws ecs describe-task-definition \
           --task-definition minecraft-test \
           --query 'taskDefinition.revision' \
-          --output text)
+          --output text)"
 
-        aws ecs update-service --cluster ${CLUSTER} \
-          --service ${SVC} \
-          --task-definition minecraft-test:${TASK_REVISION} \
+        aws ecs update-service --cluster "${CLUSTER}" \
+          --service "${SVC}" \
+          --task-definition minecraft-test:"${TASK_REVISION}" \
           --force-new-deployment
           
     - name: Slack Notification for Success
