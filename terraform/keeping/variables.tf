@@ -41,6 +41,13 @@ variable "github_repo" {
   description = "github repository name"
   type        = string
 }
+
+variable "github_token" {
+  description = "github token"
+  type        = string
+  sensitive   = true
+}
+
 locals {
   owners      = var.owners
   environment = var.environment

@@ -59,3 +59,15 @@ module "custom_iam_role_for_github" {
   owners      = local.owners
   environment = local.environment
 }
+
+module "custom_slash_command" {
+  source = "../modules/slash_command"
+
+  github_token = var.github_token
+  github_user  = var.github_org
+  github_repo  = var.github_repo
+
+  owners      = local.owners
+  environment = local.environment
+
+}
