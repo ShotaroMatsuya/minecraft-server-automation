@@ -1,11 +1,11 @@
-FROM --platform=linux/x86_64 itzg/minecraft-server@sha256:f35eaae09fb29c025d4932f809e5d90219c3e8510fb30aaa5b3bfe9d42f482f8
+FROM --platform=linux/x86_64 itzg/minecraft-server@sha256:9572e43b212afcc4003ab7d1c660dca6f319d09edba35ee517f6c3df69be0412
 
 ENV TZ=Asia/Tokyo
 ENV S3_BUCKET_NAME="minecraftbucket"
 ENV S3_PREFIX_NAME="backups-path"
 ENV WEBHOOK_PATH="webhook-path"
 
-ENV VERSION="1.20.2"
+ENV VERSION="1.20.4"
 ENV TYPE="SPIGOT"
 
 WORKDIR /data
