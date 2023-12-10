@@ -13,7 +13,7 @@ services:
       - "25565:25565"
       - "8123:8123"
     environment:
-      VERSION: 1.20.3
+      VERSION: 1.20.2
       EULA: "TRUE"
       # # # Use SPIGOT server type + install Plugins
       TYPE: SPIGOT      
