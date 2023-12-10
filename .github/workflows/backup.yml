@@ -2,6 +2,9 @@ name: Backup Current world
 
 on:
   workflow_dispatch:
+  repository_dispatch:
+      types:
+        - backup
 permissions:
   id-token: write
   contents: read
