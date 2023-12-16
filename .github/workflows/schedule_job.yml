@@ -3,7 +3,7 @@ name: Start and Stop Workflow
 on:
   schedule:
     # At 08:00 PM JST
-    - cron: '0 11 * * 6,0'
+    - cron: '0 12 * * 6,0'
     # At 02:00 AM JST
     - cron: '0 17 * * 6,0'
 env:
