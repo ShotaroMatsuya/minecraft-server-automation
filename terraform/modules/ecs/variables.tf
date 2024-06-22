@@ -99,6 +99,12 @@ variable "recovery_time" {
   default     = null
 }
 
+variable "set_seed_value" {
+  description = "Whether to set the seed value when restoring"
+  type        = bool
+  default     = false
+}
+
 ########################################
 # Define Local Values in Terraform     #
 ########################################

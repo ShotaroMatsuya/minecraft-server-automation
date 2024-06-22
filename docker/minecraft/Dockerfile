@@ -25,8 +25,8 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/* /data/aws
 
 ENV PLUGINS_FILE="/data/plugins.txt"
-# COPY --chown=1000:1000 ./plugins.txt ./
-# COPY --chown=1000:1000 ./dynmap/configuration.txt plugins/dynmap/
+COPY --chown=1000:1000 ./plugins.txt ./
+COPY --chown=1000:1000 ./dynmap/configuration.txt plugins/dynmap/
 COPY --chown=1000:1000 ./scripts /scripts
 RUN chmod -R 755 /scripts
 

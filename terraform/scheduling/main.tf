@@ -82,6 +82,7 @@ module "custom_ecs" {
   container_env             = local.container_env
   set_recovery_point        = var.set_recovery_point
   recovery_time             = var.recovery_time
+  set_seed_value            = var.set_seed_value
   # efs_id                    = data.aws_efs_file_system.my_efs.id
 
   owners         = local.owners
