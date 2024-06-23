@@ -10,6 +10,11 @@ variable "nlb_zone_id" {
   sensitive   = true
 }
 
+variable "acm_certificate_arn" {
+  description = "ACM Certificate ARN for CloudFront"
+  type        = string
+}
+
 
 variable "owners" {}
 variable "environment" {}
