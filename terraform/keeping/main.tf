@@ -63,9 +63,10 @@ module "custom_iam_role_for_github" {
 module "custom_slash_command" {
   source = "../modules/slash_command"
 
-  github_token = var.github_token
-  github_user  = var.github_org
-  github_repo  = var.github_repo
+  github_token   = var.github_token
+  github_user    = var.github_org
+  github_repo    = var.github_repo
+  s3_bucket_name = var.s3_bucket_name
 
   owners      = local.owners
   environment = local.environment

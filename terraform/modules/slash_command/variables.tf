@@ -14,6 +14,11 @@ variable "github_repo" {
   description = "repository name"
 }
 
+variable "s3_bucket_name" {
+  type        = string
+  description = "S3 bucket name"
+}
+
 variable "owners" {}
 variable "environment" {}
 
