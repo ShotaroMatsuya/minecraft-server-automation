@@ -40,7 +40,7 @@ jobs:
     - name: Install Terraform
       uses: hashicorp/setup-terraform@v3
       with:
-        terraform_version: 1.6.5
+        terraform_version: 1.7.5
         terraform_wrapper: false # workarround ref:https://stackoverflow.com/questions/77243030/detailed-exitcode-flag-of-terraform-not-working-inside-github-action
     - name: Create Mapping Yaml
       working-directory: terraform/scheduling
