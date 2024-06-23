@@ -7,6 +7,10 @@ on:
         description: 'Date in %Y%m%d%H%M%S format'
         required: true
         default: '20231118225051'
+  repository_dispatch:
+      types:
+        - restore
+        
 
 env:
   SLACK_USERNAME: RestoreActionBot
@@ -51,11 +55,18 @@ jobs:
         AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
         AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}  
         EOF
-    - name: Set Terraform variables
+        
+    - name: Set Terraform variables(workflow_dispatch)
+      if: github.event_name == 'workflow_dispatch'
       run: |
         echo "TF_VAR_recovery_time=${{ github.event.inputs.recovery_datetime }}" >> "$GITHUB_ENV"
         echo "TF_VAR_set_recovery_point=true" >> "$GITHUB_ENV"
-
+    - name: Set Terraform variables(repository_dispatch)
+      if: github.event_name == 'repository_dispatch'
+      run: |
+        echo "TF_VAR_recovery_time=${{ github.event.client_payload.recovery_datetime }}" >> "$GITHUB_ENV"
+        echo "TF_VAR_set_recovery_point=true" >> "$GITHUB_ENV"  
+        
     - name: Initialize Terraform
       working-directory: terraform/scheduling
       run: terraform init -lock=false
