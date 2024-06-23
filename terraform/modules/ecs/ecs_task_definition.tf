@@ -20,7 +20,7 @@ resource "aws_ecs_task_definition" "main" {
     [
       {
         cpu : 0,
-        environment = var.container_env,
+        environment = var.set_seed_value ? concat(var.container_env, [var.seed_value]) : var.container_env,
         essential : true,
         image : var.mc_image_uri,
         entrypoint = var.set_seed_value ? ["/scripts/entrypoint3.sh"] : (var.set_recovery_point ? ["/scripts/entrypoint2.sh"] : ["/scripts/entrypoint.sh"]),

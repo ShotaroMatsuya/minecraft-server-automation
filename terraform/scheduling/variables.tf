@@ -69,6 +69,12 @@ variable "set_seed_value" {
   default     = false
 }
 
+variable "seed_value" {
+  description = "Specify the seed value when set_seed_value is true"
+  type        = string
+  default     = ""
+}
+
 locals {
   owners      = var.owners
   environment = var.environment
