@@ -59,7 +59,7 @@ jobs:
         if: ${{ !contains(steps.pr_labels.outputs.labels, 'no-apply') }}
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.3.9
+          terraform_version: 1.6.5
       
       - name: Create Mapping Yaml
         if: ${{ matrix.dir == 'terraform/scheduling' && !contains(steps.pr_labels.outputs.labels, 'no-apply') }}
