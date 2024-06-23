@@ -51,7 +51,10 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           role-session-name: github-actions-test-session
           aws-region: ap-northeast-1
-        
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.9
       - name: Install Terraform
         if: ${{ !contains(steps.pr_labels.outputs.labels, 'no-apply') }}
         uses: hashicorp/setup-terraform@v3
