@@ -41,6 +41,15 @@ module "user_action_filter_function" {
       ],
       "Resource": "${var.log_group_arn}",
       "Effect": "Allow"
+    },
+    {
+      "Sid": "",
+      "Action": [
+        "kms:GenerateDataKey",
+        "kms:Decrypt"
+      ],
+      "Resource": "${var.sns_kms_key_arn}",
+      "Effect": "Allow"
     }
   ]
 }

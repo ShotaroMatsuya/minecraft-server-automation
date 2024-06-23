@@ -28,6 +28,11 @@ data "aws_sns_topic" "my_sns" {
   name = "${local.name}-sns-topic"
 }
 
+data "aws_kms_key" "my_kms" {
+  key_id = "alias/cwa/for_encrypt_sns_topic"
+}
+
+
 data "aws_subnets" "my_subnets" {
   filter {
     name   = "vpc-id"
@@ -83,6 +88,7 @@ module "custom_ecs" {
   set_recovery_point        = var.set_recovery_point
   recovery_time             = var.recovery_time
   set_seed_value            = var.set_seed_value
+  seed_value                = var.seed_value
   # efs_id                    = data.aws_efs_file_system.my_efs.id
 
   owners         = local.owners
@@ -109,6 +115,7 @@ module "custom_lambda" {
   log_group_name    = "/aws/ecs/minecraft-firelens-logs"
   log_group_arn     = "arn:aws:logs:ap-northeast-1:528163014577:log-group:/aws/ecs/minecraft-firelens-logs:*"
   filter_patterns   = ["{ ($.level = \"ERROR\")}", "{${local.combined_string}}"]
+  sns_kms_key_arn   = data.aws_kms_key.my_kms.arn
   sns_topic_arn     = data.aws_sns_topic.my_sns.arn
   slack_webhook_url = "https://hooks.slack.com/services/${var.WEBHOOK_PATH}"
 
