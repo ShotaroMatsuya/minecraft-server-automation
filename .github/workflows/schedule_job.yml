@@ -3,7 +3,7 @@ name: Start and Stop Workflow
 on:
   schedule:
     # At 08:00 PM JST
-    - cron: '0 12 * * 6,0'
+    - cron: '0 11 * * 6,0'
     # At 02:00 AM JST
     - cron: '0 17 * * 6,0'
 env:
@@ -11,7 +11,7 @@ env:
   SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
   SLACK_WEBHOOK: https://hooks.slack.com/services/${{secrets.WEBHOOK_PATH}}
   TF_VAR_WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
-  TF_VERSION: 1.4.1
+  TF_VERSION: 1.6.5
   AWS_REGION: ap-northeast-1
 defaults:
   run:
@@ -48,7 +48,10 @@ jobs:
       uses: hashicorp/setup-terraform@v3
       with:
         terraform_version: ${{ env.TF_VERSION }}
-
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v5
+      with:
+        python-version: 3.9
     - name: Run start.sh at 20 PM
       if: github.event.schedule == '0 11 * * 6,0'
       run: |
