@@ -53,7 +53,7 @@ resource "aws_cloudfront_distribution" "s3_distribution" {
   aliases = ["dynmap.smat710.com"]
 
   default_cache_behavior {
-    allowed_methods        = ["GET", "HEAD"]
+    allowed_methods        = ["DELETE", "GET", "HEAD", "OPTIONS", "PATCH", "POST", "PUT"]
     cached_methods         = ["GET", "HEAD"]
     cache_policy_id        = data.aws_cloudfront_cache_policy.optimized.id
     target_origin_id       = data.aws_s3_bucket.dynmap_bucket.bucket_regional_domain_name
@@ -73,6 +73,12 @@ resource "aws_cloudfront_distribution" "s3_distribution" {
 
   default_root_object = "index.html"
   enabled             = true
+
+  custom_error_response {
+    error_code         = 500
+    response_code      = 200
+    response_page_path = "/images/blank.png"
+  }
 
   # The cheapest priceclass
   price_class         = "PriceClass_200"
