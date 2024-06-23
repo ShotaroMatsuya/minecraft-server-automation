@@ -20,9 +20,10 @@ module "dispatch_backup_function" {
   create_lambda_function_url = true
 
   environment_variables = {
-    GITHUB_TOKEN = var.github_token
-    REPO_OWNER   = var.github_user
-    REPO_NAME    = var.github_repo
+    GITHUB_TOKEN   = var.github_token
+    REPO_OWNER     = var.github_user
+    REPO_NAME      = var.github_repo
+    S3_BUCKET_NAME = var.s3_bucket_name
   }
   attach_policy_json = true
   policy_json        = <<-EOT
@@ -36,6 +37,13 @@ module "dispatch_backup_function" {
         "ssm:GetParameter"
       ],
       "Resource": "*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::${var.s3_bucket_name}"
     }
   ]
 }
