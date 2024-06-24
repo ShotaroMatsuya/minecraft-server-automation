@@ -2,7 +2,7 @@ FROM --platform=linux/x86_64 itzg/minecraft-server@sha256:094fe93d45e1887eebfc0a
 
 ENV TZ=Asia/Tokyo
 
-ENV VERSION="1.21"
+ENV VERSION="1.20.2"
 ENV TYPE="SPIGOT"
 
 WORKDIR /data

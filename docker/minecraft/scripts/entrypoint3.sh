@@ -3,6 +3,16 @@
 # スクリプト内のコマンドが意図しない理由で非ゼロの終了コードを返す場合、それがエラーであるかどうかに関わらずスクリプトは終了
 # set -ex
 
+# 引数を環境変数に設定
+if [ -n "$1" ]; then
+    export SEED="$1"
+    echo "SEED=$SEED" >> /etc/environment
+else
+    echo "No backup seed value provided. Using default value."
+    export SEED=""
+    echo "SEED=$SEED" >> /etc/environment
+fi
+
 S3_BUCKET=$S3_BUCKET_NAME
 S3_PREFIX=$S3_PREFIX_NAME
 WEBHOOK_URL="https://hooks.slack.com/services/${WEBHOOK_PATH}"

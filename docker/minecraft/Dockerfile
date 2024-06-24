@@ -5,7 +5,7 @@ ENV S3_BUCKET_NAME="minecraftbucket"
 ENV S3_PREFIX_NAME="backups-path"
 ENV WEBHOOK_PATH="webhook-path"
 
-ENV VERSION="1.21"
+ENV VERSION="1.20.2"
 ENV TYPE="SPIGOT"
 
 WORKDIR /data
