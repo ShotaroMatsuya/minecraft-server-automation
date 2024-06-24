@@ -10,16 +10,19 @@ module "nlb" {
   subnets = var.vpc_public_subnet_ids
   # security_groups = [var.loadbalancer_sg_group_id]
   # HTTP Listener -
-  http_tcp_listeners = [
-    {
+  listeners = {
+    ex-one = {
       port     = 25565
       protocol = "TCP"
+      forward = {
+        target_group_key = "ex-target-one"
+      }
     }
-  ]
+  }
   # Target Groups
-  target_groups = [
+  target_groups = {
     # ECS service Target Group - TG Index = 0
-    {
+    ex-target-one = {
       backend_protocol     = "TCP"
       backend_port         = 25565
       target_type          = "ip"
@@ -35,7 +38,7 @@ module "nlb" {
       }
       tags = local.common_tags
     }
-  ]
+  }
 
   tags = local.common_tags
 }
