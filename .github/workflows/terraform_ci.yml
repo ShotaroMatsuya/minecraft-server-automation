@@ -101,10 +101,11 @@ jobs:
               core.setOutput('output', stdout);
               core.setOutput('exit_code', error ? error.code.toString() : '0');
               if (error) {
-                core.setFailed(`Terraform init failed: ${stderr}`);
+                core.setOutput('output', stderr);
+                core.setFailed(`Terraform validate failed: ${stderr}`);
               }
             });
-        continue-on-error: true
+        continue-on-error: false
             
       - name: Download modules
         if: steps.diff.outputs.diff
@@ -123,10 +124,11 @@ jobs:
               core.setOutput('output', stdout);
               core.setOutput('exit_code', error ? error.code.toString() : '0');
               if (error) {
+                core.setOutput('output', stderr);
                 core.setFailed(`Terraform validate failed: ${stderr}`);
               }
             });
-        continue-on-error: true
+        continue-on-error: false
             
       - name: Plan
         if: steps.diff.outputs.diff
@@ -188,7 +190,7 @@ jobs:
           # Path to SARIF file relative to the root of the repository
           sarif_file: tfsec.sarif  
       - name: Post Terraform Error Comment
-        if: steps.init.outputs.exit_code != '0' || steps.validate.outputs.exit_code != '0'
+        if: always() && steps.init.outputs.exit_code != '0' || steps.validate.outputs.exit_code != '0'
         uses: actions/github-script@v7
         with:
           script: |
