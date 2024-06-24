@@ -11,7 +11,7 @@ module "dispatch_backup_function" {
   publish                = true
   timeout                = 360
 
-  recreate_missing_package = false
+  recreate_missing_package = true
 
   source_path = [{
     path             = "${path.module}/fixtures/python3.9"
@@ -20,10 +20,12 @@ module "dispatch_backup_function" {
   create_lambda_function_url = true
 
   environment_variables = {
-    GITHUB_TOKEN   = var.github_token
-    REPO_OWNER     = var.github_user
-    REPO_NAME      = var.github_repo
-    S3_BUCKET_NAME = var.s3_bucket_name
+    GITHUB_TOKEN     = var.github_token
+    REPO_OWNER       = var.github_user
+    REPO_NAME        = var.github_repo
+    S3_BUCKET_NAME   = var.s3_bucket_name
+    ECS_CLUSTER_NAME = "${local.name}-cluster"
+    ECS_SERVICE_NAME = "${local.name}-service"
   }
   attach_policy_json = true
   policy_json        = <<-EOT
@@ -44,6 +46,14 @@ module "dispatch_backup_function" {
         "s3:ListBucket"
       ],
       "Resource": "arn:aws:s3:::${var.s3_bucket_name}"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": "arn:aws:s3:::${var.s3_bucket_name}/*"
     }
   ]
 }

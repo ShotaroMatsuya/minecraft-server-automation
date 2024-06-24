@@ -14,6 +14,19 @@ AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY:-default_secret_key}
 sed -i "s/<aws-access-key-id>/$AWS_ACCESS_KEY_ID/" /data/plugins/dynmap/configuration.txt
 sed -i "s|<aws-secret-access-key>|$AWS_SECRET_ACCESS_KEY|" /data/plugins/dynmap/configuration.txt
 
+# slack notification
+slack_notify() {
+    echo "Push container information to slack channel"
+    local message="$1"
+    if [[ -z "$message" ]]; then
+        echo "Error: Message is empty"
+        exit 1
+    fi
+    curl -X POST -H 'Content-Type: application/json' --data "{
+            \"text\":\"$1\"
+        }" $WEBHOOK_URL
+}
+
 # function executed when container is shutdown
 cleanup() {
     BACKUP_DATE_TIME=$(date +"%Y%m%d%H%M%S")
@@ -31,11 +44,15 @@ cleanup() {
     kill -TERM "$child" 2>/dev/null
 }
 
+# function executed when container is started
+echo "Container is starting..."
+slack_notify ":creeper: シード値：${SEED}でワールドを新たに作成しました！！"
+
 # trap SIGTERM signal and call cleanup
 trap cleanup TERM
 
 # script実行後にベースイメージのEnrypointをバックグランド実行
-/start "$@" &
+/start &
 child=$!
 
 # 前景で無限ループを実行し、cleanup完了まで待機

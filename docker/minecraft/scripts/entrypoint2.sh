@@ -19,7 +19,6 @@ sed -i "s|<aws-secret-access-key>|$AWS_SECRET_ACCESS_KEY|" /data/plugins/dynmap/
 # slack notification
 slack_notify() {
     echo "Push container information to slack channel"
-    WEBHOOK_URL="https://hooks.slack.com/services/${WEBHOOK_PATH}"    
     local message="$1"
     if [[ -z "$message" ]]; then
         echo "Error: Message is empty"
