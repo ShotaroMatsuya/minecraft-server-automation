@@ -24,7 +24,7 @@ resource "aws_ecs_task_definition" "main" {
         essential : true,
         image : var.mc_image_uri,
         entrypoint = var.set_seed_value ? ["/scripts/entrypoint3.sh"] : (var.set_recovery_point ? ["/scripts/entrypoint2.sh"] : ["/scripts/entrypoint.sh"]),
-        command    = var.set_seed_value ? [] : (var.set_recovery_point ? [var.recovery_time] : []),
+        command    = var.set_seed_value ? [var.seed_value] : (var.set_recovery_point ? [var.recovery_time] : []),
         logConfiguration : {
           logDriver : "awsfirelens"
         },
