@@ -1,6 +1,6 @@
 module "user_action_filter_function" {
   source                 = "terraform-aws-modules/lambda/aws"
-  version                = "6.5.0"
+  version                = "6.8.0"
   function_name          = "user-action-filter-function"
   description            = "My awsome lambda function"
   handler                = "index.lambda_handler"
@@ -40,6 +40,15 @@ module "user_action_filter_function" {
         "logs:PutLogEvents"
       ],
       "Resource": "${var.log_group_arn}",
+      "Effect": "Allow"
+    },
+    {
+      "Sid": "",
+      "Action": [
+        "kms:GenerateDataKey",
+        "kms:Decrypt"
+      ],
+      "Resource": "${var.sns_kms_key_arn}",
       "Effect": "Allow"
     }
   ]

@@ -8,11 +8,11 @@ jobs:
   sync-branch:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11 # v4
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4
       - run: git describe --abbrev=0 --tags > /tmp/version
 
       - run: git checkout -b release
-      - run: git push --force https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }} release
+      - run: git push --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}" release
         env:
           GITHUB_TOKEN: ${{ github.token }}
       # - uses: everlytic/branch-merge@1.1.2

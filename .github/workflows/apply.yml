@@ -6,6 +6,7 @@ on:
       - main
 env:
   TF_VAR_WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
+  TF_VAR_github_token: ${{ secrets.TF_VAR_github_token }}
 permissions:
   id-token: write
   contents: read
@@ -31,9 +32,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          PR_NUMBER=$(git log -1 --pretty=format:%B | grep 'Merge pull request #' | cut -d '#' -f2 | cut -d ' ' -f1)
+          PR_NUMBER="$(git log -1 --pretty=format:%B | grep 'Merge pull request #' | cut -d '#' -f2 | cut -d ' ' -f1)"
           echo "Associated PR number is ${PR_NUMBER}"
-          echo "pr_number=${PR_NUMBER}" >> $GITHUB_OUTPUT
+          echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
           
       - name: Get PR labels
         id: pr_labels
@@ -41,21 +42,24 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           PR_NUMBER=${{ steps.pr_search.outputs.pr_number }}
-          LABELS=$(gh pr view $PR_NUMBER --json labels --jq '.labels[].name'| tr '\n' ' ')
+          LABELS="$(gh pr view $PR_NUMBER --json labels --jq '.labels[].name'| tr '\n' ' ')"
           echo "Labels are ${LABELS}"
-          echo "labels=${LABELS}" >> $GITHUB_OUTPUT
+          echo "labels=${LABELS}" >> "$GITHUB_OUTPUT"
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           role-session-name: github-actions-test-session
           aws-region: ap-northeast-1
-        
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.9
       - name: Install Terraform
         if: ${{ !contains(steps.pr_labels.outputs.labels, 'no-apply') }}
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.3.9
+          terraform_version: 1.7.5
       
       - name: Create Mapping Yaml
         if: ${{ matrix.dir == 'terraform/scheduling' && !contains(steps.pr_labels.outputs.labels, 'no-apply') }}

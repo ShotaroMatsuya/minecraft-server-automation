@@ -1,20 +1,23 @@
-variable "nlb_dns_name" {
-  description = "DNS Name of nlb to register in route53"
+variable "github_token" {
   type        = string
+  description = "Github token"
   sensitive   = true
 }
 
-variable "nlb_zone_id" {
-  description = "nlb zone id to register in route53"
+variable "github_user" {
   type        = string
-  sensitive   = true
+  description = "repository owner name"
 }
 
-variable "acm_certificate_arn" {
-  description = "ACM Certificate ARN for CloudFront"
+variable "github_repo" {
   type        = string
+  description = "repository name"
 }
 
+variable "s3_bucket_name" {
+  type        = string
+  description = "S3 bucket name"
+}
 
 variable "owners" {}
 variable "environment" {}

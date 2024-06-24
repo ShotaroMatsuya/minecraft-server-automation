@@ -7,6 +7,9 @@ on:
 env:
   TF_VAR_WEBHOOK_PATH: ${{secrets.WEBHOOK_PATH}}
   TF_VAR_env_files: ${{secrets.ENV_FILES}}
+  TF_VAR_github_token: ${{ secrets.TF_VAR_github_token }}
+  HEAD_REF: ${{ github.head_ref }} # "github.head_ref" is potentially untrusted. avoid using it directly in inline scripts. instead, pass it through an environment variable. see https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions for more details
+  
 jobs:
   terraform-ci:
     name: Terraform CI
@@ -44,26 +47,31 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           role-session-name: github-actions-test-session
           aws-region: ap-northeast-1
-
+      - name: Set up Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.9
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v3
         with:
-          terraform_version: 1.4.1
+          terraform_version: 1.7.5
 
       - name: Terraform Format Check
         id: check_fmt
+        working-directory: ${{ matrix.dir }}
         run: |
           if terraform fmt -check -recursive ; then
-            echo "result='No changes needed.'" >> $GITHUB_OUTPUT
-            echo "has-changes=false" >> $GITHUB_ENV
+            echo "result='No changes needed.'" >> "$GITHUB_OUTPUT"
+            echo "has-changes=false" >> "$GITHUB_ENV"
           else
-            echo "result='Changes needed.'" >> $GITHUB_OUTPUT
-            echo "has-changes=true" >> $GITHUB_ENV
+            echo "result='Changes needed.'" >> "$GITHUB_OUTPUT"
+            echo "has-changes=true" >> "$GITHUB_ENV"
           fi
         continue-on-error: true
         
       - name: Format Terraform files if needed
-        if: ${{ env.has-changes }} == 'true'
+        working-directory: ${{ matrix.dir }}
+        if: ${{ env.has-changes == 'true' }}
         run: |
           terraform fmt -recursive
           git config --global user.name 'github-actions'
@@ -71,11 +79,11 @@ jobs:
           git add -u
           git commit -m "Automated Terraform formatting"
           git remote set-url origin https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}
-          git push origin HEAD:${{ github.head_ref }}
+          git push origin HEAD:"$HEAD_REF"
         continue-on-error: true
         
       - name: Create Mapping Yaml(only scheduling)
-        if: ${{ matrix.dir }} == 'terraform/scheduling'
+        if: ${{ matrix.dir == 'terraform/scheduling' }}
         working-directory: ${{ matrix.dir }}
         run: |
           cat << EOF > secrets.yaml
@@ -86,8 +94,8 @@ jobs:
           S3_PREFIX_NAME: ${{ secrets.S3_PREFIX_NAME }}
           FILTERING_STRINGS: ${{ secrets.FILTERING_STRINGS }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}  
-          EOF          
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          EOF
           
       - name: Initialize
         id: init
@@ -185,7 +193,7 @@ jobs:
           tfsec_args: --minimum-severity HIGH
 
       - name: Upload SARIF file
-        uses: github/codeql-action/upload-sarif@v2
+        uses: github/codeql-action/upload-sarif@v3
         with:
           # Path to SARIF file relative to the root of the repository
           sarif_file: tfsec.sarif  

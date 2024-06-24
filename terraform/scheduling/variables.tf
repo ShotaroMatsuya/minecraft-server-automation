@@ -64,6 +64,17 @@ variable "recovery_time" {
   type        = string
 }
 
+variable "set_seed_value" {
+  description = "Whether to set the seed value when restoring"
+  default     = false
+}
+
+variable "seed_value" {
+  description = "Specify the seed value when set_seed_value is true"
+  type        = string
+  default     = ""
+}
+
 locals {
   owners      = var.owners
   environment = var.environment

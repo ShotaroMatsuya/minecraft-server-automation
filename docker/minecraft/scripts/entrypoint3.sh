@@ -3,7 +3,15 @@
 # スクリプト内のコマンドが意図しない理由で非ゼロの終了コードを返す場合、それがエラーであるかどうかに関わらずスクリプトは終了
 # set -ex
 
-RESTORE_DATE_TIME="$1"
+# 引数を環境変数に設定
+if [ -n "$1" ]; then
+    export SEED="$1"
+    echo "SEED=$SEED" >> /etc/environment
+else
+    echo "No backup seed value provided. Using default value."
+    export SEED=""
+    echo "SEED=$SEED" >> /etc/environment
+fi
 
 S3_BUCKET=$S3_BUCKET_NAME
 S3_PREFIX=$S3_PREFIX_NAME
@@ -47,16 +55,8 @@ cleanup() {
 }
 
 # function executed when container is started
-echo "Container is starting. Downloading data from S3..."
-TARGET_BACKUP=$(aws s3 ls --recursive s3://${S3_BUCKET}/${S3_PREFIX}/ | grep "$RESTORE_DATE_TIME" | awk '{print $4}')
-LAST_MODIFIED=$(aws s3api head-object --bucket ${S3_BUCKET} --key ${TARGET_BACKUP} | jq -r .LastModified | xargs -I {} date -d "{}" "+%Y-%m-%d %H:%M:%S")
-
-# donwload s3 and unzip it to /data/world/
-aws s3 cp s3://${S3_BUCKET}/${TARGET_BACKUP} /data/world/
-find /data/world/ -name "*.tar.gz" -exec tar -xzvf {} -C /data \;
-rm -rf /data/world/*.tar.gz
-slack_notify ":creeper:バックアップをリストアしました！！\n\nバックアップファイルの作成日時: *${LAST_MODIFIED}*\nバックアップファイルPATH: *${S3_BUCKET}/${TARGET_BACKUP}*"
-
+echo "Container is starting..."
+slack_notify ":creeper: シード値：${SEED}でワールドを新たに作成しました！！"
 
 # trap SIGTERM signal and call cleanup
 trap cleanup TERM

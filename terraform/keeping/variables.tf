@@ -41,6 +41,19 @@ variable "github_repo" {
   description = "github repository name"
   type        = string
 }
+
+variable "github_token" {
+  description = "github token"
+  type        = string
+  sensitive   = true
+}
+
+variable "s3_bucket_name" {
+  description = "S3 bucket name"
+  type        = string
+  sensitive   = true
+}
+
 locals {
   owners      = var.owners
   environment = var.environment

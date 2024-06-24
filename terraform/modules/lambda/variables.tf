@@ -29,6 +29,10 @@ variable "slack_webhook_url" {
   sensitive   = true
 }
 
+variable "sns_kms_key_arn" {
+  type        = string
+  description = "The ARN of the KMS key to use for encryption"
+}
 
 variable "owners" {}
 variable "environment" {}
