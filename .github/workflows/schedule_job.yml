@@ -72,12 +72,12 @@ jobs:
       if: github.event_name == 'repository_dispatch'
       run: |
         terraform init -lock=false
-        if [ "${{ github.event.client_payload.action }}" == "start" ]; then
+        if [ "${{ github.event.action }}" == "start" ]; then
           terraform apply -lock=false \
             -var set_recovery_point=false \
             -var set_seed_value=false \
             -auto-approve
-        elif [ "${{ github.event.client_payload.action }}" == "stop" ]; then
+        elif [ "${{ github.event.action }}" == "stop" ]; then
           terraform destroy -lock=false -auto-approve
         fi
     - name: Slack Notification on Success
