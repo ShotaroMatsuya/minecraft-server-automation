@@ -78,10 +78,7 @@ jobs:
       working-directory: terraform/scheduling
       shell: /usr/bin/bash {0} # workaround ref:https://qiita.com/mkiken/items/3d2999217832704fcf01
       run: |
-        terraform plan -no-color -lock=false -detailed-exitcode \
-            -var recovery_time=${{ github.event.inputs.recovery_datetime }} \
-            -var set_recovery_point=true \
-            -var set_seed_value=false
+        terraform plan -no-color -lock=false -detailed-exitcode 
         TF_PLAN_EXIT_CODE=$?
         echo "exit code is ${TF_PLAN_EXIT_CODE}"
         echo "TF_PLAN_EXIT_CODE=${TF_PLAN_EXIT_CODE}" >> "$GITHUB_ENV"
@@ -91,9 +88,6 @@ jobs:
       working-directory: terraform/scheduling
       run: |
         terraform apply -lock=false \
-          -var recovery_time=${{ github.event.inputs.recovery_datetime }} \
-          -var set_recovery_point=true \
-          -var set_seed_value=false \
           -auto-approve
 
     - name: Update ECS Service
