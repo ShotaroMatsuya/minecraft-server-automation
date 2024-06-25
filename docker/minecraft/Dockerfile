@@ -10,19 +10,17 @@ ENV TYPE="SPIGOT"
 
 WORKDIR /data
 
-# install aws cli and cleanup
+# AWS CLIのインストール
 RUN apt-get update && apt-get install -y \
     ca-certificates \
     curl \
     unzip \
-    tini \
     vim \
     && curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" \
     && unzip awscliv2.zip \
     && ./aws/install -i /usr/local/aws-cli -b /usr/bin \
-    && rm -rf awscliv2.zip \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/* /data/aws
+    && rm -rf awscliv2.zip /var/lib/apt/lists/* /data/aws \
+    && apt-get clean
 
 ENV PLUGINS_FILE="/data/plugins.txt"
 COPY --chown=1000:1000 ./plugins.txt ./
@@ -30,6 +28,5 @@ COPY --chown=1000:1000 ./dynmap/configuration.txt plugins/dynmap/
 COPY --chown=1000:1000 ./scripts /scripts
 RUN chmod -R 755 /scripts
 
-# ベースイメージのSIGTERMの挙動をオーバーライドし、自前のスクリプトを実行する
-ENTRYPOINT ["/usr/bin/tini", "--"]
-CMD ["/scripts/entrypoint.sh"]
+# 特定のbackupからworldを復元(backup日時(%Y%m%d%H%M%S)を指定 例：20231101201531)
+ENTRYPOINT ["/scripts/entrypoint2.sh"]
