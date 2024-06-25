@@ -33,7 +33,7 @@ slack_notify() {
 cleanup() {
     BACKUP_DATE_TIME=$(date +"%Y%m%d%H%M%S")
     PARTITION_DATE=$(date +"%Y")-$(date +"%m")-$(date +"%d")
-    echo "Container is terminating. Uploading data from EFS to S3..."
+    echo "Container is terminating. Uploading data to S3..."
     if [ ! -d backup/${PARTITION_DATE} ]; then
         mkdir -p backup/${PARTITION_DATE}
     fi

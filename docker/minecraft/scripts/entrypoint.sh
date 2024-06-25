@@ -60,7 +60,7 @@ slack_notify "<!channel>\n\n:creeper:バックアップをリストアしまし�
 trap cleanup TERM
 
 # script実行後にベースイメージのEnrypointをバックグランド実行
-/start "$@" &
+/start &
 child=$!
 
 # 前景で無限ループを実行し、cleanup完了まで待機
