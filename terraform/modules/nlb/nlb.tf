@@ -50,11 +50,11 @@ module "nlb" {
       load_balancing_cross_zone_enabled = false
       health_check = {
         enabled             = true
-        interval            = 60
+        interval            = 30
         port                = "traffic-port"
         healthy_threshold   = 2
         unhealthy_threshold = 2
-        timeout             = 50
+        timeout             = 5
         protocol            = "TCP"
       }
       tags = local.common_tags
