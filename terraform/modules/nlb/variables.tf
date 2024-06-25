@@ -26,10 +26,10 @@ variable "slack_webhook_path" {
   sensitive   = true
 }
 
-# variable "loadbalancer_sg_group_id" {
-#   description = "SG group ID for alb"
-#   type        = string
-# }
+variable "vpc_cidr_block" {
+  description = "VPC CIDR Block"
+  type        = string
+}
 
 #####################################################
 # Terraform AWS Application Load Balancer Variables #

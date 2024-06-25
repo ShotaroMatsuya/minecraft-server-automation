@@ -43,7 +43,7 @@ data "aws_subnets" "my_subnets" {
 
 module "custom_domain" {
   source              = "../modules/domain"
-  nlb_dns_name        = module.custom_nlb.nlb_dns_name
+  nlb_dns_name        = module.custom_nlb.this_lb_dns_name
   nlb_zone_id         = module.custom_nlb.this_lb_zone_id
   acm_certificate_arn = "arn:aws:acm:us-east-1:528163014577:certificate/dd1ac360-acb2-418f-908b-55abed732c09"
 
@@ -57,6 +57,7 @@ module "custom_nlb" {
   vpc_availability_zones = ["ap-northeast-1a", "ap-northeast-1c"]
   vpc_public_subnet_ids  = data.aws_subnets.my_subnets.ids
   slack_webhook_path     = var.WEBHOOK_PATH
+  vpc_cidr_block         = data.aws_vpc.myvpc.cidr_block
 
   owners      = local.owners
   environment = local.environment

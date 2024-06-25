@@ -1,7 +1,8 @@
-output "vpc_id" {
-  value = data.aws_vpc.myvpc.id
+output "nlb_target_group_arns" {
+  value = module.custom_nlb.target_group_arns
 }
 
-output "vpc_cidr_block" {
-  value = data.aws_vpc.myvpc.cidr_block
+output "target_group_arn_suffixes" {
+  value = module.custom_nlb.target_group_arn_suffixes
+
 }
