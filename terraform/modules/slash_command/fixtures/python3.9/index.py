@@ -39,7 +39,7 @@ def parse_request(command_text):
     if not command_text:
         return response(
             """`/mc`のあとにスペースを開けてコマンドを指定してください。
-            現在使用できるのは `backup`, `restore`, `list`, `help`です。
+            `help`コマンドで実行できるコマンド一覧を表示します。
             """
         )
     commands = command_text.split()
@@ -50,6 +50,9 @@ def parse_request(command_text):
         "list",
         "show",
         "delete",
+        "create",
+        "start",
+        "stop",
         "help"
     ]:
         return response("現在そのコマンドは存在しません。")
@@ -62,6 +65,9 @@ def parse_request(command_text):
 - `restore`: timestampを指定して特定のbackupからrestoreします。\n
 - `list`: 直近5件のbackupファイルを表示します。日時(例：2024-06-24)を指定することもできます。 \n
 - `show`: バックアップファイルを指定するとファイルの詳細（作成日時やファイルサイズなど）を参照できます。\n
+- `create`: Seed値を指定してworldを新たに生成します。 \n
+- `start`: 直近のセーブデータからサーバーを起動します。 \n
+- `stop`: セーブしてサーバーをシャットダウンします。 \n
 - `delete`: 特定のバックアップファイルを削除します。 \n
 - `help`: 実行できるコマンド一覧を表示します。 \n
 """)
@@ -217,6 +223,83 @@ deleteコマンドにはファイル名の引数が必要です。\n
 例：'backups/2024-06-24/minecraft-20240622171734.tar.gz'
 """)
 
+    if commands[0] == 'create':
+        cluster_name = os.environ['ECS_CLUSTER_NAME']
+        service_name = os.environ['ECS_SERVICE_NAME']
+        ecs_client = boto3.client('ecs')
+
+        res = ecs_client.describe_services(
+            cluster=cluster_name,
+            services=[service_name]
+        )
+        task_definition_arn = res['services'][0]['taskDefinition']
+
+        # タスク定義の詳細を取得
+        res = ecs_client.describe_task_definition(
+            taskDefinition=task_definition_arn
+        )
+        task_definition = res['taskDefinition']
+
+        # コンテナ定義を変更
+        container_definitions = task_definition['containerDefinitions']
+        for container_definition in container_definitions:
+            container_definition['entryPoint'] = ['/scripts/entrypoint3.sh']
+            container_definition['command'] = [f'{commands[1]}']
+        # 新しいタスク定義を登録
+        res = ecs_client.register_task_definition(
+            family=task_definition['family'],
+            taskRoleArn=task_definition['taskRoleArn'],
+            executionRoleArn=task_definition['executionRoleArn'],
+            networkMode=task_definition['networkMode'],
+            containerDefinitions=container_definitions,
+            volumes=task_definition['volumes'],
+            placementConstraints=task_definition['placementConstraints'],
+            requiresCompatibilities=task_definition['requiresCompatibilities'],
+            cpu=task_definition['cpu'],
+            memory=task_definition['memory']
+        )
+
+        new_task_definition_arn = res['taskDefinition']['taskDefinitionArn']
+
+        # ECSサービスを更新して新しいタスク定義を使用
+        ecs_client.update_service(
+            cluster=cluster_name,
+            service=service_name,
+            taskDefinition=new_task_definition_arn
+        )
+
+        return response(
+            f"Service {service_name} updated with new seed {commands[1]}"
+        )
+    if commands[0] == 'start':
+        try:
+            headers = {
+                "Authorization": f"bearer {github_token}",
+                "Accept": "application/vnd.github.v3+json",
+            }
+            data = {"event_type": "start"}
+
+            api_response = requests.post(url, headers=headers, json=data)
+            if api_response.status_code != 204:
+                return response("Failed to dispatch GitHub workflow.", 200)
+            return response(f"{commands[0]}が実行されました")
+        except Exception as e:
+            return response(f"Error: {e}")
+
+    if commands[0] == 'stop':
+        try:
+            headers = {
+                "Authorization": f"bearer {github_token}",
+                "Accept": "application/vnd.github.v3+json",
+            }
+            data = {"event_type": "stop"}
+
+            api_response = requests.post(url, headers=headers, json=data)
+            if api_response.status_code != 204:
+                return response("Failed to dispatch GitHub workflow.", 200)
+            return response(f"{commands[0]}が実行されました")
+        except Exception as e:
+            return response(f"Error: {e}")
     return response("""No action was taken. Please run `/mc help`.""")
 
 
