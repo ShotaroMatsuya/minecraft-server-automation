@@ -54,6 +54,16 @@ module "dispatch_backup_function" {
         "s3:DeleteObject"
       ],
       "Resource": "arn:aws:s3:::${var.s3_bucket_name}/*"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ecs:DescribeTaskDefinition",
+        "ecs:RegisterTaskDefinition",
+        "ecs:UpdateService",
+        "ecs:DescribeServices"
+      ],
+      "Resource": "*"
     }
   ]
 }
