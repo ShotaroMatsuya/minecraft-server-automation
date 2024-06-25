@@ -26,6 +26,11 @@ variable "slack_webhook_path" {
   sensitive   = true
 }
 
+variable "vpc_cidr_block" {
+  description = "VPC CIDR Block"
+  type        = string
+}
+
 #####################################################
 # Terraform AWS Application Load Balancer Variables #
 # Place holder file for AWS ALB Variables           #

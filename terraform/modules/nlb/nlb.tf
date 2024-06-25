@@ -8,7 +8,23 @@ module "nlb" {
   vpc_id             = var.vpc_id
 
   subnets = var.vpc_public_subnet_ids
-  # security_groups = [var.loadbalancer_sg_group_id]
+  # Security Group
+  enforce_security_group_inbound_rules_on_private_link_traffic = "off"
+  security_group_ingress_rules = {
+    all_tcp = {
+      from_port   = 25565
+      to_port     = 25565
+      ip_protocol = "tcp"
+      description = "TCP traffic"
+      cidr_ipv4   = "0.0.0.0/0"
+    }
+  }
+  security_group_egress_rules = {
+    all = {
+      ip_protocol = "-1"
+      cidr_ipv4   = var.vpc_cidr_block
+    }
+  }
   # HTTP Listener -
   listeners = {
     ex-one = {

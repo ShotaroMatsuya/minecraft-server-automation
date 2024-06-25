@@ -57,6 +57,7 @@ module "custom_nlb" {
   vpc_availability_zones = ["ap-northeast-1a", "ap-northeast-1c"]
   vpc_public_subnet_ids  = data.aws_subnets.my_subnets.ids
   slack_webhook_path     = var.WEBHOOK_PATH
+  vpc_cidr_block         = data.aws_vpc.myvpc.cidr_block
 
   owners      = local.owners
   environment = local.environment
