@@ -26,11 +26,6 @@ variable "slack_webhook_path" {
   sensitive   = true
 }
 
-# variable "loadbalancer_sg_group_id" {
-#   description = "SG group ID for alb"
-#   type        = string
-# }
-
 #####################################################
 # Terraform AWS Application Load Balancer Variables #
 # Place holder file for AWS ALB Variables           #
