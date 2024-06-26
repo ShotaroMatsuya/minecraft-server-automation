@@ -46,10 +46,10 @@ storage:
   bucketname: "minecraft-dynmaps"
   region: ap-northeast-1
   aws_access_key_id: "<aws-access-key-id>"
-  aws_secret_access_key: "<aws-secret-access-key>"  
+  aws_secret_access_key: "<aws-secret-access-key>"
+  override_endpoint: ""
   
 components:
-  - class: org.dynmap.ClientConfigurationComponent
   - class: org.dynmap.JsonFileClientUpdateComponent
     writeinterval: 15
     sendhealth: true
@@ -104,6 +104,7 @@ components:
     spawnbedhidebydefault: true
     spawnbedminzoom: 0
     spawnbedformat: "%name%'s bed"
+    spawnbedremoveonplayerleave: true
     # (optional) show world border (vanilla 1.8+)
     showworldborder: true
     worldborderlabel: "Border"
