@@ -17,7 +17,7 @@ resource "aws_s3_bucket_policy" "allow_access_from_cloudfront" {
 }
 
 data "aws_iam_policy_document" "s3_main_policy" {
-  # OAC からのアクセスのみ許可
+  # OAC からのアクセス許可
   statement {
     principals {
       type        = "Service"
@@ -29,6 +29,16 @@ data "aws_iam_policy_document" "s3_main_policy" {
       test     = "StringEquals"
       variable = "aws:SourceArn"
       values   = [aws_cloudfront_distribution.s3_distribution.arn]
+    }
+  }
+  # For Dynmap rendering
+  statement {
+    actions   = ["s3:DeleteObject", "s3:GetObject", "s3:ListBucket", "s3:PutObject"]
+    resources = ["${data.aws_s3_bucket.dynmap_bucket.arn}/*", "${data.aws_s3_bucket.dynmap_bucket.arn}"]
+    effect    = "Allow"
+    principals {
+      type        = "AWS"
+      identifiers = ["*"]
     }
   }
 }
