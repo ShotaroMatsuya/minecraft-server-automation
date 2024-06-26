@@ -50,6 +50,7 @@ storage:
   override_endpoint: ""
   
 components:
+  - class: org.dynmap.ClientConfigurationComponent
   - class: org.dynmap.JsonFileClientUpdateComponent
     writeinterval: 15
     sendhealth: true
