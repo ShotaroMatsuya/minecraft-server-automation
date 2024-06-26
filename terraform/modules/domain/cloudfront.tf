@@ -37,8 +37,8 @@ data "aws_iam_policy_document" "s3_main_policy" {
     resources = ["${data.aws_s3_bucket.dynmap_bucket.arn}/*", "${data.aws_s3_bucket.dynmap_bucket.arn}"]
     effect    = "Allow"
     principals {
-      type        = "AWS"
-      identifiers = ["*"]
+      type        = "Service"
+      identifiers = ["ecs.amazonaws.com"]
     }
   }
 }
