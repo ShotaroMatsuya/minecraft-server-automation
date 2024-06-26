@@ -224,53 +224,34 @@ deleteコマンドにはファイル名の引数が必要です。\n
 """)
 
     if commands[0] == 'create':
-        cluster_name = os.environ['ECS_CLUSTER_NAME']
-        service_name = os.environ['ECS_SERVICE_NAME']
-        ecs_client = boto3.client('ecs')
+        if len(commands) > 1:
+            seed_value = commands[1]
+            try:
+                seed_value = int(seed_value)
+                headers = {
+                    "Authorization": f"bearer {github_token}",
+                    "Accept": "application/vnd.github.v3+json",
+                }
 
-        res = ecs_client.describe_services(
-            cluster=cluster_name,
-            services=[service_name]
-        )
-        task_definition_arn = res['services'][0]['taskDefinition']
+                data = {
+                    "event_type": "create",
+                    "client_payload": {"seed_value": seed_value},
+                }
 
-        # タスク定義の詳細を取得
-        res = ecs_client.describe_task_definition(
-            taskDefinition=task_definition_arn
-        )
-        task_definition = res['taskDefinition']
+                api_response = requests.post(url, headers=headers, json=data)
+                if api_response.status_code != 204:
+                    return response("Failed to dispatch GitHub workflow.", 200)
+                return response(f"`{commands[0]} `が実行されました")
 
-        # コンテナ定義を変更
-        container_definitions = task_definition['containerDefinitions']
-        for container_definition in container_definitions:
-            container_definition['entryPoint'] = ['/scripts/entrypoint3.sh']
-            container_definition['command'] = [f'{commands[1]}']
-        # 新しいタスク定義を登録
-        res = ecs_client.register_task_definition(
-            family=task_definition['family'],
-            taskRoleArn=task_definition['taskRoleArn'],
-            executionRoleArn=task_definition['executionRoleArn'],
-            networkMode=task_definition['networkMode'],
-            containerDefinitions=container_definitions,
-            volumes=task_definition['volumes'],
-            placementConstraints=task_definition['placementConstraints'],
-            requiresCompatibilities=task_definition['requiresCompatibilities'],
-            cpu=task_definition['cpu'],
-            memory=task_definition['memory']
-        )
+            except ValueError:
+                return response(
+                    f"The second word is not a valid value: {seed_value}"
+                )
 
-        new_task_definition_arn = res['taskDefinition']['taskDefinitionArn']
-
-        # ECSサービスを更新して新しいタスク定義を使用
-        ecs_client.update_service(
-            cluster=cluster_name,
-            service=service_name,
-            taskDefinition=new_task_definition_arn
-        )
-
-        return response(
-            f"Service {service_name} updated with new seed {commands[1]}"
-        )
+        else:
+            return response(
+                "restoreコマンドにはシード値の指定が必要です。"
+            )
     if commands[0] == 'start':
         try:
             headers = {

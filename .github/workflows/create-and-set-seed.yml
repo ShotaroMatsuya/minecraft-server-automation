@@ -1,0 +1,125 @@
+name: Create world with seed action
+
+on:
+  workflow_dispatch:
+    inputs:
+      seed_value:
+        description: 'seed value(number)'
+        required: true
+  repository_dispatch:
+      types:
+        - create
+        
+
+env:
+  SLACK_USERNAME: CreateActionBot
+  SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
+  SLACK_WEBHOOK: "https://hooks.slack.com/services/${{ secrets.WEBHOOK_PATH }}"
+  TF_VAR_WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  terraform-plan-apply:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
+        role-session-name: github-actions-test-session
+        aws-region: ap-northeast-1
+    - name: Set up Python 3.9
+      uses: actions/setup-python@v5
+      with:
+        python-version: 3.9
+    - name: Install Terraform
+      uses: hashicorp/setup-terraform@v3
+      with:
+        terraform_version: 1.7.5
+        terraform_wrapper: false # workarround ref:https://stackoverflow.com/questions/77243030/detailed-exitcode-flag-of-terraform-not-working-inside-github-action
+    - name: Create Mapping Yaml
+      working-directory: terraform/scheduling
+      run: |
+        cat << EOF > secrets.yaml
+        OPS: ${{ secrets.WHITELIST_PLAYERS }}
+        WHITELIST: ${{ secrets.WHITELIST_PLAYERS }}
+        WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
+        S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+        S3_PREFIX_NAME: ${{ secrets.S3_PREFIX_NAME }}
+        FILTERING_STRINGS: ${{ secrets.FILTERING_STRINGS }}
+        AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}  
+        EOF
+        
+    - name: Set Terraform variables(workflow_dispatch)
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        echo "TF_VAR_seed_value=${{ github.event.inputs.seed_value }}" >> "$GITHUB_ENV"
+    - name: Set Terraform variables(repository_dispatch)
+      if: github.event_name == 'repository_dispatch'
+      run: |
+        echo "TF_VAR_seed_value=${{ github.event.client_payload.seed_value }}" >> "$GITHUB_ENV"
+        
+    - name: Initialize Terraform
+      working-directory: terraform/scheduling
+      run: terraform init -lock=false
+
+    - name: Terraform Plan
+      id: plan
+      working-directory: terraform/scheduling
+      shell: /usr/bin/bash {0} # workaround ref:https://qiita.com/mkiken/items/3d2999217832704fcf01
+      run: |
+        terraform plan -no-color -lock=false -detailed-exitcode  \
+          -var="seed_value=${{ env.TF_VAR_seed_value }}" \
+          -var="set_recovery_point=false" \
+          -var="set_seed_value=true"
+        TF_PLAN_EXIT_CODE=$?
+        echo "exit code is ${TF_PLAN_EXIT_CODE}"
+        echo "TF_PLAN_EXIT_CODE=${TF_PLAN_EXIT_CODE}" >> "$GITHUB_ENV"
+
+    - name: Apply Terraform
+      if: ${{ env.TF_PLAN_EXIT_CODE == 2 }}
+      working-directory: terraform/scheduling
+      run: |
+        terraform apply -lock=false \
+          -var="seed_value=${{ env.TF_VAR_seed_value }}" \
+          -var="set_recovery_point=false" \
+          -var="set_seed_value=true" \
+          -auto-approve
+
+    - name: Update ECS Service
+      working-directory: terraform/scheduling
+      run: |
+        # Replace with your AWS CLI command to update ECS service
+        CLUSTER="$(aws ecs list-clusters | jq -r '.clusterArns[0]' )"
+        SVC="$(aws ecs list-services --cluster "${CLUSTER}" | jq -r '.serviceArns[0]' | sed -E 's/.+cluster\///g')"
+        TASK_REVISION="$(aws ecs describe-task-definition \
+          --task-definition minecraft-test \
+          --query 'taskDefinition.revision' \
+          --output text)"
+
+        aws ecs update-service --cluster "${CLUSTER}" \
+          --service "${SVC}" \
+          --task-definition minecraft-test:"${TASK_REVISION}" \
+          --force-new-deployment
+          
+    - name: Slack Notification for Success
+      if: ${{ success() }}
+      uses: rtCamp/action-slack-notify@v2
+      env:
+        SLACK_TITLE: 'Operation Successful'
+        SLACK_COLOR: good
+        SLACK_MESSAGE: 'Create new world successfully for seed: ${{ github.event.inputs.seed_value }} :rocket:' 
+
+    - name: Slack Notification for Failure
+      if: ${{ failure() }}
+      uses: rtCamp/action-slack-notify@v2
+      env:
+        SLACK_TITLE: 'Operation Failed'
+        SLACK_COLOR: danger
+        SLACK_MESSAGE: "Workflow failed. Check details here: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+  
