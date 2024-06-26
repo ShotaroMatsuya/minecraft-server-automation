@@ -235,7 +235,7 @@ deleteコマンドにはファイル名の引数が必要です。\n
 
                 data = {
                     "event_type": "create",
-                    "client_payload": {"seed_value": seed_value},
+                    "client_payload": {"seed_value": str(seed_value)},
                 }
 
                 api_response = requests.post(url, headers=headers, json=data)
