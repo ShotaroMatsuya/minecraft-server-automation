@@ -11,9 +11,16 @@ module "nlb" {
   # Security Group
   enforce_security_group_inbound_rules_on_private_link_traffic = "off"
   security_group_ingress_rules = {
-    all_tcp = {
+    app_tcp = {
       from_port   = 25565
       to_port     = 25565
+      ip_protocol = "tcp"
+      description = "TCP traffic"
+      cidr_ipv4   = "0.0.0.0/0"
+    },
+    map_tcp = {
+      from_port   = 8080
+      to_port     = 8080
       ip_protocol = "tcp"
       description = "TCP traffic"
       cidr_ipv4   = "0.0.0.0/0"
@@ -33,11 +40,18 @@ module "nlb" {
       forward = {
         target_group_key = "ex-target-one"
       }
-    }
+    },
+    ex-two = {
+      port     = 8080
+      protocol = "TCP"
+      forward = {
+        target_group_key = "ex-target-two"
+      }
+    },
+
   }
   # Target Groups
   target_groups = {
-    # ECS service Target Group - TG Index = 0
     ex-target-one = {
       protocol             = "TCP"
       port                 = 25565
@@ -58,6 +72,15 @@ module "nlb" {
         protocol            = "TCP"
       }
       tags = local.common_tags
+    }
+    ex-target-two = {
+      protocol                          = "TCP"
+      port                              = 8080
+      target_type                       = "ip"
+      deregistration_delay              = 10
+      create_attachment                 = false
+      load_balancing_cross_zone_enabled = false
+      tags                              = local.common_tags
     }
   }
   enable_deletion_protection = false

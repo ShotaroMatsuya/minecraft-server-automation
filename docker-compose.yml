@@ -11,26 +11,21 @@ services:
     stdin_open: true
     ports:
       - "25565:25565"
-      - "8123:8123"
+      - "8080:8080"
     environment:
       VERSION: 1.21
       EULA: "TRUE"
-      # # # Use SPIGOT server type + install Plugins
-      TYPE: SPIGOT      
-      # SPIGET_RESOURCES: 274
-      # # # 
+      TYPE: PAPER
+      PAPER_CHANNEL: experimental
 
       WEBHOOK_PATH:
       S3_BUCKET_NAME:
       S3_PREFIX_NAME:
-      WHITELIST: 05910308-229d-46bb-a466-e5574dba490c,6b4a177a-54ee-4dd6-a50b-d993503892c1,2fb94c76-d968-4f25-a7cc-91fdccd23868
-      OPS: 05910308-229d-46bb-a466-e5574dba490c,6b4a177a-54ee-4dd6-a50b-d993503892c1,2fb94c76-d968-4f25-a7cc-91fdccd23868
-      AWS_ACCESS_KEY_ID:
-      AWS_SECRET_ACCESS_KEY:
+      WHITELIST: 05910308-229d-46bb-a466-e5574dba490c,6b4a177a-54ee-4dd6-a50b-d993503892c1,2fb94c76-d968-4f25-a7cc-91fdccd23868,2cffa334-b882-41ba-8e83-0bb4cb0d8769
+      OPS: 05910308-229d-46bb-a466-e5574dba490c,6b4a177a-54ee-4dd6-a50b-d993503892c1,2fb94c76-d968-4f25-a7cc-91fdccd23868,2cffa334-b882-41ba-8e83-0bb4cb0d8769
     volumes:
       - ~/.aws/credentials:/root/.aws/credentials:ro
       - ~/.aws/config:/root/.aws/config:ro
-      # attach the relative directory 'data' to the container's /data path
       - log-data:/data
   fluent-bit:
     container_name: fluentbit

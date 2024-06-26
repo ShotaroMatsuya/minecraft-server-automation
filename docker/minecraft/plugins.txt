@@ -1,1 +1,1 @@
-https://dynmap.us/builds/dynmap/Dynmap-HEAD-spigot.jar
+https://cdn.modrinth.com/data/PFb7ZqK6/versions/xk7pNBpR/squaremap-paper-mc1.21-1.2.5.jar
