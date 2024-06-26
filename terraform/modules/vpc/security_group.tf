@@ -30,8 +30,8 @@ module "fargate_sg" {
       cidr_blocks = "10.0.0.0/16"
     },
     {
-      from_port   = 80
-      to_port     = 80
+      from_port   = 8080
+      to_port     = 8080
       protocol    = 6
       description = "Ingress from the public NLB"
       cidr_blocks = "10.0.0.0/16"
