@@ -28,25 +28,33 @@ module "fargate_sg" {
       protocol    = 6
       description = "Ingress from the public NLB"
       cidr_blocks = "10.0.0.0/16"
-    }
-  ]
-}
-
-module "allow_nfs_sg" {
-  source      = "terraform-aws-modules/security-group/aws"
-  version     = "5.1.2"
-  description = "EFS security group"
-  tags        = local.common_tags
-  name        = "${local.name}-allow-nfs-sg"
-  vpc_id      = module.vpc.vpc_id
-
-  egress_rules = ["all-all"]
-  ingress_with_source_security_group_id = [
+    },
     {
-      from_port                = "2049"
-      to_port                  = "2049"
-      protocol                 = "TCP"
-      source_security_group_id = module.fargate_sg.security_group_id
-    }
+      from_port   = 80
+      to_port     = 80
+      protocol    = 6
+      description = "Ingress from the public NLB"
+      cidr_blocks = "10.0.0.0/16"
+    },
+
   ]
 }
+
+# module "allow_nfs_sg" {
+#   source      = "terraform-aws-modules/security-group/aws"
+#   version     = "5.1.2"
+#   description = "EFS security group"
+#   tags        = local.common_tags
+#   name        = "${local.name}-allow-nfs-sg"
+#   vpc_id      = module.vpc.vpc_id
+
+#   egress_rules = ["all-all"]
+#   ingress_with_source_security_group_id = [
+#     {
+#       from_port                = "2049"
+#       to_port                  = "2049"
+#       protocol                 = "TCP"
+#       source_security_group_id = module.fargate_sg.security_group_id
+#     }
+#   ]
+# }
