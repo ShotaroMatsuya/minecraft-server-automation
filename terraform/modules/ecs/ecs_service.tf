@@ -23,6 +23,11 @@ resource "aws_ecs_service" "main" {
     container_port   = var.mc_container_port
     target_group_arn = element(var.nlb_target_group_arns, 0)
   }
+  load_balancer {
+    container_name   = var.mc_container_name
+    container_port   = 8080
+    target_group_arn = element(var.nlb_target_group_arns, 1)
+  }
 
   name = "${local.name}-service"
 

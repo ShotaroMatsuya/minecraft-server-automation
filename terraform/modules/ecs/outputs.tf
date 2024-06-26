@@ -38,6 +38,11 @@ output "aws_ecs_main_task_definition_revision" {
   value       = aws_ecs_task_definition.main.revision
 }
 
+output "aws_ecs_task_definition_json" {
+  description = "value of the task definition JSON."
+  value       = aws_ecs_task_definition.main.container_definitions
+}
+
 /*
 output "aws_cloudwatch_firelens_log_group_id" {
   value = aws_cloudwatch_log_group.firelens.id
