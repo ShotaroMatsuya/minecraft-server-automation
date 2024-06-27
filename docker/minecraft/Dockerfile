@@ -5,10 +5,6 @@ ENV S3_BUCKET_NAME="minecraftbucket"
 ENV S3_PREFIX_NAME="backups-path"
 ENV WEBHOOK_PATH="webhook-path"
 
-ENV VERSION="1.21"
-ENV TYPE="PAPER"
-ENV PAPER_CHANNEL="experimental"
-
 
 WORKDIR /data
 
@@ -24,7 +20,6 @@ RUN apt-get update && apt-get install -y \
     && rm -rf awscliv2.zip /var/lib/apt/lists/* /data/aws \
     && apt-get clean
 
-ENV PLUGINS_FILE="/data/plugins.txt"
 COPY --chown=1000:1000 ./plugins.txt ./
 COPY --chown=1000:1000 ./squaremap/*.yml plugins/squaremap/
 COPY --chown=1000:1000 ./scripts /scripts
