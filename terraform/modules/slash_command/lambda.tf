@@ -61,9 +61,21 @@ module "dispatch_backup_function" {
         "ecs:DescribeTaskDefinition",
         "ecs:RegisterTaskDefinition",
         "ecs:UpdateService",
-        "ecs:DescribeServices"
+        "ecs:DescribeServices",
+        "ecs:ListTaskDefinitions",
+        "elasticloadbalancing:DescribeTargetHealth"
       ],
       "Resource": "*"
+    },
+    {
+      "Action": [
+          "iam:PassRole"
+      ],
+      "Effect": "Allow",
+      "Resource": [
+          "arn:aws:iam::${var.aws_account_id}:role/${local.name}-ecs_tasks_execution-role",
+          "arn:aws:iam::${var.aws_account_id}:role/ecs_tasks-${local.name}-role"
+      ]
     }
   ]
 }

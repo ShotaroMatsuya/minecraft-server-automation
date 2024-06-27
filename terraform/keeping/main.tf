@@ -67,6 +67,7 @@ module "custom_slash_command" {
   github_user    = var.github_org
   github_repo    = var.github_repo
   s3_bucket_name = var.s3_bucket_name
+  aws_account_id = var.aws_account_id
 
   owners      = local.owners
   environment = local.environment
