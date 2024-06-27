@@ -19,6 +19,11 @@ variable "s3_bucket_name" {
   description = "S3 bucket name"
 }
 
+variable "aws_account_id" {
+  description = "Account ID in which AWS Resoruces to be created"
+  type        = string
+}
+
 variable "owners" {}
 variable "environment" {}
 
