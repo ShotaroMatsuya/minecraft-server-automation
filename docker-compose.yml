@@ -17,6 +17,8 @@ services:
       EULA: "TRUE"
       TYPE: PAPER
       PAPER_CHANNEL: experimental
+      PLUGINS_FILE: "/data/plugins.txt"
+      SEED: ""
 
       WEBHOOK_PATH:
       S3_BUCKET_NAME:
