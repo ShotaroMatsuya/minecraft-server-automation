@@ -1,4 +1,4 @@
-FROM --platform=linux/x86_64 amazon/aws-for-fluent-bit@sha256:a8f9b517ee92dc46b233f74d7bd1f56ab3a4df774213c24aa2da16a4d5bcd051
+FROM --platform=linux/x86_64 amazon/aws-for-fluent-bit@sha256:0a7b90a891c6f4f8e8b1ba11e98f26b103651f04cda51e37b8088617b41a2bfc
 
 ENV TZ='Asia/Tokyo'
 COPY fluent-bit_custom.conf /fluent-bit/etc/fluent-bit_custom.conf
