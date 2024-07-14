@@ -1,11 +1,12 @@
 name: Start and Stop Workflow
 
 on:
-  schedule:
-    # At 08:00 PM JST
-    - cron: '0 11 * * 6,0'
-    # At 02:00 AM JST
-    - cron: '0 17 * * 6,0'
+  # 一時無効化
+  # schedule:
+  #   # At 08:00 PM JST
+  #   - cron: '0 11 * * 6,0'
+  #   # At 02:00 AM JST
+  #   - cron: '0 17 * * 6,0'
   repository_dispatch:
     types: [start, stop]
 env:
