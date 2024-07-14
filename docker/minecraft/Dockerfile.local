@@ -1,4 +1,4 @@
-FROM --platform=linux/x86_64 itzg/minecraft-server@sha256:2aaa6210da112641b1db282fce0ba7e91817847e4c68855fed51302831387dec
+FROM --platform=linux/x86_64 itzg/minecraft-server@sha256:109960228fa6bbe8a56336b574700e87c231b825022694213b5ae96b2a9f9974
 
 ENV TZ=Asia/Tokyo
 
