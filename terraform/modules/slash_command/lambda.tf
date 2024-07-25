@@ -1,7 +1,7 @@
 
 module "dispatch_backup_function" {
   source                 = "terraform-aws-modules/lambda/aws"
-  version                = "7.7.0"
+  version                = "7.7.1"
   function_name          = "dispatch_workflow_from_slack-function"
   description            = "My awsome lambda function"
   handler                = "index.lambda_handler"
