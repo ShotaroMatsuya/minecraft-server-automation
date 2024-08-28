@@ -5,7 +5,7 @@ permissions:
 
 on:
   issue_comment:
-      types: [created]
+    types: [created]
 
 jobs:
   pr_commented:
@@ -23,26 +23,29 @@ jobs:
               repo: context.repo.repo,
               pull_number: context.issue.number,
             });
-            core.setOutput('head_ref', pr.head.ref);
-            core.setOutput('base_ref', pr.base.ref);
-      - name: Output refs
+            core.setOutput('head_sha', pr.head.sha);
+            core.setOutput('base_sha', pr.base.sha);
+
+      - name: Output SHAs
         run: |
-          echo "Base ref: ${{ steps.set-target-branch.outputs.base_ref }}"
-          echo "Head ref: ${{ steps.set-target-branch.outputs.head_ref }}"
+          echo "Base SHA: ${{ steps.set-target-branch.outputs.base_sha }}"
+          echo "Head SHA: ${{ steps.set-target-branch.outputs.head_sha }}"
+
       - uses: actions/checkout@v4
-        name: checkout "${{ steps.set-target-branch.outputs.base_ref }}"
+        name: Checkout base commit
         with:
           fetch-depth: 1
-          ref: ${{ steps.set-target-branch.outputs.base_ref }}
+          ref: ${{ steps.set-target-branch.outputs.base_sha }}
+
       - uses: actions/checkout@v4
-        name: checkout "${{ steps.set-target-branch.outputs.head_ref }}"
+        name: Checkout head commit
         with:
           fetch-depth: 1
-          ref: ${{ steps.set-target-branch.outputs.head_ref }}
-      - name: check_diff
-        shell: bash
+          ref: ${{ steps.set-target-branch.outputs.head_sha }}
+
+      - name: Check diff between base and head SHAs
         run: |
-          files=(`git diff origin/${{ steps.set-target-branch.outputs.base_ref }} --name-only|tr '\n' ' ' `)
-          for file in ${files[@]}; do
-            echo ${file}
+          files=($(git diff ${{ steps.set-target-branch.outputs.base_sha }} ${{ steps.set-target-branch.outputs.head_sha }} --name-only | tr '\n' ' '))
+          for file in "${files[@]}"; do
+            echo "${file}"
           done
