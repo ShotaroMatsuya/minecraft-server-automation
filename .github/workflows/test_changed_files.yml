@@ -8,23 +8,43 @@ on:
       types: [created]
 
 jobs:
-  check_before_merge:
+  pr_commented:
+    if: github.event.issue.pull_request != '' && contains(github.event.comment.body, '/test')
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
+      - name: Get PR details
+        id: get_pr
+        uses: actions/github-script@v6
+        with:
+          script: |
+            const pr_url = github.event.issue.pull_request.url;
+            const pr = await github.request(`GET ${pr_url}`, {
+              headers: {
+                authorization: `token ${process.env.GITHUB_TOKEN}`
+              }
+            });
+            return { base_ref: pr.data.base.ref, head_ref: pr.data.head.ref };
+
+      - name: Output refs
+        if: steps.get_pr.outputs.base_ref != ''
+        run: |
+          echo "Base ref: ${{ steps.get_pr.outputs.base_ref }}"
+          echo "Head ref: ${{ steps.get_pr.outputs.head_ref }}"
       - uses: actions/checkout@v4
-        name: checkout "${{ github.base_ref }}"
+        name: checkout "${{ steps.get_pr.outputs.base_ref }}"
         with:
           fetch-depth: 1
-          ref: ${{ github.base_ref }}
+          ref: ${{ steps.get_pr.outputs.base_ref }}
       - uses: actions/checkout@v4
-        name: checkout "${{ github.head_ref }}"
+        name: checkout "${{ steps.get_pr.outputs.head_ref }}"
         with:
           fetch-depth: 1
-          ref: ${{ github.head_ref}}
+          ref: ${{ steps.get_pr.outputs.head_ref }}
       - name: check_diff
         shell: bash
         run: |
-          files=(`git diff origin/${{ github.base_ref }} --name-only|tr '\n' ' ' `)
+          files=(`git diff origin/${{ steps.get_pr.outputs.base_ref }} --name-only|tr '\n' ' ' `)
           for file in ${files[@]}; do
             echo ${file}
           done
