@@ -43,8 +43,8 @@ jobs:
         id: changed-files-all-old-new-renamed-files
         uses: tj-actions/changed-files@v45
         with:
-          base_sha: 661ddd3e0530c81f4e80664a13f5e06a81d68161
-          sha: 0fa56e78774875809962d3bd60c51c77060c63bd
+          base_sha: 661ddd3
+          sha: 0fa56e7
           fetch_depth: 60000
           include_all_old_new_renamed_files: true
 
