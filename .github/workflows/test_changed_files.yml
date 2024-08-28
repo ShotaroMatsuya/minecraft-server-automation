@@ -8,95 +8,23 @@ on:
       types: [created]
 
 jobs:
-  pr_commented:
-    if: github.event.issue.pull_request != '' && contains(github.event.comment.body, '/test')
+  check_before_merge:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
     steps:
-      - name: branch-deploy
-        id: branch-deploy
-        uses: github/branch-deploy@v9
-      - name: Show output
-        run: |
-          echo '${{ toJSON(steps.branch-deploy.outputs) }}'
-        shell:
-          bash
-      - run: |
-          echo A comment on PR $NUMBER
-        env:
-          NUMBER: ${{ github.event.issue.number }}
-
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+        name: checkout "${{ github.base_ref }}"
         with:
-          ref: ${{ steps.branch-deploy.outputs.ref }}
-          submodules: true
-          fetch-depth: 0
-
-      - name: Dump GitHub context
-        env:
-          GITHUB_CONTEXT: ${{ toJson(github) }}
-        run: echo "$GITHUB_CONTEXT"
-
-      - name: Run changed-files with defaults
-        id: changed-files
-        uses: tj-actions/changed-files@v45
-
-      - name: Show output
-        run: |
-          echo '${{ toJSON(steps.changed-files.outputs) }}'
-        shell:
-          bash
-
-      - name: Run changed-files for old new filenames test rename
-        id: changed-files-all-old-new-renamed-files
-        uses: tj-actions/changed-files@v45
+          fetch-depth: 1
+          ref: ${{ github.base_ref }}
+      - uses: actions/checkout@v4
+        name: checkout "${{ github.head_ref }}"
         with:
-          base_sha: ${{ steps.branch-deploy.outputs.base_ref }}
-          sha: ${{ steps.branch-deploy.outputs.ref }}
-          fetch_depth: 60000
-          include_all_old_new_renamed_files: true
-
-      - name: Show output
+          fetch-depth: 1
+          ref: ${{ github.head_ref}}
+      - name: check_diff
+        shell: bash
         run: |
-          echo '${{ toJSON(steps.changed-files-all-old-new-renamed-files.outputs) }}'
-        shell:
-          bash
-
-      - name: Show output
-        run: |
-          echo '${{ toJSON(steps.changed-files-all-old-new-renamed-files.outputs) }}'
-        shell:
-          bash
-
-      - name: Check all_old_new_renamed_files output on non windows platform
-        if: "!contains(steps.changed-files-all-old-new-renamed-files.outputs.all_old_new_renamed_files, 'test/test rename 1.txt,test/test rename-1.txt') && runner.os != 'Windows'"
-        run: |
-          echo "Invalid output: Expected to include (test/test rename 1.txt,test/test rename-1.txt) got (${{ steps.changed-files-all-old-new-renamed-files.outputs.all_old_new_renamed_files }})"
-          exit 1
-        shell:
-          bash
-
-      - name: Check all_old_new_renamed_files output on windows platform
-        if: "!contains(steps.changed-files-all-old-new-renamed-files.outputs.all_old_new_renamed_files, 'test\\test rename 1.txt,test\\test rename-1.txt') && runner.os == 'Windows'"
-        run: |
-          echo "Invalid output: Expected to not include (test\\test rename 1.txt,test\\test rename-1.txt) got (${{ steps.changed-files-all-old-new-renamed-files.outputs.all_old_new_renamed_files }})"
-          exit 1
-        shell:
-          bash
-
-      - name: Check the renamed_files output on non windows platform
-        if: "!contains(steps.changed-files-all-old-new-renamed-files.outputs.renamed_files, 'test/test rename-1.txt') && runner.os != 'Windows'"
-        run: |
-          echo "Invalid output: Expected to include (test/test rename-1.txt) got (${{ steps.changed-files-all-old-new-renamed-files.outputs.renamed_files }})"
-          exit 1
-        shell:
-          bash
-
-      - name: Check the renamed_files output on windows platform
-        if: "!contains(steps.changed-files-all-old-new-renamed-files.outputs.renamed_files, 'test\\test rename-1.txt') && runner.os == 'Windows'"
-        run: |
-          echo "Invalid output: Expected to not include (test\\test rename-1.txt) got (${{ steps.changed-files-all-old-new-renamed-files.outputs.renamed_files }})"
-          exit 1
-        shell:
-          bash
+          files=(`git diff origin/${{ github.base_ref }} --name-only|tr '\n' ' ' `)
+          for file in ${files[@]}; do
+            echo ${file}
+          done
