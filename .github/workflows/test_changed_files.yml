@@ -19,12 +19,13 @@ jobs:
           github-token: ${{secrets.GITHUB_TOKEN}}
           result-encoding: string
           script: |
-            const pull_request = await github.pulls.get({
+            const prNumber = github.event.issue.number;
+            const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              pull_number: context.issue.number
-            })
-            return {head_ref: pull_request.data.head.ref, base_ref: pull_request.data.base.ref}
+              pull_number: prNumber,
+            });
+            return {head_ref: pr.head.ref, base_ref: pr.base.ref}
       - name: Output refs
         if: steps.set-target-branch.outputs.base_ref != ''
         run: |
