@@ -13,6 +13,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
+      - name: branch-deploy
+        id: branch-deploy
+        uses: github/branch-deploy@v9
+      - name: Show output
+        run: |
+          echo '${{ toJSON(steps.branch-deploy.outputs) }}'
+        shell:
+          bash
       - run: |
           echo A comment on PR $NUMBER
         env:
@@ -21,6 +29,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
+          ref: ${{ steps.branch-deploy.outputs.ref }}
           submodules: true
           fetch-depth: 0
 
@@ -43,8 +52,8 @@ jobs:
         id: changed-files-all-old-new-renamed-files
         uses: tj-actions/changed-files@v45
         with:
-          base_sha: 661ddd3
-          sha: 0fa56e7
+          base_sha: ${{ steps.branch-deploy.outputs.base_ref }}
+          sha: ${{ steps.branch-deploy.outputs.ref }}
           fetch_depth: 60000
           include_all_old_new_renamed_files: true
 
