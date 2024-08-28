@@ -29,11 +29,11 @@ jobs:
         run: |
           echo "Base ref: ${{ steps.set-target-branch.outputs.base_ref }}"
           echo "Head ref: ${{ steps.set-target-branch.outputs.head_ref }}"
-      # - uses: actions/checkout@v4
-      #   name: Checkout base branch
-      #   with:
-      #     fetch-depth: 100
-      #     ref: ${{ steps.set-target-branch.outputs.base_ref }}
+      - uses: actions/checkout@v4
+        name: Checkout base branch
+        with:
+          fetch-depth: 100
+          ref: ${{ steps.set-target-branch.outputs.base_ref }}
 
       - uses: actions/checkout@v4
         name: Checkout head branch
