@@ -43,13 +43,10 @@ jobs:
           fetch-depth: 1
           ref: ${{ steps.set-target-branch.outputs.head_ref }}
 
-      - name: Fetch branches
+      - name: Find common ancestor and check diff
         run: |
           git fetch origin main
           git fetch origin ${{ steps.set-target-branch.outputs.head_ref }}
-
-      - name: Find common ancestor and check diff
-        run: |
           merge_base=$(git merge-base origin/main ${{ steps.set-target-branch.outputs.head_ref }})
           if [ -z "$merge_base" ]; then
             echo "No merge base found, exiting."
