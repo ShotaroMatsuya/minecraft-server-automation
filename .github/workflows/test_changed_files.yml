@@ -46,8 +46,16 @@ jobs:
       - name: Find common ancestor and check diff
         run: |
           merge_base=$(git merge-base origin/${{ steps.set-target-branch.outputs.base_ref }} HEAD)
+          if [ -z "$merge_base" ]; then
+            echo "No merge base found, exiting."
+            exit 1
+          fi
           echo "Merge base commit: $merge_base"
           files=($(git diff $merge_base HEAD --name-only | tr '\n' ' '))
+          if [ ${#files[@]} -eq 0 ]; then
+            echo "No changes detected."
+            exit 0
+          fi
           for file in "${files[@]}"; do
             echo "${file}"
           done
