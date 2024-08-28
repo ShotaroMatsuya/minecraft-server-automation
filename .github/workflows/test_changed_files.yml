@@ -44,6 +44,7 @@ jobs:
         uses: tj-actions/changed-files@v45
         with:
           base_sha: main
+          sha: hotfix/disable-schedule-jobs
           fetch_depth: 60000
           include_all_old_new_renamed_files: true
 
