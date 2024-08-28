@@ -34,19 +34,11 @@ jobs:
       - uses: actions/checkout@v4
         name: Checkout base branch
         with:
-          fetch-depth: 100
-          ref: ${{ steps.set-target-branch.outputs.base_ref }}
-
-      - uses: actions/checkout@v4
-        name: Checkout head branch
-        with:
-          fetch-depth: 1
-          ref: ${{ steps.set-target-branch.outputs.head_ref }}
+          fetch-depth: 0
+          # ref: ${{ steps.set-target-branch.outputs.base_ref }}
 
       - name: Find common ancestor and check diff
         run: |
-          git fetch origin main
-          git fetch origin ${{ steps.set-target-branch.outputs.head_ref }}
           merge_base=$(git merge-base origin/main ${{ steps.set-target-branch.outputs.head_ref }})
           if [ -z "$merge_base" ]; then
             echo "No merge base found, exiting."
