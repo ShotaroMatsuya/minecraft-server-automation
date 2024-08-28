@@ -17,16 +17,15 @@ jobs:
         id: set-target-branch
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
-          result-encoding: string
           script: |
             const { data: pr } = await github.rest.pulls.get({
               owner: context.repo.owner,
               repo: context.repo.repo,
               pull_number: context.issue.number,
             });
-            return {head_ref: pr.head.ref, base_ref: pr.base.ref}
+            core.setOutput('head_ref', pr.head.ref);
+            core.setOutput('base_ref', pr.base.ref);
       - name: Output refs
-        if: steps.set-target-branch.outputs.base_ref != ''
         run: |
           echo "Base ref: ${{ steps.set-target-branch.outputs.base_ref }}"
           echo "Head ref: ${{ steps.set-target-branch.outputs.head_ref }}"
