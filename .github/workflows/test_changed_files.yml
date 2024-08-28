@@ -43,17 +43,20 @@ jobs:
           fetch-depth: 1
           ref: ${{ steps.set-target-branch.outputs.head_ref }}
 
-      - name: Find common ancestor and check diff
+      - name: Fetch branches
         run: |
           git fetch origin main
-          git fetch origin HEAD
-          merge_base=$(git merge-base origin/${{ steps.set-target-branch.outputs.base_ref }} HEAD)
+          git fetch origin ${{ steps.set-target-branch.outputs.head_ref }}
+
+      - name: Find common ancestor and check diff
+        run: |
+          merge_base=$(git merge-base origin/main ${{ steps.set-target-branch.outputs.head_ref }})
           if [ -z "$merge_base" ]; then
             echo "No merge base found, exiting."
             exit 1
           fi
           echo "Merge base commit: $merge_base"
-          files=($(git diff $merge_base HEAD --name-only | tr '\n' ' '))
+          files=($(git diff $merge_base ${{ steps.set-target-branch.outputs.head_ref }} --name-only | tr '\n' ' '))
           if [ ${#files[@]} -eq 0 ]; then
             echo "No changes detected."
             exit 0
