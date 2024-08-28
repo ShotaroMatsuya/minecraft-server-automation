@@ -13,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/github-script@v7
+      - uses: actions/github-script@v6
         id: set-target-branch
         with:
           github-token: ${{secrets.GITHUB_TOKEN}}
@@ -43,9 +43,11 @@ jobs:
           fetch-depth: 1
           ref: ${{ steps.set-target-branch.outputs.head_ref }}
 
-      - name: Check diff between base and head
+      - name: Find common ancestor and check diff
         run: |
-          files=($(git diff origin/${{ steps.set-target-branch.outputs.base_ref }}...HEAD --name-only | tr '\n' ' '))
+          merge_base=$(git merge-base origin/${{ steps.set-target-branch.outputs.base_ref }} HEAD)
+          echo "Merge base commit: $merge_base"
+          files=($(git diff $merge_base HEAD --name-only | tr '\n' ' '))
           for file in "${files[@]}"; do
             echo "${file}"
           done
