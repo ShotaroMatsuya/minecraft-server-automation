@@ -8,7 +8,7 @@ terraform {
     }
     null = {
       source  = "hashicorp/null"
-      version = "3.2.2"
+      version = "3.2.4"
     }
   }
   # Adding Backend as S3 for Remote State Storage
