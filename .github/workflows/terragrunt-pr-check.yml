@@ -51,6 +51,39 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history to ensure all files are available
+
+      - name: Debug Repository Structure
+        run: |
+          echo "=== Repository Root Contents ==="
+          ls -la
+          echo ""
+          echo "=== Terragrunt Directory Structure ==="
+          if [ -d "terragrunt" ]; then
+            find terragrunt -type f -name "*.hcl" | head -20
+          else
+            echo "❌ terragrunt directory not found!"
+          fi
+          echo ""
+          echo "=== Terraform Directory Structure ==="
+          if [ -d "terraform" ]; then
+            find terraform -type f -name "*.tf" | head -20
+          else
+            echo "❌ terraform directory not found!"
+          fi
+          echo ""
+          echo "=== Checking target paths for matrix ==="
+          echo "Environment: ${{ matrix.environment }}"
+          echo "Path: ${{ matrix.path }}"
+          if [ -d "${{ matrix.path }}" ]; then
+            echo "✅ Target path exists: ${{ matrix.path }}"
+            ls -la "${{ matrix.path }}"
+          else
+            echo "❌ Target path does not exist: ${{ matrix.path }}"
+            echo "Available directories:"
+            find . -type d -name "*${{ matrix.environment }}*" 2>/dev/null || echo "No matching directories found"
+          fi
 
       # AWS OIDC Authentication
       # Requires: AWS OIDC Provider + IAM Role setup (see docs/aws-oidc-setup.md)
@@ -83,6 +116,14 @@ jobs:
       - name: Terragrunt Format Check
         id: fmt
         run: |
+          echo "🔍 Checking format for ${{ matrix.environment }} environment..."
+          if [ ! -d "${{ matrix.path }}" ]; then
+            echo "❌ Directory not found: ${{ matrix.path }}"
+            echo "result=Directory not found" >> "$GITHUB_OUTPUT"
+            echo "needs_format=false" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          
           cd "${{ matrix.path }}"
           if terragrunt hcl-fmt --terragrunt-check; then
             echo "result=No changes needed" >> "$GITHUB_OUTPUT"
@@ -99,6 +140,13 @@ jobs:
           echo "Checking Terragrunt configuration syntax..."
           echo "Working directory: $(pwd)"
           echo "Target path: ${{ matrix.path }}"
+          
+          # Check if target directory exists
+          if [ ! -d "${{ matrix.path }}" ]; then
+            echo "❌ Target directory not found: ${{ matrix.path }}"
+            echo "outcome=failure" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
           
           # Check if terragrunt is installed
           if ! terragrunt --version >/dev/null 2>&1; then
@@ -141,6 +189,30 @@ jobs:
         run: |
           echo "🚀 Executing Terragrunt Plan for ${{ matrix.environment }}..."
           echo "Starting from directory: $(pwd)"
+          
+          # Check if target directory exists
+          if [ ! -d "${{ matrix.path }}" ]; then
+            echo "❌ Target directory not found: ${{ matrix.path }}"
+            {
+              echo "outcome=error"
+              echo "plan_exit_code=1"
+              echo "resources_to_add=0"
+              echo "resources_to_change=0" 
+              echo "resources_to_destroy=0"
+              echo "plan_summary<<PLANSUMMARYEOF"
+              echo "## 📋 Plan Summary for ${{ matrix.environment }}"
+              echo ""
+              echo "❌ **Target directory not found: ${{ matrix.path }}**"
+              echo ""
+              echo "Cannot proceed with plan execution due to missing directory."
+              echo "PLANSUMMARYEOF"
+              echo "full_plan_output<<FULLPLANEOF"
+              echo "❌ Target directory not found: ${{ matrix.path }}"
+              echo "FULLPLANEOF"
+            } >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          
           cd "${{ matrix.path }}"
           echo "Working in directory: $(pwd)"
           echo "Checking project structure:"
@@ -460,6 +532,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history to ensure all files are available
 
       - name: Setup aqua
         uses: aquaproj/aqua-installer@v3.0.1
@@ -644,6 +718,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history to ensure all files are available
 
       - name: Setup aqua
         uses: aquaproj/aqua-installer@v3.0.1
