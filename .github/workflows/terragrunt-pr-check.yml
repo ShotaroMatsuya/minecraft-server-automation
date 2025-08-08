@@ -145,21 +145,64 @@ jobs:
           
           if [ "$to_add" -gt 0 ]; then
             echo "### ➕ Resources to be Created:" >> plan_summary.txt
-            grep -A 1 "will be created" plan_output.txt | grep -E "^\s*[\+]" | sed 's/^[[:space:]]*[+][[:space:]]*/- /' >> plan_summary.txt || echo "- None found in output" >> plan_summary.txt
+            # Look for resources in Terraform plan output - multiple patterns
+            grep -B2 -A2 "will be created" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' >> plan_summary.txt || true
+            
+            # Alternative: direct resource pattern
+            grep -E "^[[:space:]]*\+[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*+[[:space:]]*/- /' >> plan_summary.txt || true
+            
+            # If no resources found, show at least something
+            if ! grep -q "^- " plan_summary.txt; then
+              echo "- Resources detected but names not parsed (see full output)" >> plan_summary.txt
+            fi
             echo "" >> plan_summary.txt
           fi
           
           if [ "$to_change" -gt 0 ]; then
             echo "### 🔄 Resources to be Updated:" >> plan_summary.txt
-            grep -A 1 "will be updated" plan_output.txt | grep -E "^\s*[~]" | sed 's/^[[:space:]]*[~][[:space:]]*/- /' >> plan_summary.txt || echo "- None found in output" >> plan_summary.txt
+            # Look for resources being updated
+            grep -B2 -A2 "will be updated" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' >> plan_summary.txt || true
+            
+            # Alternative: direct resource pattern
+            grep -E "^[[:space:]]*~[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*~[[:space:]]*/- /' >> plan_summary.txt || true
+            
+            # If no resources found, show at least something
+            if ! grep -q "^- " plan_summary.txt; then
+              echo "- Resources detected but names not parsed (see full output)" >> plan_summary.txt
+            fi
             echo "" >> plan_summary.txt
           fi
           
           if [ "$to_destroy" -gt 0 ]; then
             echo "### ❌ Resources to be Destroyed:" >> plan_summary.txt
-            grep -A 1 "will be destroyed" plan_output.txt | grep -E "^\s*[-]" | sed 's/^[[:space:]]*[-][[:space:]]*/- /' >> plan_summary.txt || echo "- None found in output" >> plan_summary.txt
+            # Look for resources being destroyed
+            grep -B2 -A2 "will be destroyed" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' >> plan_summary.txt || true
+            
+            # Alternative: direct resource pattern
+            grep -E "^[[:space:]]*-[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*-[[:space:]]*/- /' >> plan_summary.txt || true
+            
+            # If no resources found, show at least something
+            if ! grep -q "^- " plan_summary.txt; then
+              echo "- Resources detected but names not parsed (see full output)" >> plan_summary.txt
+            fi
             echo "" >> plan_summary.txt
           fi
+          
+          # Add debug section to understand plan format
+          echo "### 🔧 Debug: Plan Pattern Analysis" >> plan_summary.txt
+          echo "<details><summary>Debugging info (first 10 lines of each pattern)</summary>" >> plan_summary.txt
+          echo "" >> plan_summary.txt
+          echo "\`\`\`" >> plan_summary.txt
+          echo "=== Lines with 'will be created' ===" >> plan_summary.txt
+          grep -n "will be created" plan_output.txt | head -10 >> plan_summary.txt || echo "No matches" >> plan_summary.txt
+          echo "" >> plan_summary.txt
+          echo "=== Lines starting with # (resource names) ===" >> plan_summary.txt  
+          grep -n "^[[:space:]]*#" plan_output.txt | head -10 >> plan_summary.txt || echo "No matches" >> plan_summary.txt
+          echo "" >> plan_summary.txt
+          echo "=== Lines with resource patterns ===" >> plan_summary.txt
+          grep -n "resource\|module\|data" plan_output.txt | head -10 >> plan_summary.txt || echo "No matches" >> plan_summary.txt
+          echo "\`\`\`" >> plan_summary.txt
+          echo "</details>" >> plan_summary.txt
           
           # Store full output for debugging
           echo "plan_summary<<PLANSUMMARYEOF" >> "$GITHUB_OUTPUT"
