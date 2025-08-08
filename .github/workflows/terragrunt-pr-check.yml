@@ -52,26 +52,22 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # TODO: AWS OIDC Setup Required
-      # Please create the following resources in AWS:
-      # 1. OIDC Provider: https://token.actions.githubusercontent.com
-      # 2. IAM Role: minecraft-test-github-actions
-      # See docs/aws-oidc-setup.md for detailed instructions
-      
-      # - name: Configure AWS Credentials
-      #   uses: aws-actions/configure-aws-credentials@v4
-      #   with:
-      #     role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
-      #     role-session-name: github-actions-test-session
-      #     aws-region: ap-northeast-1
+      # AWS OIDC Authentication
+      # Requires: AWS OIDC Provider + IAM Role setup (see docs/aws-oidc-setup.md)
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
+          role-session-name: github-actions-test-session
+          aws-region: ap-northeast-1
 
-      # - name: Debug AWS Configuration
-      #   run: |
-      #     echo "AWS Region: $AWS_DEFAULT_REGION"
-      #     echo "AWS Account ID (from env): ${{ env.AWS_ACCOUNT_ID }}"
-      #     echo "Assumed Role ARN would be: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions"
-      #     aws sts get-caller-identity || echo "AWS authentication failed"
-      #   continue-on-error: true
+      - name: Debug AWS Configuration
+        run: |
+          echo "AWS Region: $AWS_DEFAULT_REGION"
+          echo "AWS Account ID (from env): ${{ env.AWS_ACCOUNT_ID }}"
+          echo "Assumed Role ARN: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions"
+          aws sts get-caller-identity
+        continue-on-error: true
 
       - name: Setup aqua
         uses: aquaproj/aqua-installer@v3.0.1
@@ -108,33 +104,139 @@ jobs:
           fi
         continue-on-error: true
 
-      - name: Static Analysis Status
+      - name: Terragrunt Plan Execution
         id: plan
+        working-directory: ${{ matrix.path }}
         run: |
-          echo "📋 AWS-dependent steps skipped for static analysis focus"
-          echo "outcome=skipped" >> "$GITHUB_OUTPUT"
+          echo "� Executing Terragrunt Plan for ${{ matrix.environment }}..."
+          
+          # Initialize Terragrunt
+          echo "📦 Initializing Terragrunt..."
+          terragrunt init --terragrunt-non-interactive
+          
+          # Execute plan and capture output
+          echo "📋 Running Terragrunt Plan..."
+          terragrunt plan -detailed-exitcode --terragrunt-non-interactive > plan_output.txt 2>&1 || plan_exit_code=$?
+          
+          # Parse plan results
+          echo "📊 Analyzing Plan Results..."
+          
+          # Count resources
+          to_add=$(grep -c "will be created" plan_output.txt || echo "0")
+          to_change=$(grep -c "will be updated" plan_output.txt || echo "0")
+          to_destroy=$(grep -c "will be destroyed" plan_output.txt || echo "0")
+          
+          echo "plan_exit_code=${plan_exit_code:-0}" >> "$GITHUB_OUTPUT"
+          echo "resources_to_add=$to_add" >> "$GITHUB_OUTPUT"
+          echo "resources_to_change=$to_change" >> "$GITHUB_OUTPUT"
+          echo "resources_to_destroy=$to_destroy" >> "$GITHUB_OUTPUT"
+          
+          # Extract resource details
+          echo "🔍 Extracting Resource Details..."
+          
+          # Resources to be added
+          echo "## 📋 Plan Summary for ${{ matrix.environment }}" > plan_summary.txt
+          echo "" >> plan_summary.txt
+          echo "### � Resource Changes:" >> plan_summary.txt
+          echo "- **To Add:** $to_add resources" >> plan_summary.txt
+          echo "- **To Change:** $to_change resources" >> plan_summary.txt
+          echo "- **To Destroy:** $to_destroy resources" >> plan_summary.txt
+          echo "" >> plan_summary.txt
+          
+          if [ "$to_add" -gt 0 ]; then
+            echo "### ➕ Resources to be Created:" >> plan_summary.txt
+            grep -A 1 "will be created" plan_output.txt | grep -E "^\s*[\+]" | sed 's/^[[:space:]]*[+][[:space:]]*/- /' >> plan_summary.txt || echo "- None found in output" >> plan_summary.txt
+            echo "" >> plan_summary.txt
+          fi
+          
+          if [ "$to_change" -gt 0 ]; then
+            echo "### 🔄 Resources to be Updated:" >> plan_summary.txt
+            grep -A 1 "will be updated" plan_output.txt | grep -E "^\s*[~]" | sed 's/^[[:space:]]*[~][[:space:]]*/- /' >> plan_summary.txt || echo "- None found in output" >> plan_summary.txt
+            echo "" >> plan_summary.txt
+          fi
+          
+          if [ "$to_destroy" -gt 0 ]; then
+            echo "### ❌ Resources to be Destroyed:" >> plan_summary.txt
+            grep -A 1 "will be destroyed" plan_output.txt | grep -E "^\s*[-]" | sed 's/^[[:space:]]*[-][[:space:]]*/- /' >> plan_summary.txt || echo "- None found in output" >> plan_summary.txt
+            echo "" >> plan_summary.txt
+          fi
+          
+          # Store full output for debugging
+          echo "plan_summary<<PLANSUMMARYEOF" >> "$GITHUB_OUTPUT"
+          cat plan_summary.txt >> "$GITHUB_OUTPUT"
+          echo "PLANSUMMARYEOF" >> "$GITHUB_OUTPUT"
+          
+          echo "full_plan_output<<FULLPLANEOF" >> "$GITHUB_OUTPUT"
+          cat plan_output.txt >> "$GITHUB_OUTPUT"
+          echo "FULLPLANEOF" >> "$GITHUB_OUTPUT"
+          
+          # Determine outcome
+          if [ "${plan_exit_code:-0}" -eq 0 ]; then
+            echo "outcome=no_changes" >> "$GITHUB_OUTPUT"
+            echo "✅ No changes detected"
+          elif [ "${plan_exit_code:-0}" -eq 2 ]; then
+            echo "outcome=has_changes" >> "$GITHUB_OUTPUT"
+            echo "📝 Changes detected"
+          else
+            echo "outcome=error" >> "$GITHUB_OUTPUT"
+            echo "❌ Plan execution failed"
+          fi
         continue-on-error: true
 
       - name: Comment PR with results
         uses: actions/github-script@v7
-        env:
-          PLAN: "${{ steps.plan.outputs.stdout }}"
         with:
           script: |
-            const output = `## Terragrunt Results for \`${{ matrix.environment }}\`
+            const outcome = '${{ steps.plan.outputs.outcome }}';
+            const planSummary = `${{ steps.plan.outputs.plan_summary }}`;
+            const fullPlan = `${{ steps.plan.outputs.full_plan_output }}`;
+            const toAdd = '${{ steps.plan.outputs.resources_to_add }}' || '0';
+            const toChange = '${{ steps.plan.outputs.resources_to_change }}' || '0';
+            const toDestroy = '${{ steps.plan.outputs.resources_to_destroy }}' || '0';
+            
+            let statusIcon, statusText;
+            if (outcome === 'no_changes') {
+              statusIcon = '✅';
+              statusText = 'No changes';
+            } else if (outcome === 'has_changes') {
+              statusIcon = '📝';
+              statusText = 'Changes detected';
+            } else if (outcome === 'error') {
+              statusIcon = '❌';
+              statusText = 'Plan failed';
+            } else {
+              statusIcon = '⚠️';
+              statusText = 'Unknown status';
+            }
+
+            const output = `## 📋 Terragrunt Results for \`${{ matrix.environment }}\`
             
             #### Format Check 🖌 \`${{ steps.fmt.outputs.result }}\`
             #### Validation 🔍 \`${{ steps.validate.outcome }}\`  
-            #### Plan 📖 \`${{ steps.plan.outcome }}\`
+            #### Plan ${statusIcon} \`${statusText}\`
 
-            <details><summary>Show Plan Output</summary>
+            ### 📊 Resource Summary
+            
+            | Type | Count |
+            |------|-------|
+            | ➕ **To Add** | ${toAdd} |
+            | � **To Change** | ${toChange} |
+            | ❌ **To Destroy** | ${toDestroy} |
 
-            \`\`\`terraform
-            ${{ steps.plan.outputs.stdout || 'No output' }}
-            \`\`\`
+            <details><summary>📝 Show Detailed Plan Results</summary>
+
+            ${planSummary || 'No plan summary available'}
 
             </details>
 
+            <details><summary>🔍 Show Full Plan Output</summary>
+
+            \`\`\`terraform
+            ${fullPlan || 'No plan output available'}
+            \`\`\`
+
+            </details>
+            
             *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
 
             github.rest.issues.createComment({
