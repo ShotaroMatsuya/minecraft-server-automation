@@ -166,8 +166,6 @@ jobs:
             
             if [ "$to_add" -gt 0 ]; then
               echo "### ➕ Resources to be Created:"
-            if [ "$to_add" -gt 0 ]; then
-              echo "### ➕ Resources to be Created:"
               # Look for resources in Terraform plan output - multiple patterns
               grep -B2 -A2 "will be created" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' || true
               
