@@ -193,6 +193,7 @@ jobs:
             const toAdd = '${{ steps.plan.outputs.resources_to_add }}' || '0';
             const toChange = '${{ steps.plan.outputs.resources_to_change }}' || '0';
             const toDestroy = '${{ steps.plan.outputs.resources_to_destroy }}' || '0';
+            const environment = '${{ matrix.environment }}';
             
             let statusIcon, statusText;
             if (outcome === 'no_changes') {
@@ -209,7 +210,7 @@ jobs:
               statusText = 'Unknown status';
             }
 
-            const output = `## 📋 Terragrunt Results for \`${{ matrix.environment }}\`
+            const commentBody = `## 📋 Terragrunt Results for \`${environment}\`
             
             #### Format Check 🖌 \`${{ steps.fmt.outputs.result }}\`
             #### Validation 🔍 \`${{ steps.validate.outcome }}\`  
@@ -237,14 +238,40 @@ jobs:
 
             </details>
             
-            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+            *Last updated: ${new Date().toISOString()} | Pushed by: @${{ github.actor }} | Action: \`${{ github.event_name }}\`*`;
 
-            github.rest.issues.createComment({
-              issue_number: context.issue.number,
+            // Find existing comment for this environment
+            const { data: comments } = await github.rest.issues.listComments({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: output
-            })
+              issue_number: context.issue.number,
+            });
+
+            const botCommentIdentifier = `## 📋 Terragrunt Results for \`${environment}\``;
+            const existingComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes(botCommentIdentifier)
+            );
+
+            if (existingComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: commentBody
+              });
+              console.log(`✅ Updated existing comment for ${environment}`);
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody
+              });
+              console.log(`✅ Created new comment for ${environment}`);
+            }
 
   security-scan:
     name: Security Analysis
