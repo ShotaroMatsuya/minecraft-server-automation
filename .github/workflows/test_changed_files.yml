@@ -43,7 +43,7 @@ jobs:
 
       - name: Check diff between base and head
         run: |
-          files=($(git diff origin/${{ steps.set-target-branch.outputs.base_ref }}...HEAD --name-only | tr '\n' ' '))
+          mapfile -t files < <(git diff origin/${{ steps.set-target-branch.outputs.base_ref }}...HEAD --name-only)
           if [ ${#files[@]} -eq 0 ]; then
             echo "No changes detected."
             exit 0

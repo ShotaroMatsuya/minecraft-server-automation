@@ -170,9 +170,9 @@ jobs:
         id: check-terraform-sarif
         run: |
           if [ -f "trivy-terraform.sarif" ]; then
-            echo "sarif_exists=true" >> $GITHUB_OUTPUT
+            echo "sarif_exists=true" >> "$GITHUB_OUTPUT"
           else
-            echo "sarif_exists=false" >> $GITHUB_OUTPUT
+            echo "sarif_exists=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Upload Trivy SARIF
@@ -195,9 +195,9 @@ jobs:
         id: check-terragrunt-sarif
         run: |
           if [ -f "trivy-terragrunt.sarif" ]; then
-            echo "sarif_exists=true" >> $GITHUB_OUTPUT
+            echo "sarif_exists=true" >> "$GITHUB_OUTPUT"
           else
-            echo "sarif_exists=false" >> $GITHUB_OUTPUT
+            echo "sarif_exists=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Upload Trivy Terragrunt SARIF
@@ -224,9 +224,9 @@ jobs:
         id: check-tfsec-sarif
         run: |
           if [ -f "tfsec.sarif" ]; then
-            echo "sarif_exists=true" >> $GITHUB_OUTPUT
+            echo "sarif_exists=true" >> "$GITHUB_OUTPUT"
           else
-            echo "sarif_exists=false" >> $GITHUB_OUTPUT
+            echo "sarif_exists=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Upload tfsec SARIF
@@ -253,24 +253,24 @@ jobs:
 
       - name: Terraform Module Dependency Check
         run: |
-          echo "## Terraform Module Dependencies" >> $GITHUB_STEP_SUMMARY
-          echo "Scanning for module versions and potential updates..." >> $GITHUB_STEP_SUMMARY
+          echo "## Terraform Module Dependencies" >> "$GITHUB_STEP_SUMMARY"
+          echo "Scanning for module versions and potential updates..." >> "$GITHUB_STEP_SUMMARY"
           
-          find terraform/ -name "*.tf" -exec grep -l "source.*terraform-aws-modules" {} \; | while read file; do
-            echo "### $file" >> $GITHUB_STEP_SUMMARY
-            grep -n "source.*terraform-aws-modules\|version.*=" "$file" >> $GITHUB_STEP_SUMMARY || true
-            echo "" >> $GITHUB_STEP_SUMMARY
+          find terraform/ -name "*.tf" -exec grep -l "source.*terraform-aws-modules" {} \; | while read -r file; do
+            echo "### $file" >> "$GITHUB_STEP_SUMMARY"
+            grep -n "source.*terraform-aws-modules\|version.*=" "$file" >> "$GITHUB_STEP_SUMMARY" || true
+            echo "" >> "$GITHUB_STEP_SUMMARY"
           done
 
       - name: Terragrunt Configuration Check
         run: |
-          echo "## Terragrunt Configuration Analysis" >> $GITHUB_STEP_SUMMARY
-          echo "Checking Terragrunt configuration consistency..." >> $GITHUB_STEP_SUMMARY
+          echo "## Terragrunt Configuration Analysis" >> "$GITHUB_STEP_SUMMARY"
+          echo "Checking Terragrunt configuration consistency..." >> "$GITHUB_STEP_SUMMARY"
           
           # Check for version consistency
           if [ -f "terragrunt/terragrunt.hcl" ]; then
-            echo "### Root Configuration" >> $GITHUB_STEP_SUMMARY
-            echo "\`\`\`hcl" >> $GITHUB_STEP_SUMMARY
-            grep -A 10 "module_versions" terragrunt/terragrunt.hcl >> $GITHUB_STEP_SUMMARY || true
-            echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+            echo "### Root Configuration" >> "$GITHUB_STEP_SUMMARY"
+            echo "\`\`\`hcl" >> "$GITHUB_STEP_SUMMARY"
+            grep -A 10 "module_versions" terragrunt/terragrunt.hcl >> "$GITHUB_STEP_SUMMARY" || true
+            echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
           fi
