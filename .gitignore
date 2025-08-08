@@ -8,4 +8,12 @@ secrets.env
 .envrc
 secrets.yaml
 
+# aqua
+.aqua/
+
+# Terragrunt
+**/.terragrunt-cache/
+**/backend.tf
+**/provider.tf
+
 node_modules

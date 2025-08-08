@@ -1,4 +1,4 @@
-name: Apply
+name: Terragrunt Apply
 
 on:
   push:
@@ -7,26 +7,33 @@ on:
 env:
   TF_VAR_WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
   TF_VAR_github_token: ${{ secrets.TF_VAR_github_token }}
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+  TERRAGRUNT_VERSION: 0.67.16
+  TERRAFORM_VERSION: 1.9.8
+
 permissions:
   id-token: write
   contents: read
+
 jobs:
   apply:
-    name: Apply
+    name: Terragrunt Apply
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        dir: [
-          terraform/keeping,
-          terraform/scheduling
-        ]
+        environment: [keeping, scheduling]
+        include:
+          - environment: keeping
+            path: terragrunt/environments/keeping
+          - environment: scheduling
+            path: terragrunt/environments/scheduling
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
           fetch-depth: 2
+
       - name: Find PR associated with the commit
         id: pr_search
         env:
@@ -45,25 +52,31 @@ jobs:
           LABELS="$(gh pr view $PR_NUMBER --json labels --jq '.labels[].name'| tr '\n' ' ')"
           echo "Labels are ${LABELS}"
           echo "labels=${LABELS}" >> "$GITHUB_OUTPUT"
+
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
-          role-session-name: github-actions-test-session
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
+          role-session-name: github-actions-terragrunt-session
           aws-region: ap-northeast-1
-      - name: Set up Python 3.9
-        uses: actions/setup-python@v5
+
+      - name: Setup aqua
+        uses: aquaproj/aqua-installer@v3.0.1
         with:
-          python-version: 3.9
-      - name: Install Terraform
-        if: ${{ !contains(steps.pr_labels.outputs.labels, 'no-apply') }}
-        uses: hashicorp/setup-terraform@v3
-        with:
-          terraform_version: 1.7.5
-      
-      - name: Create Mapping Yaml
-        if: ${{ matrix.dir == 'terraform/scheduling' && !contains(steps.pr_labels.outputs.labels, 'no-apply') }}
-        working-directory: ${{ matrix.dir }}
+          aqua_version: v2.30.0
+
+      - name: Install tools via aqua
+        run: aqua install --all
+
+      - name: Setup Terragrunt
+        run: |
+          curl -Lo terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64
+          chmod +x terragrunt
+          sudo mv terragrunt /usr/local/bin/
+
+      - name: Create Mapping Yaml for scheduling
+        if: ${{ matrix.environment == 'scheduling' && !contains(steps.pr_labels.outputs.labels, 'no-apply') }}
+        working-directory: terraform/scheduling
         run: |
           cat << EOF > secrets.yaml
           OPS: ${{ secrets.WHITELIST_PLAYERS }}
@@ -74,14 +87,43 @@ jobs:
           FILTERING_STRINGS: ${{ secrets.FILTERING_STRINGS }}
           EOF
 
-      - name: Apply
-        if: ${{ !contains(steps.pr_labels.outputs.labels, 'no-apply') }}
+      - name: Check for relevant changes
+        id: changes
         run: |
-          DIFF=$(git diff --name-only HEAD^ terraform/modules ${{ matrix.dir }})
-          if [[ ${DIFF} = *keeping* || ${DIFF} = *scheduling* || ${DIFF} = *modules* ]]; then
-            cd ${{ matrix.dir }}
-            terraform init -lock=false
-            terraform get
-            terraform apply -lock=false -auto-approve
+          DIFF=$(git diff --name-only HEAD^ terragrunt/ terraform/modules terraform/keeping terraform/scheduling)
+          if [[ -n "${DIFF}" ]]; then
+            echo "changes=true" >> "$GITHUB_OUTPUT"
+            echo "Changed files: ${DIFF}"
+          else
+            echo "changes=false" >> "$GITHUB_OUTPUT"
+            echo "No relevant changes detected"
           fi
-        shell: bash
+
+      - name: Terragrunt Apply
+        if: ${{ steps.changes.outputs.changes == 'true' && !contains(steps.pr_labels.outputs.labels, 'no-apply') }}
+        working-directory: ${{ matrix.path }}
+        run: |
+          echo "Applying ${{ matrix.environment }} environment..."
+          terragrunt apply --terragrunt-non-interactive -auto-approve
+        env:
+          TF_VAR_aws_account_id: ${{ env.AWS_ACCOUNT_ID }}
+
+      - name: Slack Notification on Success
+        if: ${{ success() && steps.changes.outputs.changes == 'true' }}
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: https://hooks.slack.com/services/${{ secrets.WEBHOOK_PATH }}
+          SLACK_USERNAME: TerragruntBot
+          SLACK_TITLE: "Terragrunt Apply Success - ${{ matrix.environment }}"
+          SLACK_COLOR: good
+          SLACK_MESSAGE: "${{ matrix.environment }} environment applied successfully 🚀"
+
+      - name: Slack Notification on Failure
+        if: ${{ failure() && steps.changes.outputs.changes == 'true' }}
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: https://hooks.slack.com/services/${{ secrets.WEBHOOK_PATH }}
+          SLACK_USERNAME: TerragruntBot
+          SLACK_TITLE: "Terragrunt Apply Failed - ${{ matrix.environment }}"
+          SLACK_COLOR: danger
+          SLACK_MESSAGE: "${{ matrix.environment }} environment apply failed 😢"

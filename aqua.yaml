@@ -1,0 +1,20 @@
+---
+# aqua - Declarative CLI Version Manager
+# https://aquaproj.github.io/
+registries:
+  - type: standard
+    ref: v4.156.0 # renovate: depName=aquaproj/aqua-registry
+
+packages:
+  # Terraform
+  - name: hashicorp/terraform@v1.9.8
+  # TFLint - Terraform linter
+  - name: terraform-linters/tflint@v0.53.0
+  # Terragrunt - Terraform wrapper
+  - name: gruntwork-io/terragrunt@v0.67.16
+  # AWS CLI
+  - name: aws/aws-cli@2.17.57
+  # jq - JSON processor
+  - name: jqlang/jq@jq-1.7.1
+  # yq - YAML processor
+  - name: mikefarah/yq@v4.44.3
