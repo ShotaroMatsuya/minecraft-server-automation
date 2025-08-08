@@ -34,6 +34,29 @@
         ".github/workflows/**"
       ],
       "prPriority": 2
+    },
+    {
+      "description": "Terraform modules from terraform-aws-modules",
+      "matchManagers": ["terraform"],
+      "matchPackagePatterns": ["^terraform-aws-modules/"],
+      "groupName": "terraform-aws-modules",
+      "prPriority": 1,
+      "schedule": ["before 6am on monday"],
+      "minimumReleaseAge": "3 days"
+    },
+    {
+      "description": "Group all Terraform modules together",
+      "matchManagers": ["terraform"],
+      "matchDatasources": ["terraform-module"],
+      "groupName": "terraform-modules",
+      "prPriority": 0,
+      "schedule": ["before 6am on monday"]
     }
-  ]
+  ],
+  "terraform": {
+    "ignorePaths": [
+      "**/fixtures/**",
+      "**/examples/**"
+    ]
+  }
 }
