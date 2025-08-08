@@ -153,8 +153,9 @@ jobs:
 
       - name: Install tools via aqua
         run: |
-          # Clean up any existing tool directories that might conflict
-          rm -rf terragrunt terraform tflint aws jq yq 2>/dev/null || true
+          # Clean up any existing tool binaries that might conflict with aqua installations
+          # Note: We only remove individual binary files, NOT the project directories
+          rm -f ./terragrunt ./terraform ./tflint ./aws ./jq ./yq 2>/dev/null || true
           aqua install --all
 
       - name: Setup TFLint and Trivy configurations
@@ -689,8 +690,9 @@ jobs:
 
       - name: Install tools via aqua
         run: |
-          # Clean up any existing tool directories that might conflict
-          rm -rf terragrunt terraform tflint aws jq yq 2>/dev/null || true
+          # Clean up any existing tool binaries that might conflict with aqua installations
+          # Note: We only remove individual binary files, NOT the project directories
+          rm -f ./terragrunt ./terraform ./tflint ./aws ./jq ./yq 2>/dev/null || true
           aqua install --all
 
       - name: Setup TFLint and Trivy configurations for Security Scan
@@ -949,8 +951,9 @@ jobs:
 
       - name: Install tools via aqua
         run: |
-          # Clean up any existing tool directories that might conflict
-          rm -rf terragrunt terraform tflint aws jq yq 2>/dev/null || true
+          # Clean up any existing tool binaries that might conflict with aqua installations
+          # Note: We only remove individual binary files, NOT the project directories
+          rm -f ./terragrunt ./terraform ./tflint ./aws ./jq ./yq 2>/dev/null || true
           aqua install --all
 
       - name: Check if terraform directory exists
