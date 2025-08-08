@@ -1,4 +1,3 @@
-
 variable "log_group_name" {
   type        = string
   description = "The name of cloudwatch log group to apply subscription filter via lambda"

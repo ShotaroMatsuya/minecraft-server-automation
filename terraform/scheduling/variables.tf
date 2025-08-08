@@ -18,7 +18,6 @@ variable "owners" {
 variable "aws_account_id" {
   description = "Account ID in which AWS Resoruces to be created"
   type        = string
-  sensitive   = true
 }
 
 variable "slack_workspace_id" {
