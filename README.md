@@ -262,3 +262,4 @@ docker compose run --rm mc env
 ---
 
 🎯 **Always use `tg-*` commands for this Terragrunt-managed infrastructure!**
+# Test change for workflow validation
