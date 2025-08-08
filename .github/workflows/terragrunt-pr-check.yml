@@ -98,11 +98,23 @@ jobs:
         working-directory: ${{ matrix.path }}
         run: |
           echo "Checking Terragrunt configuration syntax..."
-          if terragrunt --version >/dev/null 2>&1; then
-            echo "✅ Terragrunt installation verified"
+          
+          # Check if terragrunt is installed
+          if ! terragrunt --version >/dev/null 2>&1; then
+            echo "❌ Terragrunt installation failed"
+            echo "outcome=failure" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          
+          echo "✅ Terragrunt installation verified"
+          
+          # Validate Terragrunt configuration
+          echo "🔍 Validating Terragrunt configuration..."
+          if terragrunt validate --terragrunt-non-interactive; then
+            echo "✅ Terragrunt configuration is valid"
             echo "outcome=success" >> "$GITHUB_OUTPUT"
           else
-            echo "❌ Terragrunt installation failed"
+            echo "❌ Terragrunt configuration validation failed"
             echo "outcome=failure" >> "$GITHUB_OUTPUT"
           fi
         continue-on-error: true
@@ -111,179 +123,213 @@ jobs:
         id: plan
         working-directory: ${{ matrix.path }}
         run: |
-          echo "� Executing Terragrunt Plan for ${{ matrix.environment }}..."
+          echo "🚀 Executing Terragrunt Plan for ${{ matrix.environment }}..."
           
           # Initialize Terragrunt
           echo "📦 Initializing Terragrunt..."
-          if ! terragrunt init --terragrunt-non-interactive; then
+          init_failed=false
+          if ! terragrunt init --terragrunt-non-interactive 2>&1 | tee init_output.txt; then
             echo "❌ Terragrunt init failed"
+            init_failed=true
+          fi
+          
+          if [ "$init_failed" = "true" ]; then
             {
               echo "outcome=error"
+              echo "plan_exit_code=1"
+              echo "resources_to_add=0"
+              echo "resources_to_change=0" 
+              echo "resources_to_destroy=0"
+              echo "plan_summary<<PLANSUMMARYEOF"
+              echo "## 📋 Plan Summary for ${{ matrix.environment }}"
+              echo ""
+              echo "❌ **Terragrunt initialization failed**"
+              echo ""
+              echo "Cannot proceed with plan execution due to initialization failure."
+              echo ""
+              echo "### 🔍 Initialization Error Details:"
+              echo "\`\`\`"
+              cat init_output.txt || echo "No initialization output available"
+              echo "\`\`\`"
+              echo "PLANSUMMARYEOF"
               echo "full_plan_output<<FULLPLANEOF"
               echo "❌ Terragrunt initialization failed"
-              echo "FULLPLANEOF"
-            } >> "$GITHUB_OUTPUT"
-            exit 1
-          fi
-          
-          # Execute plan and capture output
-          echo "📋 Running Terragrunt Plan..."
-          terragrunt plan -detailed-exitcode --terragrunt-non-interactive > plan_output.txt 2>&1 || plan_exit_code=$?
-          
-          # Check if plan output file exists and get its size
-          if [ -f "plan_output.txt" ]; then
-            plan_file_size=$(wc -c < plan_output.txt)
-            echo "📄 Plan output file size: $plan_file_size bytes"
-            echo "📄 First 20 lines of plan output:"
-            head -20 plan_output.txt
-            echo "📄 Last 20 lines of plan output:"
-            tail -20 plan_output.txt
-          else
-            echo "❌ Plan output file not found!"
-            plan_file_size=0
-          fi
-          
-          # Parse plan results
-          echo "📊 Analyzing Plan Results..."
-          
-          # Count resources
-          to_add=$(grep -c "will be created" plan_output.txt || echo "0")
-          to_change=$(grep -c "will be updated" plan_output.txt || echo "0")
-          to_destroy=$(grep -c "will be destroyed" plan_output.txt || echo "0")
-          
-          # Set GitHub output variables
-          {
-            echo "plan_exit_code=${plan_exit_code:-0}"
-            echo "resources_to_add=$to_add"
-            echo "resources_to_change=$to_change"
-            echo "resources_to_destroy=$to_destroy"
-          } >> "$GITHUB_OUTPUT"
-          
-          # Extract resource details
-          echo "🔍 Extracting Resource Details..."
-          
-          # Create plan summary with consolidated redirect block
-          {
-            echo "## 📋 Plan Summary for ${{ matrix.environment }}"
-            echo ""
-            echo "### 📊 Resource Changes:"
-            echo "- **To Add:** $to_add resources"
-            echo "- **To Change:** $to_change resources"
-            echo "- **To Destroy:** $to_destroy resources"
-            echo ""
-            
-            if [ "$to_add" -gt 0 ]; then
-              echo "### ➕ Resources to be Created:"
-              # Look for resources in Terraform plan output - multiple patterns
-              grep -B2 -A2 "will be created" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' || true
-              
-              # Alternative: direct resource pattern
-              grep -E "^[[:space:]]*\+[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*+[[:space:]]*/- /' || true
-              
-              # If no resources found, show at least something
-              if ! grep -q "^- " <<< "$(grep -B2 -A2 "will be created" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' || grep -E "^[[:space:]]*\+[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*+[[:space:]]*/- /' || true)"; then
-                echo "- Resources detected but names not parsed (see full output)"
-              fi
               echo ""
-            fi
-            
-            if [ "$to_change" -gt 0 ]; then
-              echo "### 🔄 Resources to be Updated:"
-              # Look for resources being updated
-              grep -B2 -A2 "will be updated" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' || true
-              
-              # Alternative: direct resource pattern
-              grep -E "^[[:space:]]*~[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*~[[:space:]]*/- /' || true
-              
-              # If no resources found, show at least something
-              if ! grep -q "^- " <<< "$(grep -B2 -A2 "will be updated" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' || grep -E "^[[:space:]]*~[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*~[[:space:]]*/- /' || true)"; then
-                echo "- Resources detected but names not parsed (see full output)"
-              fi
-              echo ""
-            fi
-            
-            if [ "$to_destroy" -gt 0 ]; then
-              echo "### ❌ Resources to be Destroyed:"
-              # Look for resources being destroyed
-              grep -B2 -A2 "will be destroyed" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' || true
-              
-              # Alternative: direct resource pattern
-              grep -E "^[[:space:]]*-[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*-[[:space:]]*/- /' || true
-              
-              # If no resources found, show at least something
-              if ! grep -q "^- " <<< "$(grep -B2 -A2 "will be destroyed" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' || grep -E "^[[:space:]]*-[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*-[[:space:]]*/- /' || true)"; then
-                echo "- Resources detected but names not parsed (see full output)"
-              fi
-              echo ""
-            fi
-            
-            # Add debug section to understand plan format
-            echo "### 🔧 Debug: Plan Pattern Analysis"
-            echo "<details><summary>Debugging info (first 10 lines of each pattern)</summary>"
-            echo ""
-            echo "\`\`\`"
-            echo "=== Lines with 'will be created' ==="
-            grep -n "will be created" plan_output.txt | head -10 || echo "No matches"
-            echo ""
-            echo "=== Lines starting with # (resource names) ==="
-            grep -n "^[[:space:]]*#" plan_output.txt | head -10 || echo "No matches"
-            echo ""
-            echo "=== Lines with resource patterns ==="
-            grep -n "resource\|module\|data" plan_output.txt | head -10 || echo "No matches"
-            echo "\`\`\`"
-            echo "</details>"
-          } > plan_summary.txt
-          
-          # Store full output for debugging with size limit
-          {
-            echo "plan_summary<<PLANSUMMARYEOF"
-            cat plan_summary.txt
-            echo "PLANSUMMARYEOF"
-          } >> "$GITHUB_OUTPUT"
-          
-          # Limit plan output size for GitHub Actions (max ~65KB for output variables)
-          if [ -f "plan_output.txt" ] && [ "$plan_file_size" -gt 0 ]; then
-            {
-              echo "full_plan_output<<FULLPLANEOF"
-              if [ "$plan_file_size" -gt 50000 ]; then
-                # If file is too large, show truncated version
-                echo "⚠️ Plan output truncated due to size (${plan_file_size} bytes)"
-                echo ""
-                echo "=== First 1000 lines ==="
-                head -1000 plan_output.txt
-                echo ""
-                echo "=== ... (content truncated) ==="
-                echo ""
-                echo "=== Last 500 lines ==="
-                tail -500 plan_output.txt
-              else
-                # Show full output if small enough
-                cat plan_output.txt
-              fi
+              cat init_output.txt || echo "No initialization output available"
               echo "FULLPLANEOF"
             } >> "$GITHUB_OUTPUT"
           else
-            {
-              echo "full_plan_output<<FULLPLANEOF"
-              echo "❌ No plan output available (file size: ${plan_file_size:-0} bytes)"
-              echo "FULLPLANEOF"
-            } >> "$GITHUB_OUTPUT"
-          fi
-          
-          # Determine outcome with better error handling
-          if [ "${plan_exit_code:-0}" -eq 0 ]; then
-            echo "outcome=no_changes" >> "$GITHUB_OUTPUT"
-            echo "✅ No changes detected"
-          elif [ "${plan_exit_code:-0}" -eq 2 ]; then
-            echo "outcome=has_changes" >> "$GITHUB_OUTPUT"
-            echo "📝 Changes detected"
-          else
-            echo "outcome=error" >> "$GITHUB_OUTPUT"
-            echo "❌ Plan execution failed with exit code: ${plan_exit_code:-unknown}"
-            # Show error details
+            # Execute plan and capture output
+            echo "📋 Running Terragrunt Plan..."
+            plan_exit_code=0
+            terragrunt plan -detailed-exitcode --terragrunt-non-interactive > plan_output.txt 2>&1 || plan_exit_code=$?
+            
+            # Always set plan_exit_code output variable
+            echo "plan_exit_code=${plan_exit_code}" >> "$GITHUB_OUTPUT"
+            
+            # Check if plan output file exists and get its size
             if [ -f "plan_output.txt" ]; then
-              echo "🔍 Error details from plan output:"
-              grep -i "error\|failed\|denied" plan_output.txt | head -10 || echo "No specific error patterns found"
+              plan_file_size=$(wc -c < plan_output.txt)
+              echo "📄 Plan output file size: $plan_file_size bytes"
+              echo "📄 First 20 lines of plan output:"
+              head -20 plan_output.txt
+              echo "📄 Last 20 lines of plan output:"
+              tail -20 plan_output.txt
+            else
+              echo "❌ Plan output file not found!"
+              plan_file_size=0
+            fi
+            
+            # Parse plan results (whether successful or not)
+            echo "📊 Analyzing Plan Results..."
+            
+            # Count resources (only if plan_output.txt exists)
+            to_add=0
+            to_change=0
+            to_destroy=0
+            
+            if [ -f "plan_output.txt" ] && [ "$plan_file_size" -gt 0 ]; then
+              to_add=$(grep -c "will be created" plan_output.txt || echo "0")
+              to_change=$(grep -c "will be updated" plan_output.txt || echo "0")  
+              to_destroy=$(grep -c "will be destroyed" plan_output.txt || echo "0")
+            fi
+            
+            # Set GitHub output variables
+            {
+              echo "resources_to_add=$to_add"
+              echo "resources_to_change=$to_change"
+              echo "resources_to_destroy=$to_destroy"
+            } >> "$GITHUB_OUTPUT"
+            
+            # Create plan summary (for both successful and failed cases)
+            if [ "$init_failed" = "false" ]; then
+              # Extract resource details for successful initialization
+              echo "🔍 Extracting Resource Details..."
+              
+              # Create plan summary with consolidated redirect block
+              {
+                echo "## 📋 Plan Summary for ${{ matrix.environment }}"
+                echo ""
+                echo "### 📊 Resource Changes:"
+                echo "- **To Add:** $to_add resources"
+                echo "- **To Change:** $to_change resources"
+                echo "- **To Destroy:** $to_destroy resources"
+                echo ""
+                
+                if [ "$to_add" -gt 0 ]; then
+                  echo "### ➕ Resources to be Created:"
+                  # Look for resources in Terraform plan output - multiple patterns
+                  grep -B2 -A2 "will be created" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' || true
+                  
+                  # Alternative: direct resource pattern
+                  grep -E "^[[:space:]]*\+[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*+[[:space:]]*/- /' || true
+                  
+                  # If no resources found, show at least something
+                  if ! grep -q "^- " <<< "$(grep -B2 -A2 "will be created" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' || grep -E "^[[:space:]]*\+[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*+[[:space:]]*/- /' || true)"; then
+                    echo "- Resources detected but names not parsed (see full output)"
+                  fi
+                  echo ""
+                fi
+                
+                if [ "$to_change" -gt 0 ]; then
+                  echo "### 🔄 Resources to be Updated:"
+                  # Look for resources being updated
+                  grep -B2 -A2 "will be updated" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' || true
+                  
+                  # Alternative: direct resource pattern
+                  grep -E "^[[:space:]]*~[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*~[[:space:]]*/- /' || true
+                  
+                  # If no resources found, show at least something
+                  if ! grep -q "^- " <<< "$(grep -B2 -A2 "will be updated" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' || grep -E "^[[:space:]]*~[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*~[[:space:]]*/- /' || true)"; then
+                    echo "- Resources detected but names not parsed (see full output)"
+                  fi
+                  echo ""
+                fi
+                
+                if [ "$to_destroy" -gt 0 ]; then
+                  echo "### ❌ Resources to be Destroyed:"
+                  # Look for resources being destroyed
+                  grep -B2 -A2 "will be destroyed" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' || true
+                  
+                  # Alternative: direct resource pattern
+                  grep -E "^[[:space:]]*-[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*-[[:space:]]*/- /' || true
+                  
+                  # If no resources found, show at least something
+                  if ! grep -q "^- " <<< "$(grep -B2 -A2 "will be destroyed" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' || grep -E "^[[:space:]]*-[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*-[[:space:]]*/- /' || true)"; then
+                    echo "- Resources detected but names not parsed (see full output)"
+                  fi
+                  echo ""
+                fi
+                
+                # Add debug section to understand plan format
+                echo "### 🔧 Debug: Plan Pattern Analysis"
+                echo "<details><summary>Debugging info (first 10 lines of each pattern)</summary>"
+                echo ""
+                echo "\`\`\`"
+                echo "=== Lines with 'will be created' ==="
+                grep -n "will be created" plan_output.txt | head -10 || echo "No matches"
+                echo ""
+                echo "=== Lines starting with # (resource names) ==="
+                grep -n "^[[:space:]]*#" plan_output.txt | head -10 || echo "No matches"
+                echo ""
+                echo "=== Lines with resource patterns ==="
+                grep -n "resource\|module\|data" plan_output.txt | head -10 || echo "No matches"
+                echo "\`\`\`"
+                echo "</details>"
+              } > plan_summary.txt
+              
+              # Store plan summary
+              {
+                echo "plan_summary<<PLANSUMMARYEOF"
+                cat plan_summary.txt
+                echo "PLANSUMMARYEOF"
+              } >> "$GITHUB_OUTPUT"
+              
+              # Store full plan output
+              if [ -f "plan_output.txt" ] && [ "$plan_file_size" -gt 0 ]; then
+                {
+                  echo "full_plan_output<<FULLPLANEOF"
+                  if [ "$plan_file_size" -gt 50000 ]; then
+                    # If file is too large, show truncated version
+                    echo "⚠️ Plan output truncated due to size (${plan_file_size} bytes)"
+                    echo ""
+                    echo "=== First 1000 lines ==="
+                    head -1000 plan_output.txt
+                    echo ""
+                    echo "=== ... (content truncated) ==="
+                    echo ""
+                    echo "=== Last 500 lines ==="
+                    tail -500 plan_output.txt
+                  else
+                    # Show full output if small enough
+                    cat plan_output.txt
+                  fi
+                  echo "FULLPLANEOF"
+                } >> "$GITHUB_OUTPUT"
+              else
+                {
+                  echo "full_plan_output<<FULLPLANEOF"
+                  echo "❌ No plan output available (file size: ${plan_file_size:-0} bytes)"
+                  echo "FULLPLANEOF"
+                } >> "$GITHUB_OUTPUT"
+              fi
+              
+              # Determine outcome for successful initialization
+              if [ "${plan_exit_code:-0}" -eq 0 ]; then
+                echo "outcome=no_changes" >> "$GITHUB_OUTPUT"
+                echo "✅ No changes detected"
+              elif [ "${plan_exit_code:-0}" -eq 2 ]; then
+                echo "outcome=has_changes" >> "$GITHUB_OUTPUT"
+                echo "📝 Changes detected"
+              else
+                echo "outcome=error" >> "$GITHUB_OUTPUT"
+                echo "❌ Plan execution failed with exit code: ${plan_exit_code:-unknown}"
+                # Show error details
+                if [ -f "plan_output.txt" ]; then
+                  echo "🔍 Error details from plan output:"
+                  grep -i "error\|failed\|denied" plan_output.txt | head -10 || echo "No specific error patterns found"
+                fi
+              fi
             fi
           fi
         continue-on-error: true
