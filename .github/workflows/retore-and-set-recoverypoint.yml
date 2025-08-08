@@ -17,33 +17,36 @@ env:
   SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
   SLACK_WEBHOOK: "https://hooks.slack.com/services/${{ secrets.WEBHOOK_PATH }}"
   TF_VAR_WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+  TERRAGRUNT_VERSION: 0.67.16
+  TERRAFORM_VERSION: 1.9.8
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  terraform-plan-apply:
+  terragrunt-restore:
     runs-on: ubuntu-latest
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+      
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
         role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
         role-session-name: github-actions-test-session
         aws-region: ap-northeast-1
-    - name: Set up Python 3.9
-      uses: actions/setup-python@v5
+        
+    - name: Setup aqua
+      uses: aquaproj/aqua-installer@v3.0.1
       with:
-        python-version: 3.9
-    - name: Install Terraform
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: 1.7.5
-        terraform_wrapper: false # workarround ref:https://stackoverflow.com/questions/77243030/detailed-exitcode-flag-of-terraform-not-working-inside-github-action
+        aqua_version: v2.30.0
+
+    - name: Install tools via aqua
+      run: aqua install --all
     - name: Create Mapping Yaml
-      working-directory: terraform/scheduling
+      working-directory: terragrunt/environments/scheduling
       run: |
         cat << EOF > secrets.yaml
         OPS: ${{ secrets.WHITELIST_PLAYERS }}
@@ -63,16 +66,16 @@ jobs:
       run: |
         echo "TF_VAR_recovery_time=${{ github.event.client_payload.recovery_datetime }}" >> "$GITHUB_ENV"
         
-    - name: Initialize Terraform
-      working-directory: terraform/scheduling
-      run: terraform init -lock=false
+    - name: Initialize Terragrunt
+      working-directory: terragrunt/environments/scheduling
+      run: terragrunt init --terragrunt-non-interactive
 
-    - name: Terraform Plan
+    - name: Terragrunt Plan
       id: plan
-      working-directory: terraform/scheduling
+      working-directory: terragrunt/environments/scheduling
       shell: /usr/bin/bash {0} # workaround ref:https://qiita.com/mkiken/items/3d2999217832704fcf01
       run: |
-        terraform plan -no-color -lock=false -detailed-exitcode  \
+        terragrunt plan --terragrunt-non-interactive -detailed-exitcode \
           -var="recovery_time=${{ env.TF_VAR_recovery_time }}" \
           -var="set_recovery_point=true" \
           -var="set_seed_value=false"
@@ -80,18 +83,18 @@ jobs:
         echo "exit code is ${TF_PLAN_EXIT_CODE}"
         echo "TF_PLAN_EXIT_CODE=${TF_PLAN_EXIT_CODE}" >> "$GITHUB_ENV"
 
-    - name: Apply Terraform
+    - name: Apply Terragrunt
       if: ${{ env.TF_PLAN_EXIT_CODE == 2 }}
-      working-directory: terraform/scheduling
+      working-directory: terragrunt/environments/scheduling
       run: |
-        terraform apply -lock=false \
+        terragrunt apply --terragrunt-non-interactive \
           -var="recovery_time=${{ env.TF_VAR_recovery_time }}" \
           -var="set_recovery_point=true" \
           -var="set_seed_value=false" \
           -auto-approve
 
     - name: Update ECS Service
-      working-directory: terraform/scheduling
+      working-directory: terragrunt/environments/scheduling
       run: |
         # Replace with your AWS CLI command to update ECS service
         CLUSTER="$(aws ecs list-clusters | jq -r '.clusterArns[0]' )"

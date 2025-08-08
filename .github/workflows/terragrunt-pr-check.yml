@@ -112,11 +112,31 @@ jobs:
           
           # Initialize Terragrunt
           echo "📦 Initializing Terragrunt..."
-          terragrunt init --terragrunt-non-interactive
+          if ! terragrunt init --terragrunt-non-interactive; then
+            echo "❌ Terragrunt init failed"
+            echo "outcome=error" >> "$GITHUB_OUTPUT"
+            echo "full_plan_output<<FULLPLANEOF" >> "$GITHUB_OUTPUT"
+            echo "❌ Terragrunt initialization failed" >> "$GITHUB_OUTPUT"
+            echo "FULLPLANEOF" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
           
           # Execute plan and capture output
           echo "📋 Running Terragrunt Plan..."
           terragrunt plan -detailed-exitcode --terragrunt-non-interactive > plan_output.txt 2>&1 || plan_exit_code=$?
+          
+          # Check if plan output file exists and get its size
+          if [ -f "plan_output.txt" ]; then
+            plan_file_size=$(wc -c < plan_output.txt)
+            echo "📄 Plan output file size: $plan_file_size bytes"
+            echo "📄 First 20 lines of plan output:"
+            head -20 plan_output.txt
+            echo "📄 Last 20 lines of plan output:"
+            tail -20 plan_output.txt
+          else
+            echo "❌ Plan output file not found!"
+            plan_file_size=0
+          fi
           
           # Parse plan results
           echo "📊 Analyzing Plan Results..."
@@ -134,14 +154,16 @@ jobs:
           # Extract resource details
           echo "🔍 Extracting Resource Details..."
           
-          # Resources to be added
-          echo "## 📋 Plan Summary for ${{ matrix.environment }}" > plan_summary.txt
-          echo "" >> plan_summary.txt
-          echo "### � Resource Changes:" >> plan_summary.txt
-          echo "- **To Add:** $to_add resources" >> plan_summary.txt
-          echo "- **To Change:** $to_change resources" >> plan_summary.txt
-          echo "- **To Destroy:** $to_destroy resources" >> plan_summary.txt
-          echo "" >> plan_summary.txt
+          # Create plan summary with consolidated redirect block
+          {
+            echo "## 📋 Plan Summary for ${{ matrix.environment }}"
+            echo ""
+            echo "### 📊 Resource Changes:"
+            echo "- **To Add:** $to_add resources"
+            echo "- **To Change:** $to_change resources"
+            echo "- **To Destroy:** $to_destroy resources"
+            echo ""
+          } > plan_summary.txt
           
           if [ "$to_add" -gt 0 ]; then
             echo "### ➕ Resources to be Created:" >> plan_summary.txt
@@ -189,31 +211,60 @@ jobs:
           fi
           
           # Add debug section to understand plan format
-          echo "### 🔧 Debug: Plan Pattern Analysis" >> plan_summary.txt
-          echo "<details><summary>Debugging info (first 10 lines of each pattern)</summary>" >> plan_summary.txt
-          echo "" >> plan_summary.txt
-          echo "\`\`\`" >> plan_summary.txt
-          echo "=== Lines with 'will be created' ===" >> plan_summary.txt
+          {
+            echo "### 🔧 Debug: Plan Pattern Analysis"
+            echo "<details><summary>Debugging info (first 10 lines of each pattern)</summary>"
+            echo ""
+            echo "\`\`\`"
+            echo "=== Lines with 'will be created' ==="
+          } >> plan_summary.txt
           grep -n "will be created" plan_output.txt | head -10 >> plan_summary.txt || echo "No matches" >> plan_summary.txt
-          echo "" >> plan_summary.txt
-          echo "=== Lines starting with # (resource names) ===" >> plan_summary.txt  
+          {
+            echo ""
+            echo "=== Lines starting with # (resource names) ==="
+          } >> plan_summary.txt
           grep -n "^[[:space:]]*#" plan_output.txt | head -10 >> plan_summary.txt || echo "No matches" >> plan_summary.txt
-          echo "" >> plan_summary.txt
-          echo "=== Lines with resource patterns ===" >> plan_summary.txt
+          {
+            echo ""
+            echo "=== Lines with resource patterns ==="
+          } >> plan_summary.txt
           grep -n "resource\|module\|data" plan_output.txt | head -10 >> plan_summary.txt || echo "No matches" >> plan_summary.txt
-          echo "\`\`\`" >> plan_summary.txt
-          echo "</details>" >> plan_summary.txt
+          {
+            echo "\`\`\`"
+            echo "</details>"
+          } >> plan_summary.txt
           
-          # Store full output for debugging
+          # Store full output for debugging with size limit
           echo "plan_summary<<PLANSUMMARYEOF" >> "$GITHUB_OUTPUT"
           cat plan_summary.txt >> "$GITHUB_OUTPUT"
           echo "PLANSUMMARYEOF" >> "$GITHUB_OUTPUT"
           
-          echo "full_plan_output<<FULLPLANEOF" >> "$GITHUB_OUTPUT"
-          cat plan_output.txt >> "$GITHUB_OUTPUT"
-          echo "FULLPLANEOF" >> "$GITHUB_OUTPUT"
+          # Limit plan output size for GitHub Actions (max ~65KB for output variables)
+          if [ -f "plan_output.txt" ] && [ "$plan_file_size" -gt 0 ]; then
+            echo "full_plan_output<<FULLPLANEOF" >> "$GITHUB_OUTPUT"
+            if [ "$plan_file_size" -gt 50000 ]; then
+              # If file is too large, show truncated version
+              echo "⚠️ Plan output truncated due to size (${plan_file_size} bytes)" >> "$GITHUB_OUTPUT"
+              echo "" >> "$GITHUB_OUTPUT"
+              echo "=== First 1000 lines ===" >> "$GITHUB_OUTPUT"
+              head -1000 plan_output.txt >> "$GITHUB_OUTPUT"
+              echo "" >> "$GITHUB_OUTPUT"
+              echo "=== ... (content truncated) ===" >> "$GITHUB_OUTPUT"
+              echo "" >> "$GITHUB_OUTPUT"
+              echo "=== Last 500 lines ===" >> "$GITHUB_OUTPUT"
+              tail -500 plan_output.txt >> "$GITHUB_OUTPUT"
+            else
+              # Show full output if small enough
+              cat plan_output.txt >> "$GITHUB_OUTPUT"
+            fi
+            echo "FULLPLANEOF" >> "$GITHUB_OUTPUT"
+          else
+            echo "full_plan_output<<FULLPLANEOF" >> "$GITHUB_OUTPUT"
+            echo "❌ No plan output available (file size: ${plan_file_size:-0} bytes)" >> "$GITHUB_OUTPUT"
+            echo "FULLPLANEOF" >> "$GITHUB_OUTPUT"
+          fi
           
-          # Determine outcome
+          # Determine outcome with better error handling
           if [ "${plan_exit_code:-0}" -eq 0 ]; then
             echo "outcome=no_changes" >> "$GITHUB_OUTPUT"
             echo "✅ No changes detected"
@@ -222,7 +273,12 @@ jobs:
             echo "📝 Changes detected"
           else
             echo "outcome=error" >> "$GITHUB_OUTPUT"
-            echo "❌ Plan execution failed"
+            echo "❌ Plan execution failed with exit code: ${plan_exit_code:-unknown}"
+            # Show error details
+            if [ -f "plan_output.txt" ]; then
+              echo "🔍 Error details from plan output:"
+              grep -i "error\|failed\|denied" plan_output.txt | head -10 || echo "No specific error patterns found"
+            fi
           fi
         continue-on-error: true
 
@@ -452,20 +508,49 @@ jobs:
               }
             }
 
-            // Only post comment if there are security issues
+            // Always check for existing security scan comment to update or create
             if (hasIssues) {
               commentBody += '> **Note**: TFLint results are shown as inline comments in the PR review.\n';
               commentBody += '> **Action Required**: Please review and address the security issues above.\n\n';
               commentBody += '*🤖 This comment was generated automatically by the security scan workflow.*';
+            } else {
+              commentBody = '## 🛡️ Security Scan Results\n\n';
+              commentBody += '✅ **No security issues found!**\n\n';
+              commentBody += '> **Note**: TFLint results are shown as inline comments in the PR review.\n\n';
+              commentBody += '*🤖 This comment was generated automatically by the security scan workflow.*';
+            }
 
-              github.rest.issues.createComment({
-                issue_number: context.issue.number,
+            // Find existing security scan comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const securityCommentIdentifier = '## 🛡️ Security Scan Results';
+            const existingSecurityComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes(securityCommentIdentifier)
+            );
+
+            if (existingSecurityComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
+                comment_id: existingSecurityComment.id,
                 body: commentBody
               });
+              console.log('✅ Updated existing security scan comment');
             } else {
-              console.log('✅ No security issues found - skipping PR comment');
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody
+              });
+              console.log('✅ Created new security scan comment');
             }
 
   dependency-check:
@@ -485,24 +570,32 @@ jobs:
 
       - name: Terraform Module Dependency Check
         run: |
-          echo "## Terraform Module Dependencies" >> "$GITHUB_STEP_SUMMARY"
-          echo "Scanning for module versions and potential updates..." >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## Terraform Module Dependencies"
+            echo "Scanning for module versions and potential updates..."
+          } >> "$GITHUB_STEP_SUMMARY"
           
           find terraform/ -name "*.tf" -exec grep -l "source.*terraform-aws-modules" {} \; | while read -r file; do
-            echo "### $file" >> "$GITHUB_STEP_SUMMARY"
+            {
+              echo "### $file"
+            } >> "$GITHUB_STEP_SUMMARY"
             grep -n "source.*terraform-aws-modules\|version.*=" "$file" >> "$GITHUB_STEP_SUMMARY" || true
             echo "" >> "$GITHUB_STEP_SUMMARY"
           done
 
       - name: Terragrunt Configuration Check
         run: |
-          echo "## Terragrunt Configuration Analysis" >> "$GITHUB_STEP_SUMMARY"
-          echo "Checking Terragrunt configuration consistency..." >> "$GITHUB_STEP_SUMMARY"
+          {
+            echo "## Terragrunt Configuration Analysis"
+            echo "Checking Terragrunt configuration consistency..."
+          } >> "$GITHUB_STEP_SUMMARY"
           
           # Check for version consistency
           if [ -f "terragrunt/terragrunt.hcl" ]; then
-            echo "### Root Configuration" >> "$GITHUB_STEP_SUMMARY"
-            echo "\`\`\`hcl" >> "$GITHUB_STEP_SUMMARY"
+            {
+              echo "### Root Configuration"
+              echo "\`\`\`hcl"
+            } >> "$GITHUB_STEP_SUMMARY"
             grep -A 10 "module_versions" terragrunt/terragrunt.hcl >> "$GITHUB_STEP_SUMMARY" || true
             echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
           fi
