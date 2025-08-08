@@ -90,11 +90,3 @@ rule "aws_s3_bucket_invalid_acl" {
 rule "aws_security_group_rule_invalid_protocol" {
   enabled = true
 }
-
-# Ignore certain directories
-ignore {
-  paths = [
-    ".terraform/**",
-    "**/.terraform/**",
-  ]
-}

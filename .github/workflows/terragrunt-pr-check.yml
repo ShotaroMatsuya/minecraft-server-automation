@@ -146,6 +146,11 @@ jobs:
           aws sts get-caller-identity
         continue-on-error: true
 
+      - name: Setup Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
       - name: Setup aqua
         uses: aquaproj/aqua-installer@v3.0.1
         with:
