@@ -55,11 +55,25 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch full history to ensure all files are available
+          ref: ${{ github.event.pull_request.head.sha }}  # Checkout the exact PR commit
 
       - name: Debug Repository Structure
         run: |
+          echo "=== Git and Checkout Information ==="
+          echo "Current commit: $(git rev-parse HEAD)"
+          echo "Current branch: $(git branch --show-current || echo 'detached HEAD')"
+          echo "PR Head SHA: ${{ github.event.pull_request.head.sha }}"
+          echo "GitHub SHA: ${{ github.sha }}"
+          echo "GitHub Ref: ${{ github.ref }}"
+          echo ""
           echo "=== Repository Root Contents ==="
           ls -la
+          echo ""
+          echo "=== Git Status ==="
+          git status
+          echo ""
+          echo "=== Git Log (last 3 commits) ==="
+          git log --oneline -3
           echo ""
           echo "=== Terragrunt Directory Structure ==="
           if [ -d "terragrunt" ]; then
@@ -102,6 +116,10 @@ jobs:
           find . -name "*.tf" > debug-output/tf-files.txt
           git log --oneline -10 > debug-output/git-log.txt
           git ls-files > debug-output/git-tracked-files.txt
+          git status > debug-output/git-status.txt
+          git rev-parse HEAD > debug-output/current-commit.txt
+          echo "${{ github.event.pull_request.head.sha }}" > debug-output/pr-head-sha.txt
+          echo "${{ github.sha }}" > debug-output/github-sha.txt
 
       - name: Upload Debug Artifacts
         uses: actions/upload-artifact@v4
@@ -641,6 +659,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch full history to ensure all files are available
+          ref: ${{ github.event.pull_request.head.sha }}  # Checkout the exact PR commit
 
       - name: Debug Repository Structure for Security Scan
         run: |
@@ -921,6 +940,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch full history to ensure all files are available
+          ref: ${{ github.event.pull_request.head.sha }}  # Checkout the exact PR commit
 
       - name: Setup aqua
         uses: aquaproj/aqua-installer@v3.0.1
