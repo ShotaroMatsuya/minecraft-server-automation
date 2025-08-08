@@ -211,7 +211,7 @@ jobs:
         run: |
           echo "🔍 Checking format for ${{ matrix.environment }} environment..."
           cd "${{ matrix.path }}"
-          if terragrunt hcl-fmt --terragrunt-check; then
+          if terragrunt fmt --check --terragrunt-non-interactive; then
             echo "result=No changes needed" >> "$GITHUB_OUTPUT"
             echo "needs_format=false" >> "$GITHUB_OUTPUT"
           else
@@ -362,9 +362,10 @@ jobs:
             to_destroy=0
             
             if [ -f "plan_output.txt" ] && [ "$plan_file_size" -gt 0 ]; then
-              to_add=$(grep -c "will be created" plan_output.txt || echo "0")
-              to_change=$(grep -c "will be updated" plan_output.txt || echo "0")  
-              to_destroy=$(grep -c "will be destroyed" plan_output.txt || echo "0")
+              # Use 2>/dev/null to suppress broken pipe errors from grep
+              to_add=$(grep -c "will be created" plan_output.txt 2>/dev/null || echo "0")
+              to_change=$(grep -c "will be updated" plan_output.txt 2>/dev/null || echo "0")  
+              to_destroy=$(grep -c "will be destroyed" plan_output.txt 2>/dev/null || echo "0")
             fi
             
             # Set GitHub output variables
@@ -392,13 +393,13 @@ jobs:
                 if [ "$to_add" -gt 0 ]; then
                   echo "### ➕ Resources to be Created:"
                   # Look for resources in Terraform plan output - multiple patterns
-                  grep -B2 -A2 "will be created" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' || true
+                  grep -B2 -A2 "will be created" plan_output.txt 2>/dev/null | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' 2>/dev/null || true
                   
                   # Alternative: direct resource pattern
-                  grep -E "^[[:space:]]*\+[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*+[[:space:]]*/- /' || true
+                  grep -E "^[[:space:]]*\+[[:space:]]*resource" plan_output.txt 2>/dev/null | head -20 | sed 's/^[[:space:]]*+[[:space:]]*/- /' 2>/dev/null || true
                   
                   # If no resources found, show at least something
-                  if ! grep -q "^- " <<< "$(grep -B2 -A2 "will be created" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' || grep -E "^[[:space:]]*\+[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*+[[:space:]]*/- /' || true)"; then
+                  if ! grep -q "^- " <<< "$(grep -B2 -A2 "will be created" plan_output.txt 2>/dev/null | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' 2>/dev/null || grep -E "^[[:space:]]*\+[[:space:]]*resource" plan_output.txt 2>/dev/null | head -20 | sed 's/^[[:space:]]*+[[:space:]]*/- /' 2>/dev/null || true)"; then
                     echo "- Resources detected but names not parsed (see full output)"
                   fi
                   echo ""
@@ -407,13 +408,13 @@ jobs:
                 if [ "$to_change" -gt 0 ]; then
                   echo "### 🔄 Resources to be Updated:"
                   # Look for resources being updated
-                  grep -B2 -A2 "will be updated" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' || true
+                  grep -B2 -A2 "will be updated" plan_output.txt 2>/dev/null | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' 2>/dev/null || true
                   
                   # Alternative: direct resource pattern
-                  grep -E "^[[:space:]]*~[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*~[[:space:]]*/- /' || true
+                  grep -E "^[[:space:]]*~[[:space:]]*resource" plan_output.txt 2>/dev/null | head -20 | sed 's/^[[:space:]]*~[[:space:]]*/- /' 2>/dev/null || true
                   
                   # If no resources found, show at least something
-                  if ! grep -q "^- " <<< "$(grep -B2 -A2 "will be updated" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' || grep -E "^[[:space:]]*~[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*~[[:space:]]*/- /' || true)"; then
+                  if ! grep -q "^- " <<< "$(grep -B2 -A2 "will be updated" plan_output.txt 2>/dev/null | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' 2>/dev/null || grep -E "^[[:space:]]*~[[:space:]]*resource" plan_output.txt 2>/dev/null | head -20 | sed 's/^[[:space:]]*~[[:space:]]*/- /' 2>/dev/null || true)"; then
                     echo "- Resources detected but names not parsed (see full output)"
                   fi
                   echo ""
@@ -422,13 +423,13 @@ jobs:
                 if [ "$to_destroy" -gt 0 ]; then
                   echo "### ❌ Resources to be Destroyed:"
                   # Look for resources being destroyed
-                  grep -B2 -A2 "will be destroyed" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' || true
+                  grep -B2 -A2 "will be destroyed" plan_output.txt 2>/dev/null | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' 2>/dev/null || true
                   
                   # Alternative: direct resource pattern
-                  grep -E "^[[:space:]]*-[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*-[[:space:]]*/- /' || true
+                  grep -E "^[[:space:]]*-[[:space:]]*resource" plan_output.txt 2>/dev/null | head -20 | sed 's/^[[:space:]]*-[[:space:]]*/- /' 2>/dev/null || true
                   
                   # If no resources found, show at least something
-                  if ! grep -q "^- " <<< "$(grep -B2 -A2 "will be destroyed" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' || grep -E "^[[:space:]]*-[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*-[[:space:]]*/- /' || true)"; then
+                  if ! grep -q "^- " <<< "$(grep -B2 -A2 "will be destroyed" plan_output.txt 2>/dev/null | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' 2>/dev/null || grep -E "^[[:space:]]*-[[:space:]]*resource" plan_output.txt 2>/dev/null | head -20 | sed 's/^[[:space:]]*-[[:space:]]*/- /' 2>/dev/null || true)"; then
                     echo "- Resources detected but names not parsed (see full output)"
                   fi
                   echo ""
@@ -440,13 +441,13 @@ jobs:
                 echo ""
                 echo "\`\`\`"
                 echo "=== Lines with 'will be created' ==="
-                grep -n "will be created" plan_output.txt | head -10 || echo "No matches"
+                grep -n "will be created" plan_output.txt 2>/dev/null | head -10 || echo "No matches"
                 echo ""
                 echo "=== Lines starting with # (resource names) ==="
-                grep -n "^[[:space:]]*#" plan_output.txt | head -10 || echo "No matches"
+                grep -n "^[[:space:]]*#" plan_output.txt 2>/dev/null | head -10 || echo "No matches"
                 echo ""
                 echo "=== Lines with resource patterns ==="
-                grep -n "resource\|module\|data" plan_output.txt | head -10 || echo "No matches"
+                grep -n "resource\|module\|data" plan_output.txt 2>/dev/null | head -10 || echo "No matches"
                 echo "\`\`\`"
                 echo "</details>"
               } > plan_summary.txt
@@ -497,11 +498,80 @@ jobs:
               else
                 echo "outcome=error" >> "$GITHUB_OUTPUT"
                 echo "❌ Plan execution failed with exit code: ${plan_exit_code:-unknown}"
-                # Show error details
+                
+                # Enhanced error reporting for plan failures
                 if [ -f "plan_output.txt" ]; then
                   echo "🔍 Error details from plan output:"
-                  grep -i "error\|failed\|denied" plan_output.txt | head -10 || echo "No specific error patterns found"
+                  
+                  # Show specific error patterns
+                  echo ">>> Checking for error patterns..."
+                  
+                  # Check for common error types
+                  if grep -q -i "authentication\|credential\|unauthorized\|403\|401" plan_output.txt 2>/dev/null; then
+                    echo "🔐 Authentication/Authorization errors detected:"
+                    grep -i -n "authentication\|credential\|unauthorized\|403\|401" plan_output.txt 2>/dev/null | head -5
+                  fi
+                  
+                  if grep -q -i "timeout\|connection\|network" plan_output.txt 2>/dev/null; then
+                    echo "🌐 Network/Connection errors detected:"
+                    grep -i -n "timeout\|connection\|network" plan_output.txt 2>/dev/null | head -5
+                  fi
+                  
+                  if grep -q -i "resource.*not found\|does not exist" plan_output.txt 2>/dev/null; then
+                    echo "🔍 Resource not found errors detected:"
+                    grep -i -n "resource.*not found\|does not exist" plan_output.txt 2>/dev/null | head -5
+                  fi
+                  
+                  if grep -q -i "syntax error\|invalid\|malformed" plan_output.txt 2>/dev/null; then
+                    echo "⚠️ Syntax/Configuration errors detected:"
+                    grep -i -n "syntax error\|invalid\|malformed" plan_output.txt 2>/dev/null | head -5
+                  fi
+                  
+                  # Generic error pattern matching
+                  echo ">>> All error/failed patterns:"
+                  grep -i -n "error\|failed\|denied\|exception" plan_output.txt 2>/dev/null | head -10 || echo "No specific error patterns found"
+                  
+                  # Show the last part of the output which often contains the summary
+                  echo ""
+                  echo ">>> Last 20 lines of plan output (often contains error summary):"
+                  tail -20 plan_output.txt 2>/dev/null || echo "Could not read plan output tail"
+                else
+                  echo "No plan output file available for error analysis"
                 fi
+                
+                # Update plan summary to include error information
+                {
+                  echo "plan_summary<<PLANSUMMARYEOF"
+                  echo "## 📋 Plan Summary for ${{ matrix.environment }}"
+                  echo ""
+                  echo "❌ **Plan execution failed with exit code: ${plan_exit_code:-unknown}**"
+                  echo ""
+                  echo "### 🔍 Error Analysis:"
+                  if [ -f "plan_output.txt" ]; then
+                    echo "\`\`\`"
+                    # Show condensed error information
+                    if grep -q -i "error\|failed\|denied" plan_output.txt 2>/dev/null; then
+                      echo "=== Error Messages ==="
+                      grep -i "error\|failed\|denied" plan_output.txt 2>/dev/null | head -10
+                      echo ""
+                    fi
+                    echo "=== Last 10 lines of output ==="
+                    tail -10 plan_output.txt 2>/dev/null
+                    echo "\`\`\`"
+                  else
+                    echo "No detailed error information available."
+                  fi
+                  echo ""
+                  echo "**Possible causes:**"
+                  echo "- Authentication or permission issues with AWS"
+                  echo "- Network connectivity problems"
+                  echo "- Configuration syntax errors"
+                  echo "- Missing or invalid Terraform resources"
+                  echo "- State file conflicts or locking issues"
+                  echo ""
+                  echo "Please check the full plan output below for more details."
+                  echo "PLANSUMMARYEOF"
+                } >> "$GITHUB_OUTPUT"
               fi
             fi
           fi
@@ -535,12 +605,32 @@ jobs:
               statusText = 'Unknown status';
             }
 
+            // Enhanced error information display for failed plans
+            let errorSection = '';
+            if (outcome === 'error') {
+              const planExitCode = '${{ steps.plan.outputs.plan_exit_code }}' || 'unknown';
+              errorSection = `
+            ### ❌ Plan Execution Failed
+            
+            **Exit Code:** ${planExitCode}
+            
+            **Error Details:** The terraform plan execution failed. Please check the detailed plan results below for specific error messages and troubleshooting information.
+            
+            > **💡 Troubleshooting Tips:**
+            > - Check for authentication issues with AWS credentials
+            > - Verify network connectivity and service availability
+            > - Review configuration syntax for errors
+            > - Check for resource naming conflicts or missing dependencies
+            > - Ensure state file integrity and avoid concurrent operations
+            `;
+            }
+
             const commentBody = `## 📋 Terragrunt Results for \`${environment}\`
             
             #### Format Check 🖌 \`${{ steps.fmt.outputs.result }}\`
             #### Validation 🔍 \`${{ steps.validate.outcome }}\`  
             #### Plan ${statusIcon} \`${statusText}\`
-
+            ${errorSection}
             ### 📊 Resource Summary
             
             | Type | Count |
