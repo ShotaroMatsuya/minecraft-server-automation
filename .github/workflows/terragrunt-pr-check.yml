@@ -179,6 +179,16 @@ jobs:
           output: 'trivy-terraform.sarif'
         continue-on-error: true
 
+      - name: Trivy - Terraform Security Scan (Table Format)
+        id: trivy-terraform
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: 'terraform/'
+          format: 'table'
+          output: 'trivy-terraform-results.txt'
+        continue-on-error: true
+
       - name: Check Trivy Terraform SARIF exists
         id: check-terraform-sarif
         run: |
@@ -204,6 +214,16 @@ jobs:
           output: 'trivy-terragrunt.sarif'
         continue-on-error: true
 
+      - name: Trivy - Terragrunt Security Scan (Table Format)
+        id: trivy-terragrunt
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'config'
+          scan-ref: 'terragrunt/'
+          format: 'table'
+          output: 'trivy-terragrunt-results.txt'
+        continue-on-error: true
+
       - name: Check Trivy Terragrunt SARIF exists
         id: check-terragrunt-sarif
         run: |
@@ -220,34 +240,62 @@ jobs:
           category: 'terragrunt-security-scan'
         if: steps.check-terragrunt-sarif.outputs.sarif_exists == 'true'
 
-      - name: tfsec Security Scan
-        uses: aquasecurity/tfsec-pr-commenter-action@v1.3.1
+      - name: Check for Security Issues and Comment PR
+        uses: actions/github-script@v7
+        if: always()
         with:
-          working_directory: 'terraform'
-          github_token: ${{ github.token }}
+          script: |
+            const fs = require('fs');
+            let hasIssues = false;
+            let commentBody = '## 🛡️ Security Scan Results\n\n';
 
-      - name: tfsec SARIF Report
-        uses: aquasecurity/tfsec-sarif-action@v0.1.4
-        with:
-          sarif_file: tfsec.sarif
-          tfsec_args: --minimum-severity HIGH
-        continue-on-error: true
+            // Check Trivy Terraform results
+            if (fs.existsSync('trivy-terraform-results.txt')) {
+              const trivyTerraformResults = fs.readFileSync('trivy-terraform-results.txt', 'utf8');
+              const hasVulns = trivyTerraformResults.includes('CRITICAL') || 
+                              trivyTerraformResults.includes('HIGH') || 
+                              trivyTerraformResults.includes('MEDIUM');
+              
+              if (hasVulns) {
+                hasIssues = true;
+                commentBody += '### 🔍 Trivy - Terraform Security Issues\n\n';
+                commentBody += '<details><summary>View Terraform Security Scan Results</summary>\n\n';
+                commentBody += '```\n' + trivyTerraformResults + '\n```\n\n';
+                commentBody += '</details>\n\n';
+              }
+            }
 
-      - name: Check tfsec SARIF exists
-        id: check-tfsec-sarif
-        run: |
-          if [ -f "tfsec.sarif" ]; then
-            echo "sarif_exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "sarif_exists=false" >> "$GITHUB_OUTPUT"
-          fi
+            // Check Trivy Terragrunt results
+            if (fs.existsSync('trivy-terragrunt-results.txt')) {
+              const trivyTerragruntResults = fs.readFileSync('trivy-terragrunt-results.txt', 'utf8');
+              const hasVulns = trivyTerragruntResults.includes('CRITICAL') || 
+                              trivyTerragruntResults.includes('HIGH') || 
+                              trivyTerragruntResults.includes('MEDIUM');
+              
+              if (hasVulns) {
+                hasIssues = true;
+                commentBody += '### 🔍 Trivy - Terragrunt Security Issues\n\n';
+                commentBody += '<details><summary>View Terragrunt Security Scan Results</summary>\n\n';
+                commentBody += '```\n' + trivyTerragruntResults + '\n```\n\n';
+                commentBody += '</details>\n\n';
+              }
+            }
 
-      - name: Upload tfsec SARIF
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: tfsec.sarif
-          category: 'tfsec-security-scan'
-        if: steps.check-tfsec-sarif.outputs.sarif_exists == 'true'
+            // Only post comment if there are security issues
+            if (hasIssues) {
+              commentBody += '> **Note**: TFLint results are shown as inline comments in the PR review.\n';
+              commentBody += '> **Action Required**: Please review and address the security issues above.\n\n';
+              commentBody += '*🤖 This comment was generated automatically by the security scan workflow.*';
+
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: commentBody
+              });
+            } else {
+              console.log('✅ No security issues found - skipping PR comment');
+            }
 
   dependency-check:
     name: Dependency Analysis
