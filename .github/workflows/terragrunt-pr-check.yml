@@ -82,8 +82,8 @@ jobs:
 
       - name: Terragrunt Format Check
         id: fmt
-        working-directory: ${{ matrix.path }}
         run: |
+          cd "${{ matrix.path }}"
           if terragrunt hcl-fmt --terragrunt-check; then
             echo "result=No changes needed" >> "$GITHUB_OUTPUT"
             echo "needs_format=false" >> "$GITHUB_OUTPUT"
@@ -95,9 +95,10 @@ jobs:
 
       - name: Terragrunt Syntax Check
         id: validate
-        working-directory: ${{ matrix.path }}
         run: |
           echo "Checking Terragrunt configuration syntax..."
+          echo "Working directory: $(pwd)"
+          echo "Target path: ${{ matrix.path }}"
           
           # Check if terragrunt is installed
           if ! terragrunt --version >/dev/null 2>&1; then
@@ -110,6 +111,22 @@ jobs:
           
           # Validate Terragrunt configuration
           echo "🔍 Validating Terragrunt configuration..."
+          cd "${{ matrix.path }}"
+          echo "Now in directory: $(pwd)"
+          echo "Directory contents:"
+          ls -la
+          echo "Checking Terraform source path:"
+          if [ -d "../../../terraform/" ]; then
+            echo "✅ Terraform directory found at ../../../terraform/"
+            ls -la ../../../terraform/ | head -10
+          else
+            echo "❌ Terraform directory not found at expected path ../../../terraform/"
+            echo "Available directories in project root:"
+            ls -la ../../.. | grep -E "^d"
+          fi
+          echo "Checking if Terragrunt config references correct source:"
+          grep -n "source.*=" terragrunt.hcl || echo "No source found in terragrunt.hcl"
+          
           if terragrunt validate --terragrunt-non-interactive; then
             echo "✅ Terragrunt configuration is valid"
             echo "outcome=success" >> "$GITHUB_OUTPUT"
@@ -121,9 +138,22 @@ jobs:
 
       - name: Terragrunt Plan Execution
         id: plan
-        working-directory: ${{ matrix.path }}
         run: |
           echo "🚀 Executing Terragrunt Plan for ${{ matrix.environment }}..."
+          echo "Starting from directory: $(pwd)"
+          cd "${{ matrix.path }}"
+          echo "Working in directory: $(pwd)"
+          echo "Checking project structure:"
+          echo "Available files in current directory:"
+          ls -la
+          echo "Checking relative paths:"
+          if [ -d "../../../terraform/${{ matrix.environment }}" ]; then
+            echo "✅ Terraform source found at ../../../terraform/${{ matrix.environment }}"
+          else
+            echo "❌ Terraform source not found at ../../../terraform/${{ matrix.environment }}"
+            echo "Available terraform environments:"
+            ls -la ../../../terraform/ 2>/dev/null | grep -E "^d" || echo "No terraform directory found"
+          fi
           
           # Initialize Terragrunt
           echo "📦 Initializing Terragrunt..."
