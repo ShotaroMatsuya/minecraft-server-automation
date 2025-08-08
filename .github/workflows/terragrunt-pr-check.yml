@@ -114,10 +114,12 @@ jobs:
           echo "📦 Initializing Terragrunt..."
           if ! terragrunt init --terragrunt-non-interactive; then
             echo "❌ Terragrunt init failed"
-            echo "outcome=error" >> "$GITHUB_OUTPUT"
-            echo "full_plan_output<<FULLPLANEOF" >> "$GITHUB_OUTPUT"
-            echo "❌ Terragrunt initialization failed" >> "$GITHUB_OUTPUT"
-            echo "FULLPLANEOF" >> "$GITHUB_OUTPUT"
+            {
+              echo "outcome=error"
+              echo "full_plan_output<<FULLPLANEOF"
+              echo "❌ Terragrunt initialization failed"
+              echo "FULLPLANEOF"
+            } >> "$GITHUB_OUTPUT"
             exit 1
           fi
           
@@ -146,10 +148,13 @@ jobs:
           to_change=$(grep -c "will be updated" plan_output.txt || echo "0")
           to_destroy=$(grep -c "will be destroyed" plan_output.txt || echo "0")
           
-          echo "plan_exit_code=${plan_exit_code:-0}" >> "$GITHUB_OUTPUT"
-          echo "resources_to_add=$to_add" >> "$GITHUB_OUTPUT"
-          echo "resources_to_change=$to_change" >> "$GITHUB_OUTPUT"
-          echo "resources_to_destroy=$to_destroy" >> "$GITHUB_OUTPUT"
+          # Set GitHub output variables
+          {
+            echo "plan_exit_code=${plan_exit_code:-0}"
+            echo "resources_to_add=$to_add"
+            echo "resources_to_change=$to_change"
+            echo "resources_to_destroy=$to_destroy"
+          } >> "$GITHUB_OUTPUT"
           
           # Extract resource details
           echo "🔍 Extracting Resource Details..."
@@ -227,33 +232,39 @@ jobs:
           } > plan_summary.txt
           
           # Store full output for debugging with size limit
-          echo "plan_summary<<PLANSUMMARYEOF" >> "$GITHUB_OUTPUT"
-          cat plan_summary.txt >> "$GITHUB_OUTPUT"
-          echo "PLANSUMMARYEOF" >> "$GITHUB_OUTPUT"
+          {
+            echo "plan_summary<<PLANSUMMARYEOF"
+            cat plan_summary.txt
+            echo "PLANSUMMARYEOF"
+          } >> "$GITHUB_OUTPUT"
           
           # Limit plan output size for GitHub Actions (max ~65KB for output variables)
           if [ -f "plan_output.txt" ] && [ "$plan_file_size" -gt 0 ]; then
-            echo "full_plan_output<<FULLPLANEOF" >> "$GITHUB_OUTPUT"
-            if [ "$plan_file_size" -gt 50000 ]; then
-              # If file is too large, show truncated version
-              echo "⚠️ Plan output truncated due to size (${plan_file_size} bytes)" >> "$GITHUB_OUTPUT"
-              echo "" >> "$GITHUB_OUTPUT"
-              echo "=== First 1000 lines ===" >> "$GITHUB_OUTPUT"
-              head -1000 plan_output.txt >> "$GITHUB_OUTPUT"
-              echo "" >> "$GITHUB_OUTPUT"
-              echo "=== ... (content truncated) ===" >> "$GITHUB_OUTPUT"
-              echo "" >> "$GITHUB_OUTPUT"
-              echo "=== Last 500 lines ===" >> "$GITHUB_OUTPUT"
-              tail -500 plan_output.txt >> "$GITHUB_OUTPUT"
-            else
-              # Show full output if small enough
-              cat plan_output.txt >> "$GITHUB_OUTPUT"
-            fi
-            echo "FULLPLANEOF" >> "$GITHUB_OUTPUT"
+            {
+              echo "full_plan_output<<FULLPLANEOF"
+              if [ "$plan_file_size" -gt 50000 ]; then
+                # If file is too large, show truncated version
+                echo "⚠️ Plan output truncated due to size (${plan_file_size} bytes)"
+                echo ""
+                echo "=== First 1000 lines ==="
+                head -1000 plan_output.txt
+                echo ""
+                echo "=== ... (content truncated) ==="
+                echo ""
+                echo "=== Last 500 lines ==="
+                tail -500 plan_output.txt
+              else
+                # Show full output if small enough
+                cat plan_output.txt
+              fi
+              echo "FULLPLANEOF"
+            } >> "$GITHUB_OUTPUT"
           else
-            echo "full_plan_output<<FULLPLANEOF" >> "$GITHUB_OUTPUT"
-            echo "❌ No plan output available (file size: ${plan_file_size:-0} bytes)" >> "$GITHUB_OUTPUT"
-            echo "FULLPLANEOF" >> "$GITHUB_OUTPUT"
+            {
+              echo "full_plan_output<<FULLPLANEOF"
+              echo "❌ No plan output available (file size: ${plan_file_size:-0} bytes)"
+              echo "FULLPLANEOF"
+            } >> "$GITHUB_OUTPUT"
           fi
           
           # Determine outcome with better error handling
@@ -565,29 +576,25 @@ jobs:
           {
             echo "## Terraform Module Dependencies"
             echo "Scanning for module versions and potential updates..."
-          } >> "$GITHUB_STEP_SUMMARY"
-          
-          find terraform/ -name "*.tf" -exec grep -l "source.*terraform-aws-modules" {} \; | while read -r file; do
-            {
+            
+            find terraform/ -name "*.tf" -exec grep -l "source.*terraform-aws-modules" {} \; | while read -r file; do
               echo "### $file"
-            } >> "$GITHUB_STEP_SUMMARY"
-            grep -n "source.*terraform-aws-modules\|version.*=" "$file" >> "$GITHUB_STEP_SUMMARY" || true
-            echo "" >> "$GITHUB_STEP_SUMMARY"
-          done
+              grep -n "source.*terraform-aws-modules\|version.*=" "$file" || true
+              echo ""
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Terragrunt Configuration Check
         run: |
           {
             echo "## Terragrunt Configuration Analysis"
             echo "Checking Terragrunt configuration consistency..."
-          } >> "$GITHUB_STEP_SUMMARY"
-          
-          # Check for version consistency
-          if [ -f "terragrunt/terragrunt.hcl" ]; then
-            {
+            
+            # Check for version consistency
+            if [ -f "terragrunt/terragrunt.hcl" ]; then
               echo "### Root Configuration"
               echo "\`\`\`hcl"
-            } >> "$GITHUB_STEP_SUMMARY"
-            grep -A 10 "module_versions" terragrunt/terragrunt.hcl >> "$GITHUB_STEP_SUMMARY" || true
-            echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
-          fi
+              grep -A 10 "module_versions" terragrunt/terragrunt.hcl || true
+              echo "\`\`\`"
+            fi
+          } >> "$GITHUB_STEP_SUMMARY"
