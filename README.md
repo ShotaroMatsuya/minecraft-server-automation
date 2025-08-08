@@ -24,8 +24,6 @@ A robust, cost-optimized Minecraft server infrastructure deployed on AWS using T
 - 📦 **Backup**: Automatic S3 backup with restore capabilities
 - 🔧 **ECS Exec**: Remote container access for debugging
 
-![Infrastructure Diagram](./docs/mc-server.drawio.png)
-
 ## 🚀 Quick Start
 
 ### Prerequisites
