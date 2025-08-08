@@ -52,21 +52,26 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Configure AWS Credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
-          role-session-name: github-actions-test-session
-          aws-region: ap-northeast-1
+      # TODO: AWS OIDC Setup Required
+      # Please create the following resources in AWS:
+      # 1. OIDC Provider: https://token.actions.githubusercontent.com
+      # 2. IAM Role: minecraft-test-github-actions
+      # See docs/aws-oidc-setup.md for detailed instructions
+      
+      # - name: Configure AWS Credentials
+      #   uses: aws-actions/configure-aws-credentials@v4
+      #   with:
+      #     role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
+      #     role-session-name: github-actions-test-session
+      #     aws-region: ap-northeast-1
 
-      # Debug: Check AWS configuration
-      - name: Debug AWS Configuration
-        run: |
-          echo "AWS Region: $AWS_DEFAULT_REGION"
-          echo "AWS Account ID (from env): ${{ env.AWS_ACCOUNT_ID }}"
-          echo "Assumed Role ARN would be: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions"
-          aws sts get-caller-identity || echo "AWS authentication failed"
-        continue-on-error: true
+      # - name: Debug AWS Configuration
+      #   run: |
+      #     echo "AWS Region: $AWS_DEFAULT_REGION"
+      #     echo "AWS Account ID (from env): ${{ env.AWS_ACCOUNT_ID }}"
+      #     echo "Assumed Role ARN would be: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions"
+      #     aws sts get-caller-identity || echo "AWS authentication failed"
+      #   continue-on-error: true
 
       - name: Setup aqua
         uses: aquaproj/aqua-installer@v3.0.1
