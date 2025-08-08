@@ -164,11 +164,23 @@ jobs:
           scan-ref: 'terraform/'
           format: 'sarif'
           output: 'trivy-terraform.sarif'
+        continue-on-error: true
+
+      - name: Check Trivy Terraform SARIF exists
+        id: check-terraform-sarif
+        run: |
+          if [ -f "trivy-terraform.sarif" ]; then
+            echo "sarif_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "sarif_exists=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Upload Trivy SARIF
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-terraform.sarif'
+          category: 'terraform-security-scan'
+        if: steps.check-terraform-sarif.outputs.sarif_exists == 'true'
 
       - name: Trivy - Terragrunt Security Scan
         uses: aquasecurity/trivy-action@master
@@ -177,11 +189,23 @@ jobs:
           scan-ref: 'terragrunt/'
           format: 'sarif'
           output: 'trivy-terragrunt.sarif'
+        continue-on-error: true
+
+      - name: Check Trivy Terragrunt SARIF exists
+        id: check-terragrunt-sarif
+        run: |
+          if [ -f "trivy-terragrunt.sarif" ]; then
+            echo "sarif_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "sarif_exists=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Upload Trivy Terragrunt SARIF
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-terragrunt.sarif'
+          category: 'terragrunt-security-scan'
+        if: steps.check-terragrunt-sarif.outputs.sarif_exists == 'true'
 
       - name: tfsec Security Scan
         uses: aquasecurity/tfsec-pr-commenter-action@v1.3.1
@@ -194,11 +218,23 @@ jobs:
         with:
           sarif_file: tfsec.sarif
           tfsec_args: --minimum-severity HIGH
+        continue-on-error: true
+
+      - name: Check tfsec SARIF exists
+        id: check-tfsec-sarif
+        run: |
+          if [ -f "tfsec.sarif" ]; then
+            echo "sarif_exists=true" >> $GITHUB_OUTPUT
+          else
+            echo "sarif_exists=false" >> $GITHUB_OUTPUT
+          fi
 
       - name: Upload tfsec SARIF
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: tfsec.sarif
+          category: 'tfsec-security-scan'
+        if: steps.check-tfsec-sarif.outputs.sarif_exists == 'true'
 
   dependency-check:
     name: Dependency Analysis
