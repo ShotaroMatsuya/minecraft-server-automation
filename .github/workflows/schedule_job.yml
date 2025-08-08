@@ -1,4 +1,4 @@
-name: Start and Stop Workflow
+name: Terragrunt Scheduled Operations
 
 on:
   # 一時無効化
@@ -9,18 +9,19 @@ on:
   #   - cron: '0 17 * * 6,0'
   repository_dispatch:
     types: [start, stop]
+
 env:
-  SLACK_USERNAME: DeployBot
+  SLACK_USERNAME: TerragruntBot
   SLACK_ICON: https://github.githubassets.com/images/modules/logos_page/GitHub-Mark.png
   SLACK_WEBHOOK: https://hooks.slack.com/services/${{secrets.WEBHOOK_PATH}}
   TF_VAR_WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
-  TF_VERSION: 1.7.5
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+  TERRAGRUNT_VERSION: 0.67.16
+  TERRAFORM_VERSION: 1.9.8
   AWS_REGION: ap-northeast-1
-defaults:
-  run:
-    working-directory: ./terraform/scheduling
+
 jobs:
-  scheduled_job:
+  scheduled_operations:
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -28,13 +29,30 @@ jobs:
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
+
     - name: Configure AWS Credentials
       uses: aws-actions/configure-aws-credentials@v4
       with:
-        role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
-        role-session-name: github-actions-test-session
+        role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
+        role-session-name: github-actions-terragrunt-scheduled
         aws-region: ${{ env.AWS_REGION }}
+
+    - name: Setup aqua
+      uses: aquaproj/aqua-installer@v3.0.1
+      with:
+        aqua_version: v2.30.0
+
+    - name: Install tools via aqua
+      run: aqua install --all
+
+    - name: Setup Terragrunt
+      run: |
+        curl -Lo terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64
+        chmod +x terragrunt
+        sudo mv terragrunt /usr/local/bin/
+
     - name: Create Mapping Yaml
+      working-directory: terraform/scheduling
       run: |
         cat << EOF > secrets.yaml
         OPS: ${{ secrets.WHITELIST_PLAYERS }}
@@ -45,52 +63,56 @@ jobs:
         FILTERING_STRINGS: ${{ secrets.FILTERING_STRINGS }}
         EOF
 
-    - name: terraform setup
-      uses: hashicorp/setup-terraform@v3
-      with:
-        terraform_version: ${{ env.TF_VERSION }}
-    - name: Set up Python 3.9
-      uses: actions/setup-python@v5
-      with:
-        python-version: 3.9
-    - name: Run start.sh at 20 PM
+    - name: Start Minecraft Server (Schedule)
       if: github.event.schedule == '0 11 * * 6,0' 
+      working-directory: terragrunt/environments/scheduling
       run: |
-        terraform init -lock=false
-        terraform apply -lock=false \
+        echo "Starting Minecraft server via scheduled job..."
+        terragrunt apply --terragrunt-non-interactive \
           -var set_recovery_point=false \
           -var set_seed_value=false \
           -auto-approve
+      env:
+        TF_VAR_aws_account_id: ${{ env.AWS_ACCOUNT_ID }}
 
-    - name: Run stop.sh at 2 AM
+    - name: Stop Minecraft Server (Schedule)
       if: github.event.schedule == '0 17 * * 6,0'
+      working-directory: terragrunt/environments/scheduling
       run: |
-        terraform init -lock=false
-        terraform destroy -lock=false -auto-approve
-    - name: Execute terraform on dispatch
+        echo "Stopping Minecraft server via scheduled job..."
+        terragrunt destroy --terragrunt-non-interactive -auto-approve
+      env:
+        TF_VAR_aws_account_id: ${{ env.AWS_ACCOUNT_ID }}
+
+    - name: Execute Terragrunt on Repository Dispatch
       if: github.event_name == 'repository_dispatch'
+      working-directory: terragrunt/environments/scheduling
       run: |
-        terraform init -lock=false
         if [ "${{ github.event.action }}" == "start" ]; then
-          terraform apply -lock=false \
+          echo "Starting Minecraft server via repository dispatch..."
+          terragrunt apply --terragrunt-non-interactive \
             -var set_recovery_point=false \
             -var set_seed_value=false \
             -auto-approve
         elif [ "${{ github.event.action }}" == "stop" ]; then
-          terraform destroy -lock=false -auto-approve
+          echo "Stopping Minecraft server via repository dispatch..."
+          terragrunt destroy --terragrunt-non-interactive -auto-approve
         fi
+      env:
+        TF_VAR_aws_account_id: ${{ env.AWS_ACCOUNT_ID }}
+
     - name: Slack Notification on Success
       uses: rtCamp/action-slack-notify@v2
       if: ${{ success() }}
       env:
-        SLACK_TITLE: Deploy / Success
+        SLACK_TITLE: Terragrunt Operation / Success
         SLACK_COLOR: good
-        SLACK_MESSAGE: terraform command execution success🚀
+        SLACK_MESSAGE: "Terragrunt ${{ github.event.action || 'scheduled' }} operation completed successfully 🚀"
 
     - name: Slack Notification on Failure
       uses: rtCamp/action-slack-notify@v2
       if: ${{ failure() }}
       env:
-        SLACK_TITLE: Deploy / Failure
+        SLACK_TITLE: Terragrunt Operation / Failure
         SLACK_COLOR: danger
-        SLACK_MESSAGE: terraform command execution failure😢
+        SLACK_MESSAGE: "Terragrunt ${{ github.event.action || 'scheduled' }} operation failed 😢"
