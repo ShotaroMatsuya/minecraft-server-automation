@@ -61,7 +61,7 @@ jobs:
           aws-region: ap-northeast-1
 
       - name: Setup aqua
-        uses: aquaproj/aqua-installer@v3.0.1
+        uses: aquaproj/aqua-installer@v3.1.2
         with:
           aqua_version: v2.30.0
 
