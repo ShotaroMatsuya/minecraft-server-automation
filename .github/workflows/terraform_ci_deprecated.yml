@@ -1,0 +1,51 @@
+name: "[DEPRECATED] Terraform CI - Use terragrunt-pr-check.yml instead"
+
+on:
+  # DEPRECATED: This workflow is deprecated in favor of terragrunt-pr-check.yml
+  # Keeping for backwards compatibility but should not be used for new PRs
+  pull_request_target:
+    branches:
+      - never  # Effectively disable this workflow
+    paths:
+      - 'terraform/keeping/**'
+      - 'terraform/scheduling/**'
+
+env:
+  TF_VAR_WEBHOOK_PATH: ${{secrets.WEBHOOK_PATH}}
+  TF_VAR_env_files: ${{secrets.ENV_FILES}}
+  TF_VAR_github_token: ${{ secrets.TF_VAR_github_token }}
+  HEAD_REF: ${{ github.head_ref }}
+  
+jobs:
+  deprecated-notice:
+    name: Deprecation Notice
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Post Deprecation Notice
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const comment = `## ⚠️ Workflow Deprecated
+            
+            This Terraform CI workflow has been **deprecated** and replaced with Terragrunt-based workflows.
+            
+            **Please use the new workflows:**
+            - 🔍 **PR Checks**: \`terragrunt-pr-check.yml\` (automatic validation, security scans)
+            - 🚀 **Deployments**: \`apply.yml\` (Terragrunt-based deployments)
+            
+            **Migration Benefits:**
+            - ✅ Centralized module version management
+            - ✅ Environment dependency handling
+            - ✅ Enhanced security scanning with Trivy + tfsec
+            - ✅ Better error handling and reporting
+            
+            This old workflow will be removed in a future release.`;
+            
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: comment
+            });
