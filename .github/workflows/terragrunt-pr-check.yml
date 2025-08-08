@@ -75,7 +75,10 @@ jobs:
           aqua_version: v2.30.0
 
       - name: Install tools via aqua
-        run: aqua install --all
+        run: |
+          # Clean up any existing tool directories that might conflict
+          rm -rf terragrunt terraform tflint aws jq yq 2>/dev/null || true
+          aqua install --all
 
       - name: Terragrunt Format Check
         id: fmt
@@ -388,7 +391,10 @@ jobs:
           aqua_version: v2.30.0
 
       - name: Install tools via aqua
-        run: aqua install --all
+        run: |
+          # Clean up any existing tool directories that might conflict
+          rm -rf terragrunt terraform tflint aws jq yq 2>/dev/null || true
+          aqua install --all
 
       - name: TFLint
         uses: reviewdog/action-tflint@master
@@ -569,7 +575,10 @@ jobs:
           aqua_version: v2.30.0
 
       - name: Install tools via aqua
-        run: aqua install --all
+        run: |
+          # Clean up any existing tool directories that might conflict
+          rm -rf terragrunt terraform tflint aws jq yq 2>/dev/null || true
+          aqua install --all
 
       - name: Terraform Module Dependency Check
         run: |
