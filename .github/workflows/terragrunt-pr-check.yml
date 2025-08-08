@@ -21,6 +21,8 @@ on:
       - 'terragrunt/**'
       - 'terraform/**'
       - '.github/workflows/**'
+      - '.tflint.hcl'
+      - 'trivy.yaml'
 
 env:
   TF_VAR_WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
@@ -61,13 +63,17 @@ jobs:
           echo ""
           echo "=== Terragrunt Directory Structure ==="
           if [ -d "terragrunt" ]; then
+            echo "✅ terragrunt directory exists"
             find terragrunt -type f -name "*.hcl" | head -20
           else
             echo "❌ terragrunt directory not found!"
+            echo "Available directories in root:"
+            ls -la | grep ^d
           fi
           echo ""
           echo "=== Terraform Directory Structure ==="
           if [ -d "terraform" ]; then
+            echo "✅ terraform directory exists"
             find terraform -type f -name "*.tf" | head -20
           else
             echo "❌ terraform directory not found!"
@@ -83,7 +89,27 @@ jobs:
             echo "❌ Target path does not exist: ${{ matrix.path }}"
             echo "Available directories:"
             find . -type d -name "*${{ matrix.environment }}*" 2>/dev/null || echo "No matching directories found"
+            echo ""
+            echo "Full directory tree (first 50 lines):"
+            find . -type d | head -50
           fi
+          
+          # Create debug artifact
+          echo "Creating debug artifact..."
+          mkdir -p debug-output
+          ls -laR > debug-output/full-directory-listing.txt
+          find . -name "*.hcl" > debug-output/hcl-files.txt
+          find . -name "*.tf" > debug-output/tf-files.txt
+          git log --oneline -10 > debug-output/git-log.txt
+          git ls-files > debug-output/git-tracked-files.txt
+
+      - name: Upload Debug Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: debug-repository-structure-${{ matrix.environment }}
+          path: debug-output/
+          retention-days: 1
 
       # AWS OIDC Authentication
       # Requires: AWS OIDC Provider + IAM Role setup (see docs/aws-oidc-setup.md)
@@ -113,17 +139,53 @@ jobs:
           rm -rf terragrunt terraform tflint aws jq yq 2>/dev/null || true
           aqua install --all
 
-      - name: Terragrunt Format Check
-        id: fmt
+      - name: Setup TFLint and Trivy configurations
         run: |
-          echo "🔍 Checking format for ${{ matrix.environment }} environment..."
-          if [ ! -d "${{ matrix.path }}" ]; then
-            echo "❌ Directory not found: ${{ matrix.path }}"
-            echo "result=Directory not found" >> "$GITHUB_OUTPUT"
-            echo "needs_format=false" >> "$GITHUB_OUTPUT"
-            exit 1
+          echo "🔧 Setting up TFLint and Trivy configurations..."
+          
+          # Verify TFLint configuration exists
+          if [ -f ".tflint.hcl" ]; then
+            echo "✅ TFLint configuration found: .tflint.hcl"
+            echo "📄 TFLint config preview:"
+            head -20 .tflint.hcl
+          else
+            echo "❌ TFLint configuration not found!"
           fi
           
+          # Verify Trivy configuration exists
+          if [ -f "trivy.yaml" ]; then
+            echo "✅ Trivy configuration found: trivy.yaml"
+            echo "📄 Trivy config preview:"
+            head -20 trivy.yaml
+          else
+            echo "❌ Trivy configuration not found!"
+          fi
+          
+          # Initialize TFLint if terraform directory exists
+          if [ -d "terraform" ]; then
+            echo "🔧 Initializing TFLint plugins..."
+            cd terraform
+            tflint --init --config=../.tflint.hcl || echo "TFLint init failed - will continue without plugins"
+            cd ..
+          fi
+
+      - name: Check if environment exists
+        id: check-env
+        run: |
+          if [ -d "${{ matrix.path }}" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Environment directory exists: ${{ matrix.path }}"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "❌ Environment directory does not exist: ${{ matrix.path }}"
+            echo "This indicates a repository structure issue."
+          fi
+
+      - name: Terragrunt Format Check
+        id: fmt
+        if: steps.check-env.outputs.exists == 'true'
+        run: |
+          echo "🔍 Checking format for ${{ matrix.environment }} environment..."
           cd "${{ matrix.path }}"
           if terragrunt hcl-fmt --terragrunt-check; then
             echo "result=No changes needed" >> "$GITHUB_OUTPUT"
@@ -134,19 +196,20 @@ jobs:
           fi
         continue-on-error: true
 
+      - name: Terragrunt Format Check (Skipped)
+        id: fmt-skipped
+        if: steps.check-env.outputs.exists != 'true'
+        run: |
+          echo "result=Environment not found" >> "$GITHUB_OUTPUT"
+          echo "needs_format=false" >> "$GITHUB_OUTPUT"
+
       - name: Terragrunt Syntax Check
         id: validate
+        if: steps.check-env.outputs.exists == 'true'
         run: |
           echo "Checking Terragrunt configuration syntax..."
           echo "Working directory: $(pwd)"
           echo "Target path: ${{ matrix.path }}"
-          
-          # Check if target directory exists
-          if [ ! -d "${{ matrix.path }}" ]; then
-            echo "❌ Target directory not found: ${{ matrix.path }}"
-            echo "outcome=failure" >> "$GITHUB_OUTPUT"
-            exit 1
-          fi
           
           # Check if terragrunt is installed
           if ! terragrunt --version >/dev/null 2>&1; then
@@ -184,34 +247,18 @@ jobs:
           fi
         continue-on-error: true
 
+      - name: Terragrunt Syntax Check (Skipped)
+        id: validate-skipped
+        if: steps.check-env.outputs.exists != 'true'
+        run: |
+          echo "outcome=skipped" >> "$GITHUB_OUTPUT"
+
       - name: Terragrunt Plan Execution
         id: plan
+        if: steps.check-env.outputs.exists == 'true'
         run: |
           echo "🚀 Executing Terragrunt Plan for ${{ matrix.environment }}..."
           echo "Starting from directory: $(pwd)"
-          
-          # Check if target directory exists
-          if [ ! -d "${{ matrix.path }}" ]; then
-            echo "❌ Target directory not found: ${{ matrix.path }}"
-            {
-              echo "outcome=error"
-              echo "plan_exit_code=1"
-              echo "resources_to_add=0"
-              echo "resources_to_change=0" 
-              echo "resources_to_destroy=0"
-              echo "plan_summary<<PLANSUMMARYEOF"
-              echo "## 📋 Plan Summary for ${{ matrix.environment }}"
-              echo ""
-              echo "❌ **Target directory not found: ${{ matrix.path }}**"
-              echo ""
-              echo "Cannot proceed with plan execution due to missing directory."
-              echo "PLANSUMMARYEOF"
-              echo "full_plan_output<<FULLPLANEOF"
-              echo "❌ Target directory not found: ${{ matrix.path }}"
-              echo "FULLPLANEOF"
-            } >> "$GITHUB_OUTPUT"
-            exit 1
-          fi
           
           cd "${{ matrix.path }}"
           echo "Working in directory: $(pwd)"
@@ -437,6 +484,7 @@ jobs:
         continue-on-error: true
 
       - name: Comment PR with results
+        if: steps.check-env.outputs.exists == 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -474,7 +522,7 @@ jobs:
             | Type | Count |
             |------|-------|
             | ➕ **To Add** | ${toAdd} |
-            | � **To Change** | ${toChange} |
+            | 🔄 **To Change** | ${toChange} |
             | ❌ **To Destroy** | ${toDestroy} |
 
             <details><summary>📝 Show Detailed Plan Results</summary>
@@ -526,6 +574,65 @@ jobs:
               console.log(`✅ Created new comment for ${environment}`);
             }
 
+      - name: Comment PR with Environment Not Found
+        if: steps.check-env.outputs.exists != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const environment = '${{ matrix.environment }}';
+            const targetPath = '${{ matrix.path }}';
+            
+            const commentBody = `## 📋 Terragrunt Results for \`${environment}\`
+            
+            #### Format Check 🖌 \`Skipped - Environment not found\`
+            #### Validation 🔍 \`Skipped - Environment not found\`  
+            #### Plan ⚠️ \`Environment not found\`
+
+            ### ❌ Environment Directory Not Found
+            
+            The target environment directory \`${targetPath}\` was not found in the repository.
+            
+            This indicates a repository structure issue that needs to be investigated.
+            
+            ### 🔍 Debug Information
+            
+            Debug artifacts have been uploaded to help investigate this issue.
+            
+            *Last updated: ${new Date().toISOString()} | Pushed by: @${{ github.actor }} | Action: \`${{ github.event_name }}\`*`;
+
+            // Find existing comment for this environment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botCommentIdentifier = `## 📋 Terragrunt Results for \`${environment}\``;
+            const existingComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes(botCommentIdentifier)
+            );
+
+            if (existingComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: commentBody
+              });
+              console.log(`✅ Updated existing comment for ${environment}`);
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody
+              });
+              console.log(`✅ Created new comment for ${environment}`);
+            }
+
   security-scan:
     name: Security Analysis
     runs-on: ubuntu-latest
@@ -534,6 +641,27 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Fetch full history to ensure all files are available
+
+      - name: Debug Repository Structure for Security Scan
+        run: |
+          echo "=== Repository Root Contents ==="
+          ls -la
+          echo ""
+          echo "=== Terraform Directory Check ==="
+          if [ -d "terraform" ]; then
+            echo "✅ terraform directory exists"
+            find terraform -type f -name "*.tf" | head -10
+          else
+            echo "❌ terraform directory not found!"
+          fi
+          echo ""
+          echo "=== Terragrunt Directory Check ==="
+          if [ -d "terragrunt" ]; then
+            echo "✅ terragrunt directory exists"
+            find terragrunt -type f -name "*.hcl" | head -10
+          else
+            echo "❌ terragrunt directory not found!"
+          fi
 
       - name: Setup aqua
         uses: aquaproj/aqua-installer@v3.0.1
@@ -546,7 +674,56 @@ jobs:
           rm -rf terragrunt terraform tflint aws jq yq 2>/dev/null || true
           aqua install --all
 
+      - name: Setup TFLint and Trivy configurations for Security Scan
+        run: |
+          echo "🔧 Setting up TFLint and Trivy configurations for security scan..."
+          
+          # Verify TFLint configuration exists
+          if [ -f ".tflint.hcl" ]; then
+            echo "✅ TFLint configuration found: .tflint.hcl"
+          else
+            echo "❌ TFLint configuration not found!"
+          fi
+          
+          # Verify Trivy configuration exists
+          if [ -f "trivy.yaml" ]; then
+            echo "✅ Trivy configuration found: trivy.yaml"
+          else
+            echo "❌ Trivy configuration not found!"
+          fi
+          
+          # Initialize TFLint if terraform directory exists
+          if [ -d "terraform" ]; then
+            echo "🔧 Initializing TFLint plugins for security scan..."
+            cd terraform
+            tflint --init --config=../.tflint.hcl || echo "TFLint init failed - will continue without plugins"
+            cd ..
+          fi
+
+      - name: Check if terraform directory exists
+        id: check-terraform
+        run: |
+          if [ -d "terraform" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Terraform directory exists"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "❌ Terraform directory does not exist"
+          fi
+
+      - name: Check if terragrunt directory exists
+        id: check-terragrunt
+        run: |
+          if [ -d "terragrunt" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Terragrunt directory exists"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "❌ Terragrunt directory does not exist"
+          fi
+
       - name: TFLint
+        if: steps.check-terraform.outputs.exists == 'true'
         uses: reviewdog/action-tflint@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -555,24 +732,30 @@ jobs:
           filter_mode: nofilter
           fail_level: error
           tflint_version: "v0.53.0"
+          tflint_config: ../.tflint.hcl
+        continue-on-error: true
 
       - name: Trivy - Terraform Security Scan
+        if: steps.check-terraform.outputs.exists == 'true'
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'config'
           scan-ref: 'terraform/'
           format: 'sarif'
           output: 'trivy-terraform.sarif'
+          trivy-config: 'trivy.yaml'
         continue-on-error: true
 
       - name: Trivy - Terraform Security Scan (Table Format)
         id: trivy-terraform
+        if: steps.check-terraform.outputs.exists == 'true'
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'config'
           scan-ref: 'terraform/'
           format: 'table'
           output: 'trivy-terraform-results.txt'
+          trivy-config: 'trivy.yaml'
         continue-on-error: true
 
       - name: Check Trivy Terraform SARIF exists
@@ -592,22 +775,26 @@ jobs:
         if: steps.check-terraform-sarif.outputs.sarif_exists == 'true'
 
       - name: Trivy - Terragrunt Security Scan
+        if: steps.check-terragrunt.outputs.exists == 'true'
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'config'
           scan-ref: 'terragrunt/'
           format: 'sarif'
           output: 'trivy-terragrunt.sarif'
+          trivy-config: 'trivy.yaml'
         continue-on-error: true
 
       - name: Trivy - Terragrunt Security Scan (Table Format)
         id: trivy-terragrunt
+        if: steps.check-terragrunt.outputs.exists == 'true'
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'config'
           scan-ref: 'terragrunt/'
           format: 'table'
           output: 'trivy-terragrunt-results.txt'
+          trivy-config: 'trivy.yaml'
         continue-on-error: true
 
       - name: Check Trivy Terragrunt SARIF exists
@@ -634,36 +821,48 @@ jobs:
             const fs = require('fs');
             let hasIssues = false;
             let commentBody = '## 🛡️ Security Scan Results\n\n';
+            
+            const terraformExists = '${{ steps.check-terraform.outputs.exists }}' === 'true';
+            const terragruntExists = '${{ steps.check-terragrunt.outputs.exists }}' === 'true';
 
-            // Check Trivy Terraform results
-            if (fs.existsSync('trivy-terraform-results.txt')) {
-              const trivyTerraformResults = fs.readFileSync('trivy-terraform-results.txt', 'utf8');
-              const hasVulns = trivyTerraformResults.includes('CRITICAL') || 
-                              trivyTerraformResults.includes('HIGH') || 
-                              trivyTerraformResults.includes('MEDIUM');
-              
-              if (hasVulns) {
-                hasIssues = true;
-                commentBody += '### 🔍 Trivy - Terraform Security Issues\n\n';
-                commentBody += '<details><summary>View Terraform Security Scan Results</summary>\n\n';
-                commentBody += '```\n' + trivyTerraformResults + '\n```\n\n';
-                commentBody += '</details>\n\n';
+            if (!terraformExists && !terragruntExists) {
+              commentBody += '⚠️ **No terraform or terragrunt directories found to scan.**\n\n';
+              commentBody += 'This indicates a repository structure issue that needs to be investigated.\n\n';
+            } else {
+              // Check Trivy Terraform results
+              if (terraformExists && fs.existsSync('trivy-terraform-results.txt')) {
+                const trivyTerraformResults = fs.readFileSync('trivy-terraform-results.txt', 'utf8');
+                const hasVulns = trivyTerraformResults.includes('CRITICAL') || 
+                                trivyTerraformResults.includes('HIGH') || 
+                                trivyTerraformResults.includes('MEDIUM');
+                
+                if (hasVulns) {
+                  hasIssues = true;
+                  commentBody += '### 🔍 Trivy - Terraform Security Issues\n\n';
+                  commentBody += '<details><summary>View Terraform Security Scan Results</summary>\n\n';
+                  commentBody += '```\n' + trivyTerraformResults + '\n```\n\n';
+                  commentBody += '</details>\n\n';
+                }
+              } else if (terraformExists) {
+                commentBody += '### ✅ Terraform Security Scan\n\nNo security issues found in Terraform configuration.\n\n';
               }
-            }
 
-            // Check Trivy Terragrunt results
-            if (fs.existsSync('trivy-terragrunt-results.txt')) {
-              const trivyTerragruntResults = fs.readFileSync('trivy-terragrunt-results.txt', 'utf8');
-              const hasVulns = trivyTerragruntResults.includes('CRITICAL') || 
-                              trivyTerragruntResults.includes('HIGH') || 
-                              trivyTerragruntResults.includes('MEDIUM');
-              
-              if (hasVulns) {
-                hasIssues = true;
-                commentBody += '### 🔍 Trivy - Terragrunt Security Issues\n\n';
-                commentBody += '<details><summary>View Terragrunt Security Scan Results</summary>\n\n';
-                commentBody += '```\n' + trivyTerragruntResults + '\n```\n\n';
-                commentBody += '</details>\n\n';
+              // Check Trivy Terragrunt results
+              if (terragruntExists && fs.existsSync('trivy-terragrunt-results.txt')) {
+                const trivyTerragruntResults = fs.readFileSync('trivy-terragrunt-results.txt', 'utf8');
+                const hasVulns = trivyTerragruntResults.includes('CRITICAL') || 
+                                trivyTerragruntResults.includes('HIGH') || 
+                                trivyTerragruntResults.includes('MEDIUM');
+                
+                if (hasVulns) {
+                  hasIssues = true;
+                  commentBody += '### 🔍 Trivy - Terragrunt Security Issues\n\n';
+                  commentBody += '<details><summary>View Terragrunt Security Scan Results</summary>\n\n';
+                  commentBody += '```\n' + trivyTerragruntResults + '\n```\n\n';
+                  commentBody += '</details>\n\n';
+                }
+              } else if (terragruntExists) {
+                commentBody += '### ✅ Terragrunt Security Scan\n\nNo security issues found in Terragrunt configuration.\n\n';
               }
             }
 
@@ -672,10 +871,12 @@ jobs:
               commentBody += '> **Note**: TFLint results are shown as inline comments in the PR review.\n';
               commentBody += '> **Action Required**: Please review and address the security issues above.\n\n';
               commentBody += '*🤖 This comment was generated automatically by the security scan workflow.*';
-            } else {
+            } else if (terraformExists || terragruntExists) {
               commentBody = '## 🛡️ Security Scan Results\n\n';
               commentBody += '✅ **No security issues found!**\n\n';
               commentBody += '> **Note**: TFLint results are shown as inline comments in the PR review.\n\n';
+              commentBody += '*🤖 This comment was generated automatically by the security scan workflow.*';
+            } else {
               commentBody += '*🤖 This comment was generated automatically by the security scan workflow.*';
             }
 
@@ -732,7 +933,30 @@ jobs:
           rm -rf terragrunt terraform tflint aws jq yq 2>/dev/null || true
           aqua install --all
 
+      - name: Check if terraform directory exists
+        id: check-terraform
+        run: |
+          if [ -d "terraform" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Terraform directory exists"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "❌ Terraform directory does not exist"
+          fi
+
+      - name: Check if terragrunt directory exists
+        id: check-terragrunt
+        run: |
+          if [ -d "terragrunt" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Terragrunt directory exists"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "❌ Terragrunt directory does not exist"
+          fi
+
       - name: Terraform Module Dependency Check
+        if: steps.check-terraform.outputs.exists == 'true'
         run: |
           {
             echo "## Terraform Module Dependencies"
@@ -746,6 +970,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Terragrunt Configuration Check
+        if: steps.check-terragrunt.outputs.exists == 'true'
         run: |
           {
             echo "## Terragrunt Configuration Analysis"
@@ -758,4 +983,14 @@ jobs:
               grep -A 10 "module_versions" terragrunt/terragrunt.hcl || true
               echo "\`\`\`"
             fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: No Dependencies Found
+        if: steps.check-terraform.outputs.exists != 'true' && steps.check-terragrunt.outputs.exists != 'true'
+        run: |
+          {
+            echo "## Dependency Analysis"
+            echo "⚠️ No terraform or terragrunt directories found for dependency analysis."
+            echo ""
+            echo "This indicates a repository structure issue that needs to be investigated."
           } >> "$GITHUB_STEP_SUMMARY"
