@@ -1,4 +1,4 @@
-FROM --platform=linux/x86_64 itzg/minecraft-server@sha256:25cf396b18be5f9ac02925d1d26daf6e7f299f5596d78afad75025a2ae512980
+FROM --platform=linux/x86_64 itzg/minecraft-server@sha256:ed8cd771e2e7b9864c104da9eb3054e5537d67cfd358716cab7c1a7d784cec54
 
 ENV TZ=Asia/Tokyo
 ENV S3_BUCKET_NAME="minecraftbucket"
