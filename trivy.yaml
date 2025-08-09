@@ -93,10 +93,6 @@ registry:
   # Insecure registries
   insecure: false
 
-# Report settings
-report:
-  # Report format: table, json, sarif, template, cyclonedx, spdx, github
-  format: table
-  
-  # Template file for custom reporting
-  # template: "path/to/template.tpl"
+# Report settings (Fixed: removed invalid report format section)
+# Note: Report format is controlled via command line --format flag
+# Valid formats: table, json, sarif, template, cyclonedx, spdx, github
