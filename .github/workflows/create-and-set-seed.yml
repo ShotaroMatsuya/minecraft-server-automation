@@ -74,23 +74,118 @@ jobs:
       working-directory: terragrunt/environments/scheduling
       shell: /usr/bin/bash {0} # workaround ref:https://qiita.com/mkiken/items/3d2999217832704fcf01
       run: |
+        echo "📋 Running Terragrunt Plan..."
+        
+        # Execute terragrunt plan and capture output
+        set +e  # Don't exit on error to capture exit code
         terragrunt plan --terragrunt-non-interactive -detailed-exitcode \
           -var="seed_value=${{ env.TF_VAR_seed_value }}" \
           -var="set_recovery_point=false" \
-          -var="set_seed_value=true"
+          -var="set_seed_value=true" \
+          > plan_output.txt 2>&1
         TF_PLAN_EXIT_CODE=$?
-        echo "exit code is ${TF_PLAN_EXIT_CODE}"
+        set -e  # Re-enable exit on error
+        
+        echo "📊 Plan completed with exit code: ${TF_PLAN_EXIT_CODE}"
         echo "TF_PLAN_EXIT_CODE=${TF_PLAN_EXIT_CODE}" >> "$GITHUB_ENV"
+        
+        # Interpret exit codes
+        case $TF_PLAN_EXIT_CODE in
+          0) echo "✅ No changes detected" ;;
+          1) echo "❌ Terraform plan failed" && exit 1 ;;
+          2) echo "📝 Changes detected - apply will be triggered" ;;
+          *) echo "⚠️ Unexpected exit code: $TF_PLAN_EXIT_CODE" ;;
+        esac
+        
+        # Display plan output summary
+        if [ -f "plan_output.txt" ]; then
+          plan_file_size=$(wc -c < plan_output.txt)
+          echo "📄 Plan output file size: $plan_file_size bytes"
+          echo "📄 First 20 lines of plan output:"
+          head -20 plan_output.txt
+          echo "📄 Last 20 lines of plan output:"
+          tail -20 plan_output.txt
+        else
+          echo "❌ Plan output file not found!"
+        fi
 
     - name: Apply Terragrunt
       if: ${{ env.TF_PLAN_EXIT_CODE == 2 }}
       working-directory: terragrunt/environments/scheduling
       run: |
+        echo "🚀 Running Terragrunt Apply..."
+        
+        # Execute terragrunt apply and capture output
+        set +e  # Don't exit on error to capture exit code
         terragrunt apply --terragrunt-non-interactive \
           -var="seed_value=${{ env.TF_VAR_seed_value }}" \
           -var="set_recovery_point=false" \
           -var="set_seed_value=true" \
-          -auto-approve
+          -auto-approve > apply_output.txt 2>&1
+        TF_APPLY_EXIT_CODE=$?
+        set -e  # Re-enable exit on error
+        
+        echo "📊 Apply completed with exit code: ${TF_APPLY_EXIT_CODE}"
+        
+        # Check apply result
+        if [ $TF_APPLY_EXIT_CODE -eq 0 ]; then
+          echo "✅ Apply successful"
+        else
+          echo "❌ Apply failed with exit code: $TF_APPLY_EXIT_CODE"
+          exit $TF_APPLY_EXIT_CODE
+        fi
+        
+        # Display apply output summary
+        if [ -f "apply_output.txt" ]; then
+          apply_file_size=$(wc -c < apply_output.txt)
+          echo "📄 Apply output file size: $apply_file_size bytes"
+          echo "📄 First 20 lines of apply output:"
+          head -20 apply_output.txt
+          echo "📄 Last 20 lines of apply output:"
+          tail -20 apply_output.txt
+        else
+          echo "❌ Apply output file not found!"
+        fi
+
+    - name: Display Terragrunt Plan Output
+      if: always()
+      run: |
+        cd terragrunt/environments/scheduling
+        if [ -f "plan_output.txt" ]; then
+          echo "📋 Creating Plan Output Summary..."
+          {
+            echo "<details>"
+            echo "<summary>📋 Terragrunt Plan Output (Click to expand)</summary>"
+            echo ""
+            echo '```terraform'
+            cat plan_output.txt
+            echo '```'
+            echo "</details>"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+        else
+          echo "⚠️ Plan output file not found"
+        fi
+        
+    - name: Display Terragrunt Apply Output  
+      if: always() && env.TF_PLAN_EXIT_CODE == '2'
+      run: |
+        cd terragrunt/environments/scheduling
+        if [ -f "apply_output.txt" ]; then
+          echo "🚀 Creating Apply Output Summary..."
+          {
+            echo "<details>"
+            echo "<summary>🚀 Terragrunt Apply Output (Click to expand)</summary>"
+            echo ""
+            echo '```terraform'
+            cat apply_output.txt
+            echo '```'
+            echo "</details>"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+        else
+          echo "⚠️ Apply output file not found"
+        fi
 
     - name: Update ECS Service
       working-directory: terragrunt/environments/scheduling
