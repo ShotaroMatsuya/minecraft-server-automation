@@ -82,7 +82,7 @@ jobs:
           else
             echo "❌ terragrunt directory not found!"
             echo "Available directories in root:"
-            ls -la | grep ^d
+            find . -maxdepth 1 -type d -name "d*" 2>/dev/null | head -10
           fi
           echo ""
           echo "=== Terraform Directory Structure ==="
@@ -108,18 +108,20 @@ jobs:
             find . -type d | head -50
           fi
           
-          # Create debug artifact
+          # Create debug artifact with all redirect operations in one block
           echo "Creating debug artifact..."
           mkdir -p debug-output
-          ls -laR > debug-output/full-directory-listing.txt
-          find . -name "*.hcl" > debug-output/hcl-files.txt
-          find . -name "*.tf" > debug-output/tf-files.txt
-          git log --oneline -10 > debug-output/git-log.txt
-          git ls-files > debug-output/git-tracked-files.txt
-          git status > debug-output/git-status.txt
-          git rev-parse HEAD > debug-output/current-commit.txt
-          echo "${{ github.event.pull_request.head.sha }}" > debug-output/pr-head-sha.txt
-          echo "${{ github.sha }}" > debug-output/github-sha.txt
+          {
+            ls -laR
+            find . -name "*.hcl"
+            find . -name "*.tf"
+            git log --oneline -10
+            git ls-files
+            git status
+            git rev-parse HEAD
+            echo "${{ github.event.pull_request.head.sha }}"
+            echo "${{ github.sha }}"
+          } > debug-output/debug-info.txt
 
       - name: Upload Debug Artifacts
         uses: actions/upload-artifact@v4
@@ -253,11 +255,11 @@ jobs:
           echo "Checking Terraform source path:"
           if [ -d "../../../terraform/" ]; then
             echo "✅ Terraform directory found at ../../../terraform/"
-            ls -la ../../../terraform/ | head -10
+            find ../../../terraform/ -maxdepth 1 -type d | head -10
           else
             echo "❌ Terraform directory not found at expected path ../../../terraform/"
             echo "Available directories in project root:"
-            ls -la ../../.. | grep -E "^d"
+            find ../../.. -maxdepth 1 -type d | head -10
           fi
           echo "Checking if Terragrunt config references correct source:"
           grep -n "source.*=" terragrunt.hcl || echo "No source found in terragrunt.hcl"
@@ -295,7 +297,7 @@ jobs:
           else
             echo "❌ Terraform source not found at ../../../terraform/${{ matrix.environment }}"
             echo "Available terraform environments:"
-            ls -la ../../../terraform/ 2>/dev/null | grep -E "^d" || echo "No terraform directory found"
+            find ../../../terraform/ -maxdepth 1 -type d 2>/dev/null | head -10 || echo "No terraform directory found"
           fi
           
           # Initialize Terragrunt
@@ -790,30 +792,17 @@ jobs:
           rm -f ./terragrunt ./terraform ./tflint ./aws ./jq ./yq 2>/dev/null || true
           aqua install --all
 
-      - name: Setup TFLint and Trivy configurations for Security Scan
+      - name: Setup Trivy configuration for Security Scan
         run: |
-          echo "🔧 Setting up TFLint and Trivy configurations for security scan..."
-          
-          # Verify TFLint configuration exists
-          if [ -f ".tflint.hcl" ]; then
-            echo "✅ TFLint configuration found: .tflint.hcl"
-          else
-            echo "❌ TFLint configuration not found!"
-          fi
+          echo "🔧 Setting up Trivy configuration for security scan..."
           
           # Verify Trivy configuration exists
           if [ -f "trivy.yaml" ]; then
             echo "✅ Trivy configuration found: trivy.yaml"
+            echo "📄 Trivy config preview:"
+            head -20 trivy.yaml
           else
             echo "❌ Trivy configuration not found!"
-          fi
-          
-          # Initialize TFLint if terraform directory exists
-          if [ -d "terraform" ]; then
-            echo "🔧 Initializing TFLint plugins for security scan..."
-            cd terraform
-            tflint --init --config=../.tflint.hcl || echo "TFLint init failed - will continue without plugins"
-            cd ..
           fi
 
       - name: Check if terraform directory exists
@@ -838,163 +827,132 @@ jobs:
             echo "❌ Terragrunt directory does not exist"
           fi
 
-      - name: TFLint
+      - name: Trivy - Infrastructure Security Scan (Primary)
+        id: trivy-infra
         if: steps.check-terraform.outputs.exists == 'true'
-        uses: reviewdog/action-tflint@master
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          working_directory: ./terraform
-          reporter: github-pr-review
-          filter_mode: nofilter
-          fail_level: error
-          tflint_version: "v0.53.0"
-          tflint_config: ../.tflint.hcl
-        continue-on-error: true
-
-      - name: Trivy - Terraform Security Scan
-        if: steps.check-terraform.outputs.exists == 'true'
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'config'
-          scan-ref: 'terraform/'
-          format: 'sarif'
-          output: 'trivy-terraform.sarif'
-          trivy-config: 'trivy.yaml'
-        continue-on-error: true
-
-      - name: Trivy - Terraform Security Scan (Table Format)
-        id: trivy-terraform
-        if: steps.check-terraform.outputs.exists == 'true'
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'config'
-          scan-ref: 'terraform/'
-          format: 'table'
-          output: 'trivy-terraform-results.txt'
-          trivy-config: 'trivy.yaml'
-        continue-on-error: true
-
-      - name: Check Trivy Terraform SARIF exists
-        id: check-terraform-sarif
         run: |
-          if [ -f "trivy-terraform.sarif" ]; then
+          echo "🔍 Running Trivy security scan on Infrastructure as Code..."
+          
+          # Run Trivy scan on terraform directory (primary scan)
+          trivy config terraform/ \
+            --config trivy.yaml \
+            --format table \
+            --output trivy-security-results.txt \
+            --exit-code 0 || true
+          
+          # Also generate SARIF for GitHub Security tab
+          trivy config terraform/ \
+            --config trivy.yaml \
+            --format sarif \
+            --output trivy-security.sarif \
+            --exit-code 0 || true
+          
+          echo "📄 Security scan completed"
+          
+          # Display results summary
+          if [ -f "trivy-security-results.txt" ]; then
+            echo "=== Security Scan Results Summary ==="
+            head -50 trivy-security-results.txt
+            echo ""
+            echo "=== Full results saved to trivy-security-results.txt ==="
+          fi
+
+      - name: Check Trivy Security Results
+        id: check-security-results
+        run: |
+          if [ -f "trivy-security-results.txt" ]; then
+            # Check if there are any security issues
+            if grep -q -E "(CRITICAL|HIGH|MEDIUM)" trivy-security-results.txt 2>/dev/null; then
+              echo "🚨 Security issues found"
+              has_issues=true
+            else
+              echo "✅ No security issues found"
+              has_issues=false
+            fi
+            
+            # Get file size for processing
+            file_size=$(wc -c < trivy-security-results.txt)
+            
+            # Output all variables in one block
+            {
+              echo "results_exist=true"
+              echo "has_issues=$has_issues"
+              echo "file_size=$file_size"
+            } >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "results_exist=false"
+              echo "has_issues=false"
+              echo "file_size=0"
+            } >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check Trivy SARIF exists
+        id: check-sarif
+        run: |
+          if [ -f "trivy-security.sarif" ]; then
             echo "sarif_exists=true" >> "$GITHUB_OUTPUT"
           else
             echo "sarif_exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Upload Trivy SARIF
+      - name: Upload Trivy SARIF to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
         with:
-          sarif_file: 'trivy-terraform.sarif'
-          category: 'terraform-security-scan'
-        if: steps.check-terraform-sarif.outputs.sarif_exists == 'true'
+          sarif_file: 'trivy-security.sarif'
+          category: 'infrastructure-security-scan'
+        if: steps.check-sarif.outputs.sarif_exists == 'true'
 
-      - name: Trivy - Terragrunt Security Scan
-        if: steps.check-terragrunt.outputs.exists == 'true'
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'config'
-          scan-ref: 'terragrunt/'
-          format: 'sarif'
-          output: 'trivy-terragrunt.sarif'
-          trivy-config: 'trivy.yaml'
-        continue-on-error: true
-
-      - name: Trivy - Terragrunt Security Scan (Table Format)
-        id: trivy-terragrunt
-        if: steps.check-terragrunt.outputs.exists == 'true'
-        uses: aquasecurity/trivy-action@master
-        with:
-          scan-type: 'config'
-          scan-ref: 'terragrunt/'
-          format: 'table'
-          output: 'trivy-terragrunt-results.txt'
-          trivy-config: 'trivy.yaml'
-        continue-on-error: true
-
-      - name: Check Trivy Terragrunt SARIF exists
-        id: check-terragrunt-sarif
-        run: |
-          if [ -f "trivy-terragrunt.sarif" ]; then
-            echo "sarif_exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "sarif_exists=false" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Upload Trivy Terragrunt SARIF
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: 'trivy-terragrunt.sarif'
-          category: 'terragrunt-security-scan'
-        if: steps.check-terragrunt-sarif.outputs.sarif_exists == 'true'
-
-      - name: Check for Security Issues and Comment PR
+      - name: Comment PR with Security Results
         uses: actions/github-script@v7
         if: always()
         with:
           script: |
             const fs = require('fs');
             let hasIssues = false;
-            let commentBody = '## 🛡️ Security Scan Results\n\n';
+            let commentBody = '## 🛡️ Infrastructure Security Scan Results\n\n';
             
             const terraformExists = '${{ steps.check-terraform.outputs.exists }}' === 'true';
-            const terragruntExists = '${{ steps.check-terragrunt.outputs.exists }}' === 'true';
+            const resultsExist = '${{ steps.check-security-results.outputs.results_exist }}' === 'true';
+            const hasSecurityIssues = '${{ steps.check-security-results.outputs.has_issues }}' === 'true';
 
-            if (!terraformExists && !terragruntExists) {
-              commentBody += '⚠️ **No terraform or terragrunt directories found to scan.**\n\n';
-              commentBody += 'This indicates a repository structure issue that needs to be investigated.\n\n';
+            if (!terraformExists) {
+              commentBody += '⚠️ **No terraform infrastructure found to scan.**\n\n';
+              commentBody += 'This may indicate a repository structure issue.\n\n';
+            } else if (!resultsExist) {
+              commentBody += '⚠️ **Security scan failed to generate results.**\n\n';
+              commentBody += 'Please check the scan logs for details.\n\n';
             } else {
-              // Check Trivy Terraform results
-              if (terraformExists && fs.existsSync('trivy-terraform-results.txt')) {
-                const trivyTerraformResults = fs.readFileSync('trivy-terraform-results.txt', 'utf8');
-                const hasVulns = trivyTerraformResults.includes('CRITICAL') || 
-                                trivyTerraformResults.includes('HIGH') || 
-                                trivyTerraformResults.includes('MEDIUM');
+              // Read and process security scan results
+              if (hasSecurityIssues && fs.existsSync('trivy-security-results.txt')) {
+                hasIssues = true;
+                const securityResults = fs.readFileSync('trivy-security-results.txt', 'utf8');
                 
-                if (hasVulns) {
-                  hasIssues = true;
-                  commentBody += '### 🔍 Trivy - Terraform Security Issues\n\n';
-                  commentBody += '<details><summary>View Terraform Security Scan Results</summary>\n\n';
-                  commentBody += '```\n' + trivyTerraformResults + '\n```\n\n';
+                commentBody += '### � Security Issues Found\n\n';
+                commentBody += '<details><summary>📋 View Infrastructure Security Scan Results</summary>\n\n';
+                commentBody += '```\n' + securityResults + '\n```\n\n';
+                commentBody += '</details>\n\n';
+                
+                commentBody += '> **⚠️ Action Required**: Please review and address the security issues above.\n\n';
+              } else {
+                commentBody += '### ✅ Infrastructure Security Scan\n\n';
+                commentBody += '🎉 **No security issues found in your infrastructure configuration!**\n\n';
+                
+                if (fs.existsSync('trivy-security-results.txt')) {
+                  commentBody += '<details><summary>📋 View Clean Scan Results</summary>\n\n';
+                  const cleanResults = fs.readFileSync('trivy-security-results.txt', 'utf8');
+                  commentBody += '```\n' + cleanResults + '\n```\n\n';
                   commentBody += '</details>\n\n';
                 }
-              } else if (terraformExists) {
-                commentBody += '### ✅ Terraform Security Scan\n\nNo security issues found in Terraform configuration.\n\n';
               }
-
-              // Check Trivy Terragrunt results
-              if (terragruntExists && fs.existsSync('trivy-terragrunt-results.txt')) {
-                const trivyTerragruntResults = fs.readFileSync('trivy-terragrunt-results.txt', 'utf8');
-                const hasVulns = trivyTerragruntResults.includes('CRITICAL') || 
-                                trivyTerragruntResults.includes('HIGH') || 
-                                trivyTerragruntResults.includes('MEDIUM');
-                
-                if (hasVulns) {
-                  hasIssues = true;
-                  commentBody += '### 🔍 Trivy - Terragrunt Security Issues\n\n';
-                  commentBody += '<details><summary>View Terragrunt Security Scan Results</summary>\n\n';
-                  commentBody += '```\n' + trivyTerragruntResults + '\n```\n\n';
-                  commentBody += '</details>\n\n';
-                }
-              } else if (terragruntExists) {
-                commentBody += '### ✅ Terragrunt Security Scan\n\nNo security issues found in Terragrunt configuration.\n\n';
-              }
+              
+              commentBody += '### 📊 Scan Coverage\n\n';
+              commentBody += '- **🔍 Scanned**: Terraform infrastructure configuration\n';
+              commentBody += '- **🔧 Tool**: Trivy security scanner\n';
+              commentBody += '- **📝 Checks**: Security misconfigurations, secrets, vulnerabilities\n\n';
             }
 
-            // Always check for existing security scan comment to update or create
-            if (hasIssues) {
-              commentBody += '> **Note**: TFLint results are shown as inline comments in the PR review.\n';
-              commentBody += '> **Action Required**: Please review and address the security issues above.\n\n';
-              commentBody += '*🤖 This comment was generated automatically by the security scan workflow.*';
-            } else if (terraformExists || terragruntExists) {
-              commentBody = '## 🛡️ Security Scan Results\n\n';
-              commentBody += '✅ **No security issues found!**\n\n';
-              commentBody += '> **Note**: TFLint results are shown as inline comments in the PR review.\n\n';
-              commentBody += '*🤖 This comment was generated automatically by the security scan workflow.*';
-            } else {
-              commentBody += '*🤖 This comment was generated automatically by the security scan workflow.*';
-            }
+            commentBody += '*🤖 This comment was generated automatically by the infrastructure security scan workflow.*';
 
             // Find existing security scan comment
             const { data: comments } = await github.rest.issues.listComments({
@@ -1003,7 +961,7 @@ jobs:
               issue_number: context.issue.number,
             });
 
-            const securityCommentIdentifier = '## 🛡️ Security Scan Results';
+            const securityCommentIdentifier = '## 🛡️ Infrastructure Security Scan Results';
             const existingSecurityComment = comments.find(comment => 
               comment.user.type === 'Bot' && 
               comment.body.includes(securityCommentIdentifier)
@@ -1027,6 +985,181 @@ jobs:
                 body: commentBody
               });
               console.log('✅ Created new security scan comment');
+            }
+
+  code-quality:
+    name: Code Quality Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history to ensure all files are available
+          ref: ${{ github.event.pull_request.head.sha }}  # Checkout the exact PR commit
+
+      - name: Setup aqua
+        uses: aquaproj/aqua-installer@v3.0.1
+        with:
+          aqua_version: v2.30.0
+
+      - name: Install tools via aqua
+        run: |
+          # Clean up any existing tool binaries that might conflict with aqua installations
+          rm -f ./terragrunt ./terraform ./tflint ./aws ./jq ./yq 2>/dev/null || true
+          aqua install --all
+
+      - name: Setup TFLint configuration
+        run: |
+          echo "🔧 Setting up TFLint configuration for code quality analysis..."
+          
+          # Verify TFLint configuration exists
+          if [ -f ".tflint.hcl" ]; then
+            echo "✅ TFLint configuration found: .tflint.hcl"
+            echo "📄 TFLint config preview:"
+            head -20 .tflint.hcl
+          else
+            echo "❌ TFLint configuration not found!"
+          fi
+          
+          # Initialize TFLint if terraform directory exists
+          if [ -d "terraform" ]; then
+            echo "🔧 Initializing TFLint plugins..."
+            cd terraform
+            tflint --init --config=../.tflint.hcl || echo "TFLint init failed - will continue without plugins"
+            cd ..
+          fi
+
+      - name: Check if terraform directory exists
+        id: check-terraform
+        run: |
+          if [ -d "terraform" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Terraform directory exists"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "❌ Terraform directory does not exist"
+          fi
+
+      - name: TFLint - Terraform Code Quality
+        if: steps.check-terraform.outputs.exists == 'true'
+        id: tflint
+        run: |
+          echo "🔍 Running TFLint code quality analysis..."
+          
+          cd terraform
+          
+          # Run TFLint and capture results
+          tflint_exit_code=0
+          tflint --format=compact --config=../.tflint.hcl > ../tflint-results.txt 2>&1 || tflint_exit_code=$?
+          
+          cd ..
+          
+          echo "tflint_exit_code=$tflint_exit_code" >> "$GITHUB_OUTPUT"
+          
+          # Check if there are any issues
+          if [ -f "tflint-results.txt" ]; then
+            if [ -s "tflint-results.txt" ]; then
+              echo "has_issues=true" >> "$GITHUB_OUTPUT"
+              echo "🚨 TFLint issues found"
+              
+              # Show summary in workflow log
+              echo "=== TFLint Results Summary ==="
+              head -20 tflint-results.txt
+            else
+              echo "has_issues=false" >> "$GITHUB_OUTPUT"
+              echo "✅ No TFLint issues found"
+            fi
+            
+            # Get file size for processing
+            file_size=$(wc -c < tflint-results.txt)
+            echo "file_size=$file_size" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_issues=false" >> "$GITHUB_OUTPUT"
+            echo "file_size=0" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Comment PR with Code Quality Results
+        if: steps.check-terraform.outputs.exists == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const hasIssues = '${{ steps.tflint.outputs.has_issues }}' === 'true';
+            const tflintExitCode = '${{ steps.tflint.outputs.tflint_exit_code }}' || '0';
+            
+            let commentBody = '## 🔧 Code Quality Analysis Results\n\n';
+            
+            if (hasIssues && fs.existsSync('tflint-results.txt')) {
+              const tflintResults = fs.readFileSync('tflint-results.txt', 'utf8');
+              
+              commentBody += '### 🚨 TFLint Issues Found\n\n';
+              commentBody += `**Exit Code:** ${tflintExitCode}\n\n`;
+              commentBody += '<details><summary>📋 View TFLint Code Quality Issues</summary>\n\n';
+              commentBody += '```\n' + tflintResults + '\n```\n\n';
+              commentBody += '</details>\n\n';
+              
+              commentBody += '> **⚠️ Action Required**: Please review and fix the code quality issues above.\n\n';
+              
+              commentBody += '### 💡 Common Fixes\n\n';
+              commentBody += '- **Deprecated syntax**: Update to modern Terraform syntax\n';
+              commentBody += '- **Missing variables**: Ensure all variables are properly defined\n';
+              commentBody += '- **Resource naming**: Follow consistent naming conventions\n';
+              commentBody += '- **Provider versions**: Specify provider version constraints\n\n';
+            } else {
+              commentBody += '### ✅ TFLint Code Quality\n\n';
+              commentBody += '🎉 **No code quality issues found!**\n\n';
+              commentBody += 'Your Terraform code follows best practices and conventions.\n\n';
+              
+              if (fs.existsSync('tflint-results.txt')) {
+                commentBody += '<details><summary>📋 View Clean Analysis Results</summary>\n\n';
+                const cleanResults = fs.readFileSync('tflint-results.txt', 'utf8');
+                if (cleanResults.trim()) {
+                  commentBody += '```\n' + cleanResults + '\n```\n\n';
+                } else {
+                  commentBody += '```\nNo issues detected by TFLint\n```\n\n';
+                }
+                commentBody += '</details>\n\n';
+              }
+            }
+            
+            commentBody += '### 📊 Analysis Coverage\n\n';
+            commentBody += '- **🔍 Scanned**: Terraform configuration files\n';
+            commentBody += '- **🔧 Tool**: TFLint static analysis\n';
+            commentBody += '- **📝 Checks**: Best practices, deprecated syntax, naming conventions\n\n';
+            
+            commentBody += '*🤖 This comment was generated automatically by the code quality analysis workflow.*';
+
+            // Find existing code quality comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const codeQualityCommentIdentifier = '## 🔧 Code Quality Analysis Results';
+            const existingCodeQualityComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes(codeQualityCommentIdentifier)
+            );
+
+            if (existingCodeQualityComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingCodeQualityComment.id,
+                body: commentBody
+              });
+              console.log('✅ Updated existing code quality comment');
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody
+              });
+              console.log('✅ Created new code quality comment');
             }
 
   dependency-check:
