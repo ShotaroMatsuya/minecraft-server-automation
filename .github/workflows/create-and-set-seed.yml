@@ -153,18 +153,40 @@ jobs:
         cd terragrunt/environments/scheduling
         if [ -f "plan_output.txt" ]; then
           echo "📋 Creating Plan Output Summary..."
+          
+          # Check file size to handle large outputs appropriately
+          file_size=$(wc -c < plan_output.txt)
+          
           {
             echo "<details>"
-            echo "<summary>📋 Terragrunt Plan Output (Click to expand)</summary>"
+            echo "<summary>📋 Terragrunt Plan Output (Click to expand) - Size: ${file_size} bytes</summary>"
             echo ""
-            echo '```terraform'
-            cat plan_output.txt
+            echo '```hcl'
+            
+            # If file is too large, show truncated version
+            if [ "$file_size" -gt 100000 ]; then
+              echo "⚠️ Output truncated due to large size (${file_size} bytes)"
+              echo ""
+              echo "=== First 2000 lines ==="
+              head -2000 plan_output.txt | sed 's/```/\\`\\`\\`/g'
+              echo ""
+              echo "=== ... (content truncated) ==="
+              echo ""
+              echo "=== Last 1000 lines ==="
+              tail -1000 plan_output.txt | sed 's/```/\\`\\`\\`/g'
+            else
+              # Show full output if manageable size
+              sed 's/```/\\`\\`\\`/g' plan_output.txt
+            fi
+            
             echo '```'
             echo "</details>"
             echo ""
+            echo "---"
+            echo ""
           } >> "$GITHUB_STEP_SUMMARY"
         else
-          echo "⚠️ Plan output file not found"
+          echo "⚠️ Plan output file not found" >> "$GITHUB_STEP_SUMMARY"
         fi
         
     - name: Display Terragrunt Apply Output  
@@ -173,18 +195,40 @@ jobs:
         cd terragrunt/environments/scheduling
         if [ -f "apply_output.txt" ]; then
           echo "🚀 Creating Apply Output Summary..."
+          
+          # Check file size to handle large outputs appropriately
+          file_size=$(wc -c < apply_output.txt)
+          
           {
             echo "<details>"
-            echo "<summary>🚀 Terragrunt Apply Output (Click to expand)</summary>"
+            echo "<summary>🚀 Terragrunt Apply Output (Click to expand) - Size: ${file_size} bytes</summary>"
             echo ""
-            echo '```terraform'
-            cat apply_output.txt
+            echo '```hcl'
+            
+            # If file is too large, show truncated version
+            if [ "$file_size" -gt 100000 ]; then
+              echo "⚠️ Output truncated due to large size (${file_size} bytes)"
+              echo ""
+              echo "=== First 2000 lines ==="
+              head -2000 apply_output.txt | sed 's/```/\\`\\`\\`/g'
+              echo ""
+              echo "=== ... (content truncated) ==="
+              echo ""
+              echo "=== Last 1000 lines ==="
+              tail -1000 apply_output.txt | sed 's/```/\\`\\`\\`/g'
+            else
+              # Show full output if manageable size
+              sed 's/```/\\`\\`\\`/g' apply_output.txt
+            fi
+            
             echo '```'
             echo "</details>"
             echo ""
+            echo "---"
+            echo ""
           } >> "$GITHUB_STEP_SUMMARY"
         else
-          echo "⚠️ Apply output file not found"
+          echo "⚠️ Apply output file not found" >> "$GITHUB_STEP_SUMMARY"
         fi
 
     - name: Update ECS Service
