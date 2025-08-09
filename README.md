@@ -290,6 +290,46 @@ This infrastructure is designed with cost optimization in mind:
 3. **Efficient Storage**: EFS for persistent world data, S3 for backups
 4. **Resource Separation**: Critical infrastructure (`keeping`) vs. workload (`scheduling`)
 
+### 💰 Monthly Cost Breakdown
+
+| Resource Type | Environment | Specifications | Hours/Month | Unit Price | Monthly Cost (USD) |
+|---------------|-------------|----------------|-------------|------------|-------------------|
+| **💻 ECS Fargate** | scheduling | 2048 CPU, 4096 MB RAM | 186h | $0.04048/h | $7.53 |
+| **🌐 Network Load Balancer** | scheduling | 2 ports (25565, 8080) | 744h | $0.0225/h | $16.74 |
+| **📊 CloudWatch Logs** | scheduling | ~5GB/month | - | $0.50/GB | $2.50 |
+| **🔔 SNS** | keeping | Notification service | - | $0.50/1M | $0.01 |
+| **💬 AWS Chatbot** | keeping | Slack integration | - | Free | $0.00 |
+| **🔑 IAM** | keeping | Roles & policies | - | Free | $0.00 |
+| **🌐 VPC** | keeping | Subnets & security groups | - | Free | $0.00 |
+| **🎯 Lambda** | scheduling | Log processing & notifications | 100 calls/month | $0.20/1M | $0.01 |
+| **🗄️ ECR** | keeping | Container image storage | 2GB | $0.10/GB | $0.20 |
+| **📱 Route 53** | scheduling | Domain management | 1 domain | $0.50/month | $0.50 |
+| **🔐 ACM Certificate** | scheduling | SSL certificate | - | Free | $0.00 |
+| **💾 S3** | keeping | Backup storage (10GB) | - | $0.023/GB | $0.23 |
+
+#### 📈 Cost Summary
+
+| Category | Monthly Cost (USD) | Percentage |
+|----------|-------------------|------------|
+| **🔄 Variable Costs (scheduling)** | $27.28 | 98.2% |
+| **⚡ Fixed Costs (keeping)** | $0.44 | 1.8% |
+| **🎯 Total** | **$27.72** | 100% |
+
+#### ⏰ Operation Schedule Details
+
+- **Operating Hours**: 19:00-01:00 JST (6 hours/day)
+- **Monthly Runtime**: 6h × 31 days = 186 hours/month
+- **Cost Savings**: ~75% reduction compared to 24/7 operation
+
+#### 💡 Cost Optimization Highlights
+
+1. **🕒 Scheduled Operation**: 75% cost reduction through night-only operation
+2. **🎯 Future Spot Instances**: Potential 70% additional savings with Fargate Spot
+3. **📦 EFS Optimization**: Currently disabled to reduce costs
+4. **🗂️ Log Management**: Optimized CloudWatch Logs retention
+
+> **Note**: Costs are based on ap-northeast-1 (Tokyo) region pricing and may vary based on actual usage patterns, data transfer, and log volume.
+
 ## 🔒 Security Features
 
 - **AWS OIDC Authentication**: No long-lived credentials in GitHub
@@ -301,6 +341,7 @@ This infrastructure is designed with cost optimization in mind:
 ## 📝 Development
 
 This project uses:
+
 - **aqua**: Tool version management
 - **pre-commit**: Git hooks for code quality
 - **GitHub Actions**: Automated testing and deployment

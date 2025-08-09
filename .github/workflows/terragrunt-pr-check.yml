@@ -21,6 +21,8 @@ on:
       - 'terragrunt/**'
       - 'terraform/**'
       - '.github/workflows/**'
+      - '.tflint.hcl'
+      - 'trivy.yaml'
 
 env:
   TF_VAR_WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
@@ -51,6 +53,81 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history to ensure all files are available
+          ref: ${{ github.event.pull_request.head.sha }}  # Checkout the exact PR commit
+
+      - name: Debug Repository Structure
+        run: |
+          echo "=== Git and Checkout Information ==="
+          echo "Current commit: $(git rev-parse HEAD)"
+          echo "Current branch: $(git branch --show-current || echo 'detached HEAD')"
+          echo "PR Head SHA: ${{ github.event.pull_request.head.sha }}"
+          echo "GitHub SHA: ${{ github.sha }}"
+          echo "GitHub Ref: ${{ github.ref }}"
+          echo ""
+          echo "=== Repository Root Contents ==="
+          ls -la
+          echo ""
+          echo "=== Git Status ==="
+          git status
+          echo ""
+          echo "=== Git Log (last 3 commits) ==="
+          git log --oneline -3
+          echo ""
+          echo "=== Terragrunt Directory Structure ==="
+          if [ -d "terragrunt" ]; then
+            echo "✅ terragrunt directory exists"
+            find terragrunt -type f -name "*.hcl" | head -20
+          else
+            echo "❌ terragrunt directory not found!"
+            echo "Available directories in root:"
+            ls -la | grep ^d
+          fi
+          echo ""
+          echo "=== Terraform Directory Structure ==="
+          if [ -d "terraform" ]; then
+            echo "✅ terraform directory exists"
+            find terraform -type f -name "*.tf" | head -20
+          else
+            echo "❌ terraform directory not found!"
+          fi
+          echo ""
+          echo "=== Checking target paths for matrix ==="
+          echo "Environment: ${{ matrix.environment }}"
+          echo "Path: ${{ matrix.path }}"
+          if [ -d "${{ matrix.path }}" ]; then
+            echo "✅ Target path exists: ${{ matrix.path }}"
+            ls -la "${{ matrix.path }}"
+          else
+            echo "❌ Target path does not exist: ${{ matrix.path }}"
+            echo "Available directories:"
+            find . -type d -name "*${{ matrix.environment }}*" 2>/dev/null || echo "No matching directories found"
+            echo ""
+            echo "Full directory tree (first 50 lines):"
+            find . -type d | head -50
+          fi
+          
+          # Create debug artifact
+          echo "Creating debug artifact..."
+          mkdir -p debug-output
+          ls -laR > debug-output/full-directory-listing.txt
+          find . -name "*.hcl" > debug-output/hcl-files.txt
+          find . -name "*.tf" > debug-output/tf-files.txt
+          git log --oneline -10 > debug-output/git-log.txt
+          git ls-files > debug-output/git-tracked-files.txt
+          git status > debug-output/git-status.txt
+          git rev-parse HEAD > debug-output/current-commit.txt
+          echo "${{ github.event.pull_request.head.sha }}" > debug-output/pr-head-sha.txt
+          echo "${{ github.sha }}" > debug-output/github-sha.txt
+
+      - name: Upload Debug Artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: debug-repository-structure-${{ matrix.environment }}
+          path: debug-output/
+          retention-days: 1
 
       # AWS OIDC Authentication
       # Requires: AWS OIDC Provider + IAM Role setup (see docs/aws-oidc-setup.md)
@@ -69,19 +146,72 @@ jobs:
           aws sts get-caller-identity
         continue-on-error: true
 
+      - name: Setup Python 3.9
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.9'
+
       - name: Setup aqua
         uses: aquaproj/aqua-installer@v4.0.2
         with:
           aqua_version: v2.30.0
 
       - name: Install tools via aqua
-        run: aqua install --all
+        run: |
+          # Clean up any existing tool binaries that might conflict with aqua installations
+          # Note: We only remove individual binary files, NOT the project directories
+          rm -f ./terragrunt ./terraform ./tflint ./aws ./jq ./yq 2>/dev/null || true
+          aqua install --all
+
+      - name: Setup TFLint and Trivy configurations
+        run: |
+          echo "🔧 Setting up TFLint and Trivy configurations..."
+          
+          # Verify TFLint configuration exists
+          if [ -f ".tflint.hcl" ]; then
+            echo "✅ TFLint configuration found: .tflint.hcl"
+            echo "📄 TFLint config preview:"
+            head -20 .tflint.hcl
+          else
+            echo "❌ TFLint configuration not found!"
+          fi
+          
+          # Verify Trivy configuration exists
+          if [ -f "trivy.yaml" ]; then
+            echo "✅ Trivy configuration found: trivy.yaml"
+            echo "📄 Trivy config preview:"
+            head -20 trivy.yaml
+          else
+            echo "❌ Trivy configuration not found!"
+          fi
+          
+          # Initialize TFLint if terraform directory exists
+          if [ -d "terraform" ]; then
+            echo "🔧 Initializing TFLint plugins..."
+            cd terraform
+            tflint --init --config=../.tflint.hcl || echo "TFLint init failed - will continue without plugins"
+            cd ..
+          fi
+
+      - name: Check if environment exists
+        id: check-env
+        run: |
+          if [ -d "${{ matrix.path }}" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Environment directory exists: ${{ matrix.path }}"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "❌ Environment directory does not exist: ${{ matrix.path }}"
+            echo "This indicates a repository structure issue."
+          fi
 
       - name: Terragrunt Format Check
         id: fmt
-        working-directory: ${{ matrix.path }}
+        if: steps.check-env.outputs.exists == 'true'
         run: |
-          if terragrunt hcl-fmt --terragrunt-check; then
+          echo "🔍 Checking format for ${{ matrix.environment }} environment..."
+          cd "${{ matrix.path }}"
+          if terragrunt fmt --check --terragrunt-non-interactive; then
             echo "result=No changes needed" >> "$GITHUB_OUTPUT"
             echo "needs_format=false" >> "$GITHUB_OUTPUT"
           else
@@ -90,202 +220,365 @@ jobs:
           fi
         continue-on-error: true
 
+      - name: Terragrunt Format Check (Skipped)
+        id: fmt-skipped
+        if: steps.check-env.outputs.exists != 'true'
+        run: |
+          echo "result=Environment not found" >> "$GITHUB_OUTPUT"
+          echo "needs_format=false" >> "$GITHUB_OUTPUT"
+
       - name: Terragrunt Syntax Check
         id: validate
-        working-directory: ${{ matrix.path }}
+        if: steps.check-env.outputs.exists == 'true'
         run: |
           echo "Checking Terragrunt configuration syntax..."
-          if terragrunt --version >/dev/null 2>&1; then
-            echo "✅ Terragrunt installation verified"
+          echo "Working directory: $(pwd)"
+          echo "Target path: ${{ matrix.path }}"
+          
+          # Check if terragrunt is installed
+          if ! terragrunt --version >/dev/null 2>&1; then
+            echo "❌ Terragrunt installation failed"
+            echo "outcome=failure" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          
+          echo "✅ Terragrunt installation verified"
+          
+          # Validate Terragrunt configuration
+          echo "🔍 Validating Terragrunt configuration..."
+          cd "${{ matrix.path }}"
+          echo "Now in directory: $(pwd)"
+          echo "Directory contents:"
+          ls -la
+          echo "Checking Terraform source path:"
+          if [ -d "../../../terraform/" ]; then
+            echo "✅ Terraform directory found at ../../../terraform/"
+            ls -la ../../../terraform/ | head -10
+          else
+            echo "❌ Terraform directory not found at expected path ../../../terraform/"
+            echo "Available directories in project root:"
+            ls -la ../../.. | grep -E "^d"
+          fi
+          echo "Checking if Terragrunt config references correct source:"
+          grep -n "source.*=" terragrunt.hcl || echo "No source found in terragrunt.hcl"
+          
+          if terragrunt validate --terragrunt-non-interactive; then
+            echo "✅ Terragrunt configuration is valid"
             echo "outcome=success" >> "$GITHUB_OUTPUT"
           else
-            echo "❌ Terragrunt installation failed"
+            echo "❌ Terragrunt configuration validation failed"
             echo "outcome=failure" >> "$GITHUB_OUTPUT"
           fi
         continue-on-error: true
 
+      - name: Terragrunt Syntax Check (Skipped)
+        id: validate-skipped
+        if: steps.check-env.outputs.exists != 'true'
+        run: |
+          echo "outcome=skipped" >> "$GITHUB_OUTPUT"
+
       - name: Terragrunt Plan Execution
         id: plan
-        working-directory: ${{ matrix.path }}
+        if: steps.check-env.outputs.exists == 'true'
         run: |
-          echo "� Executing Terragrunt Plan for ${{ matrix.environment }}..."
+          echo "🚀 Executing Terragrunt Plan for ${{ matrix.environment }}..."
+          echo "Starting from directory: $(pwd)"
+          
+          cd "${{ matrix.path }}"
+          echo "Working in directory: $(pwd)"
+          echo "Checking project structure:"
+          echo "Available files in current directory:"
+          ls -la
+          echo "Checking relative paths:"
+          if [ -d "../../../terraform/${{ matrix.environment }}" ]; then
+            echo "✅ Terraform source found at ../../../terraform/${{ matrix.environment }}"
+          else
+            echo "❌ Terraform source not found at ../../../terraform/${{ matrix.environment }}"
+            echo "Available terraform environments:"
+            ls -la ../../../terraform/ 2>/dev/null | grep -E "^d" || echo "No terraform directory found"
+          fi
           
           # Initialize Terragrunt
           echo "📦 Initializing Terragrunt..."
-          if ! terragrunt init --terragrunt-non-interactive; then
+          init_failed=false
+          if ! terragrunt init --terragrunt-non-interactive 2>&1 | tee init_output.txt; then
             echo "❌ Terragrunt init failed"
+            init_failed=true
+          fi
+          
+          if [ "$init_failed" = "true" ]; then
             {
               echo "outcome=error"
+              echo "plan_exit_code=1"
+              echo "resources_to_add=0"
+              echo "resources_to_change=0" 
+              echo "resources_to_destroy=0"
+              echo "plan_summary<<PLANSUMMARYEOF"
+              echo "## 📋 Plan Summary for ${{ matrix.environment }}"
+              echo ""
+              echo "❌ **Terragrunt initialization failed**"
+              echo ""
+              echo "Cannot proceed with plan execution due to initialization failure."
+              echo ""
+              echo "### 🔍 Initialization Error Details:"
+              echo "\`\`\`"
+              cat init_output.txt || echo "No initialization output available"
+              echo "\`\`\`"
+              echo "PLANSUMMARYEOF"
               echo "full_plan_output<<FULLPLANEOF"
               echo "❌ Terragrunt initialization failed"
-              echo "FULLPLANEOF"
-            } >> "$GITHUB_OUTPUT"
-            exit 1
-          fi
-          
-          # Execute plan and capture output
-          echo "📋 Running Terragrunt Plan..."
-          terragrunt plan -detailed-exitcode --terragrunt-non-interactive > plan_output.txt 2>&1 || plan_exit_code=$?
-          
-          # Check if plan output file exists and get its size
-          if [ -f "plan_output.txt" ]; then
-            plan_file_size=$(wc -c < plan_output.txt)
-            echo "📄 Plan output file size: $plan_file_size bytes"
-            echo "📄 First 20 lines of plan output:"
-            head -20 plan_output.txt
-            echo "📄 Last 20 lines of plan output:"
-            tail -20 plan_output.txt
-          else
-            echo "❌ Plan output file not found!"
-            plan_file_size=0
-          fi
-          
-          # Parse plan results
-          echo "📊 Analyzing Plan Results..."
-          
-          # Count resources
-          to_add=$(grep -c "will be created" plan_output.txt || echo "0")
-          to_change=$(grep -c "will be updated" plan_output.txt || echo "0")
-          to_destroy=$(grep -c "will be destroyed" plan_output.txt || echo "0")
-          
-          # Set GitHub output variables
-          {
-            echo "plan_exit_code=${plan_exit_code:-0}"
-            echo "resources_to_add=$to_add"
-            echo "resources_to_change=$to_change"
-            echo "resources_to_destroy=$to_destroy"
-          } >> "$GITHUB_OUTPUT"
-          
-          # Extract resource details
-          echo "🔍 Extracting Resource Details..."
-          
-          # Create plan summary with consolidated redirect block
-          {
-            echo "## 📋 Plan Summary for ${{ matrix.environment }}"
-            echo ""
-            echo "### 📊 Resource Changes:"
-            echo "- **To Add:** $to_add resources"
-            echo "- **To Change:** $to_change resources"
-            echo "- **To Destroy:** $to_destroy resources"
-            echo ""
-            
-            if [ "$to_add" -gt 0 ]; then
-              echo "### ➕ Resources to be Created:"
-              # Look for resources in Terraform plan output - multiple patterns
-              grep -B2 -A2 "will be created" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' || true
-              
-              # Alternative: direct resource pattern
-              grep -E "^[[:space:]]*\+[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*+[[:space:]]*/- /' || true
-              
-              # If no resources found, show at least something
-              if ! grep -q "^- " <<< "$(grep -B2 -A2 "will be created" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' || grep -E "^[[:space:]]*\+[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*+[[:space:]]*/- /' || true)"; then
-                echo "- Resources detected but names not parsed (see full output)"
-              fi
               echo ""
-            fi
-            
-            if [ "$to_change" -gt 0 ]; then
-              echo "### 🔄 Resources to be Updated:"
-              # Look for resources being updated
-              grep -B2 -A2 "will be updated" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' || true
-              
-              # Alternative: direct resource pattern
-              grep -E "^[[:space:]]*~[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*~[[:space:]]*/- /' || true
-              
-              # If no resources found, show at least something
-              if ! grep -q "^- " <<< "$(grep -B2 -A2 "will be updated" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' || grep -E "^[[:space:]]*~[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*~[[:space:]]*/- /' || true)"; then
-                echo "- Resources detected but names not parsed (see full output)"
-              fi
-              echo ""
-            fi
-            
-            if [ "$to_destroy" -gt 0 ]; then
-              echo "### ❌ Resources to be Destroyed:"
-              # Look for resources being destroyed
-              grep -B2 -A2 "will be destroyed" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' || true
-              
-              # Alternative: direct resource pattern
-              grep -E "^[[:space:]]*-[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*-[[:space:]]*/- /' || true
-              
-              # If no resources found, show at least something
-              if ! grep -q "^- " <<< "$(grep -B2 -A2 "will be destroyed" plan_output.txt | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' || grep -E "^[[:space:]]*-[[:space:]]*resource" plan_output.txt | head -20 | sed 's/^[[:space:]]*-[[:space:]]*/- /' || true)"; then
-                echo "- Resources detected but names not parsed (see full output)"
-              fi
-              echo ""
-            fi
-            
-            # Add debug section to understand plan format
-            echo "### 🔧 Debug: Plan Pattern Analysis"
-            echo "<details><summary>Debugging info (first 10 lines of each pattern)</summary>"
-            echo ""
-            echo "\`\`\`"
-            echo "=== Lines with 'will be created' ==="
-            grep -n "will be created" plan_output.txt | head -10 || echo "No matches"
-            echo ""
-            echo "=== Lines starting with # (resource names) ==="
-            grep -n "^[[:space:]]*#" plan_output.txt | head -10 || echo "No matches"
-            echo ""
-            echo "=== Lines with resource patterns ==="
-            grep -n "resource\|module\|data" plan_output.txt | head -10 || echo "No matches"
-            echo "\`\`\`"
-            echo "</details>"
-          } > plan_summary.txt
-          
-          # Store full output for debugging with size limit
-          {
-            echo "plan_summary<<PLANSUMMARYEOF"
-            cat plan_summary.txt
-            echo "PLANSUMMARYEOF"
-          } >> "$GITHUB_OUTPUT"
-          
-          # Limit plan output size for GitHub Actions (max ~65KB for output variables)
-          if [ -f "plan_output.txt" ] && [ "$plan_file_size" -gt 0 ]; then
-            {
-              echo "full_plan_output<<FULLPLANEOF"
-              if [ "$plan_file_size" -gt 50000 ]; then
-                # If file is too large, show truncated version
-                echo "⚠️ Plan output truncated due to size (${plan_file_size} bytes)"
-                echo ""
-                echo "=== First 1000 lines ==="
-                head -1000 plan_output.txt
-                echo ""
-                echo "=== ... (content truncated) ==="
-                echo ""
-                echo "=== Last 500 lines ==="
-                tail -500 plan_output.txt
-              else
-                # Show full output if small enough
-                cat plan_output.txt
-              fi
+              cat init_output.txt || echo "No initialization output available"
               echo "FULLPLANEOF"
             } >> "$GITHUB_OUTPUT"
           else
-            {
-              echo "full_plan_output<<FULLPLANEOF"
-              echo "❌ No plan output available (file size: ${plan_file_size:-0} bytes)"
-              echo "FULLPLANEOF"
-            } >> "$GITHUB_OUTPUT"
-          fi
-          
-          # Determine outcome with better error handling
-          if [ "${plan_exit_code:-0}" -eq 0 ]; then
-            echo "outcome=no_changes" >> "$GITHUB_OUTPUT"
-            echo "✅ No changes detected"
-          elif [ "${plan_exit_code:-0}" -eq 2 ]; then
-            echo "outcome=has_changes" >> "$GITHUB_OUTPUT"
-            echo "📝 Changes detected"
-          else
-            echo "outcome=error" >> "$GITHUB_OUTPUT"
-            echo "❌ Plan execution failed with exit code: ${plan_exit_code:-unknown}"
-            # Show error details
+            # Execute plan and capture output
+            echo "📋 Running Terragrunt Plan..."
+            plan_exit_code=0
+            terragrunt plan -detailed-exitcode --terragrunt-non-interactive > plan_output.txt 2>&1 || plan_exit_code=$?
+            
+            # Always set plan_exit_code output variable
+            echo "plan_exit_code=${plan_exit_code}" >> "$GITHUB_OUTPUT"
+            
+            # Check if plan output file exists and get its size
             if [ -f "plan_output.txt" ]; then
-              echo "🔍 Error details from plan output:"
-              grep -i "error\|failed\|denied" plan_output.txt | head -10 || echo "No specific error patterns found"
+              plan_file_size=$(wc -c < plan_output.txt)
+              echo "📄 Plan output file size: $plan_file_size bytes"
+              echo "📄 First 20 lines of plan output:"
+              head -20 plan_output.txt
+              echo "📄 Last 20 lines of plan output:"
+              tail -20 plan_output.txt
+            else
+              echo "❌ Plan output file not found!"
+              plan_file_size=0
+            fi
+            
+            # Parse plan results (whether successful or not)
+            echo "📊 Analyzing Plan Results..."
+            
+            # Count resources (only if plan_output.txt exists)
+            to_add=0
+            to_change=0
+            to_destroy=0
+            
+            if [ -f "plan_output.txt" ] && [ "$plan_file_size" -gt 0 ]; then
+              # Use 2>/dev/null to suppress broken pipe errors from grep
+              to_add=$(grep -c "will be created" plan_output.txt 2>/dev/null || echo "0")
+              to_change=$(grep -c "will be updated" plan_output.txt 2>/dev/null || echo "0")  
+              to_destroy=$(grep -c "will be destroyed" plan_output.txt 2>/dev/null || echo "0")
+            fi
+            
+            # Set GitHub output variables
+            {
+              echo "resources_to_add=$to_add"
+              echo "resources_to_change=$to_change"
+              echo "resources_to_destroy=$to_destroy"
+            } >> "$GITHUB_OUTPUT"
+            
+            # Create plan summary (for both successful and failed cases)
+            if [ "$init_failed" = "false" ]; then
+              # Extract resource details for successful initialization
+              echo "🔍 Extracting Resource Details..."
+              
+              # Create plan summary with consolidated redirect block
+              {
+                echo "## 📋 Plan Summary for ${{ matrix.environment }}"
+                echo ""
+                echo "### 📊 Resource Changes:"
+                echo "- **To Add:** $to_add resources"
+                echo "- **To Change:** $to_change resources"
+                echo "- **To Destroy:** $to_destroy resources"
+                echo ""
+                
+                if [ "$to_add" -gt 0 ]; then
+                  echo "### ➕ Resources to be Created:"
+                  # Look for resources in Terraform plan output - multiple patterns
+                  grep -B2 -A2 "will be created" plan_output.txt 2>/dev/null | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' 2>/dev/null || true
+                  
+                  # Alternative: direct resource pattern
+                  grep -E "^[[:space:]]*\+[[:space:]]*resource" plan_output.txt 2>/dev/null | head -20 | sed 's/^[[:space:]]*+[[:space:]]*/- /' 2>/dev/null || true
+                  
+                  # If no resources found, show at least something
+                  if ! grep -q "^- " <<< "$(grep -B2 -A2 "will be created" plan_output.txt 2>/dev/null | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' 2>/dev/null || grep -E "^[[:space:]]*\+[[:space:]]*resource" plan_output.txt 2>/dev/null | head -20 | sed 's/^[[:space:]]*+[[:space:]]*/- /' 2>/dev/null || true)"; then
+                    echo "- Resources detected but names not parsed (see full output)"
+                  fi
+                  echo ""
+                fi
+                
+                if [ "$to_change" -gt 0 ]; then
+                  echo "### 🔄 Resources to be Updated:"
+                  # Look for resources being updated
+                  grep -B2 -A2 "will be updated" plan_output.txt 2>/dev/null | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' 2>/dev/null || true
+                  
+                  # Alternative: direct resource pattern
+                  grep -E "^[[:space:]]*~[[:space:]]*resource" plan_output.txt 2>/dev/null | head -20 | sed 's/^[[:space:]]*~[[:space:]]*/- /' 2>/dev/null || true
+                  
+                  # If no resources found, show at least something
+                  if ! grep -q "^- " <<< "$(grep -B2 -A2 "will be updated" plan_output.txt 2>/dev/null | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' 2>/dev/null || grep -E "^[[:space:]]*~[[:space:]]*resource" plan_output.txt 2>/dev/null | head -20 | sed 's/^[[:space:]]*~[[:space:]]*/- /' 2>/dev/null || true)"; then
+                    echo "- Resources detected but names not parsed (see full output)"
+                  fi
+                  echo ""
+                fi
+                
+                if [ "$to_destroy" -gt 0 ]; then
+                  echo "### ❌ Resources to be Destroyed:"
+                  # Look for resources being destroyed
+                  grep -B2 -A2 "will be destroyed" plan_output.txt 2>/dev/null | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' 2>/dev/null || true
+                  
+                  # Alternative: direct resource pattern
+                  grep -E "^[[:space:]]*-[[:space:]]*resource" plan_output.txt 2>/dev/null | head -20 | sed 's/^[[:space:]]*-[[:space:]]*/- /' 2>/dev/null || true
+                  
+                  # If no resources found, show at least something
+                  if ! grep -q "^- " <<< "$(grep -B2 -A2 "will be destroyed" plan_output.txt 2>/dev/null | grep -E "^[[:space:]]*#[[:space:]]*[a-zA-Z0-9_-]+\.[a-zA-Z0-9_.-]+" | sed 's/^[[:space:]]*#[[:space:]]*/- `/' | sed 's/$$/`/' 2>/dev/null || grep -E "^[[:space:]]*-[[:space:]]*resource" plan_output.txt 2>/dev/null | head -20 | sed 's/^[[:space:]]*-[[:space:]]*/- /' 2>/dev/null || true)"; then
+                    echo "- Resources detected but names not parsed (see full output)"
+                  fi
+                  echo ""
+                fi
+                
+                # Add debug section to understand plan format
+                echo "### 🔧 Debug: Plan Pattern Analysis"
+                echo "<details><summary>Debugging info (first 10 lines of each pattern)</summary>"
+                echo ""
+                echo "\`\`\`"
+                echo "=== Lines with 'will be created' ==="
+                grep -n "will be created" plan_output.txt 2>/dev/null | head -10 || echo "No matches"
+                echo ""
+                echo "=== Lines starting with # (resource names) ==="
+                grep -n "^[[:space:]]*#" plan_output.txt 2>/dev/null | head -10 || echo "No matches"
+                echo ""
+                echo "=== Lines with resource patterns ==="
+                grep -n "resource\|module\|data" plan_output.txt 2>/dev/null | head -10 || echo "No matches"
+                echo "\`\`\`"
+                echo "</details>"
+              } > plan_summary.txt
+              
+              # Store plan summary
+              {
+                echo "plan_summary<<PLANSUMMARYEOF"
+                cat plan_summary.txt
+                echo "PLANSUMMARYEOF"
+              } >> "$GITHUB_OUTPUT"
+              
+              # Store full plan output
+              if [ -f "plan_output.txt" ] && [ "$plan_file_size" -gt 0 ]; then
+                {
+                  echo "full_plan_output<<FULLPLANEOF"
+                  if [ "$plan_file_size" -gt 50000 ]; then
+                    # If file is too large, show truncated version
+                    echo "⚠️ Plan output truncated due to size (${plan_file_size} bytes)"
+                    echo ""
+                    echo "=== First 1000 lines ==="
+                    head -1000 plan_output.txt
+                    echo ""
+                    echo "=== ... (content truncated) ==="
+                    echo ""
+                    echo "=== Last 500 lines ==="
+                    tail -500 plan_output.txt
+                  else
+                    # Show full output if small enough
+                    cat plan_output.txt
+                  fi
+                  echo "FULLPLANEOF"
+                } >> "$GITHUB_OUTPUT"
+              else
+                {
+                  echo "full_plan_output<<FULLPLANEOF"
+                  echo "❌ No plan output available (file size: ${plan_file_size:-0} bytes)"
+                  echo "FULLPLANEOF"
+                } >> "$GITHUB_OUTPUT"
+              fi
+              
+              # Determine outcome for successful initialization
+              if [ "${plan_exit_code:-0}" -eq 0 ]; then
+                echo "outcome=no_changes" >> "$GITHUB_OUTPUT"
+                echo "✅ No changes detected"
+              elif [ "${plan_exit_code:-0}" -eq 2 ]; then
+                echo "outcome=has_changes" >> "$GITHUB_OUTPUT"
+                echo "📝 Changes detected"
+              else
+                echo "outcome=error" >> "$GITHUB_OUTPUT"
+                echo "❌ Plan execution failed with exit code: ${plan_exit_code:-unknown}"
+                
+                # Enhanced error reporting for plan failures
+                if [ -f "plan_output.txt" ]; then
+                  echo "🔍 Error details from plan output:"
+                  
+                  # Show specific error patterns
+                  echo ">>> Checking for error patterns..."
+                  
+                  # Check for common error types
+                  if grep -q -i "authentication\|credential\|unauthorized\|403\|401" plan_output.txt 2>/dev/null; then
+                    echo "🔐 Authentication/Authorization errors detected:"
+                    grep -i -n "authentication\|credential\|unauthorized\|403\|401" plan_output.txt 2>/dev/null | head -5
+                  fi
+                  
+                  if grep -q -i "timeout\|connection\|network" plan_output.txt 2>/dev/null; then
+                    echo "🌐 Network/Connection errors detected:"
+                    grep -i -n "timeout\|connection\|network" plan_output.txt 2>/dev/null | head -5
+                  fi
+                  
+                  if grep -q -i "resource.*not found\|does not exist" plan_output.txt 2>/dev/null; then
+                    echo "🔍 Resource not found errors detected:"
+                    grep -i -n "resource.*not found\|does not exist" plan_output.txt 2>/dev/null | head -5
+                  fi
+                  
+                  if grep -q -i "syntax error\|invalid\|malformed" plan_output.txt 2>/dev/null; then
+                    echo "⚠️ Syntax/Configuration errors detected:"
+                    grep -i -n "syntax error\|invalid\|malformed" plan_output.txt 2>/dev/null | head -5
+                  fi
+                  
+                  # Generic error pattern matching
+                  echo ">>> All error/failed patterns:"
+                  grep -i -n "error\|failed\|denied\|exception" plan_output.txt 2>/dev/null | head -10 || echo "No specific error patterns found"
+                  
+                  # Show the last part of the output which often contains the summary
+                  echo ""
+                  echo ">>> Last 20 lines of plan output (often contains error summary):"
+                  tail -20 plan_output.txt 2>/dev/null || echo "Could not read plan output tail"
+                else
+                  echo "No plan output file available for error analysis"
+                fi
+                
+                # Update plan summary to include error information
+                {
+                  echo "plan_summary<<PLANSUMMARYEOF"
+                  echo "## 📋 Plan Summary for ${{ matrix.environment }}"
+                  echo ""
+                  echo "❌ **Plan execution failed with exit code: ${plan_exit_code:-unknown}**"
+                  echo ""
+                  echo "### 🔍 Error Analysis:"
+                  if [ -f "plan_output.txt" ]; then
+                    echo "\`\`\`"
+                    # Show condensed error information
+                    if grep -q -i "error\|failed\|denied" plan_output.txt 2>/dev/null; then
+                      echo "=== Error Messages ==="
+                      grep -i "error\|failed\|denied" plan_output.txt 2>/dev/null | head -10
+                      echo ""
+                    fi
+                    echo "=== Last 10 lines of output ==="
+                    tail -10 plan_output.txt 2>/dev/null
+                    echo "\`\`\`"
+                  else
+                    echo "No detailed error information available."
+                  fi
+                  echo ""
+                  echo "**Possible causes:**"
+                  echo "- Authentication or permission issues with AWS"
+                  echo "- Network connectivity problems"
+                  echo "- Configuration syntax errors"
+                  echo "- Missing or invalid Terraform resources"
+                  echo "- State file conflicts or locking issues"
+                  echo ""
+                  echo "Please check the full plan output below for more details."
+                  echo "PLANSUMMARYEOF"
+                } >> "$GITHUB_OUTPUT"
+              fi
             fi
           fi
         continue-on-error: true
 
       - name: Comment PR with results
+        if: steps.check-env.outputs.exists == 'true'
         uses: actions/github-script@v7
         with:
           script: |
@@ -312,18 +605,38 @@ jobs:
               statusText = 'Unknown status';
             }
 
+            // Enhanced error information display for failed plans
+            let errorSection = '';
+            if (outcome === 'error') {
+              const planExitCode = '${{ steps.plan.outputs.plan_exit_code }}' || 'unknown';
+              errorSection = `
+            ### ❌ Plan Execution Failed
+            
+            **Exit Code:** ${planExitCode}
+            
+            **Error Details:** The terraform plan execution failed. Please check the detailed plan results below for specific error messages and troubleshooting information.
+            
+            > **💡 Troubleshooting Tips:**
+            > - Check for authentication issues with AWS credentials
+            > - Verify network connectivity and service availability
+            > - Review configuration syntax for errors
+            > - Check for resource naming conflicts or missing dependencies
+            > - Ensure state file integrity and avoid concurrent operations
+            `;
+            }
+
             const commentBody = `## 📋 Terragrunt Results for \`${environment}\`
             
             #### Format Check 🖌 \`${{ steps.fmt.outputs.result }}\`
             #### Validation 🔍 \`${{ steps.validate.outcome }}\`  
             #### Plan ${statusIcon} \`${statusText}\`
-
+            ${errorSection}
             ### 📊 Resource Summary
             
             | Type | Count |
             |------|-------|
             | ➕ **To Add** | ${toAdd} |
-            | � **To Change** | ${toChange} |
+            | 🔄 **To Change** | ${toChange} |
             | ❌ **To Destroy** | ${toDestroy} |
 
             <details><summary>📝 Show Detailed Plan Results</summary>
@@ -375,12 +688,95 @@ jobs:
               console.log(`✅ Created new comment for ${environment}`);
             }
 
+      - name: Comment PR with Environment Not Found
+        if: steps.check-env.outputs.exists != 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const environment = '${{ matrix.environment }}';
+            const targetPath = '${{ matrix.path }}';
+            
+            const commentBody = `## 📋 Terragrunt Results for \`${environment}\`
+            
+            #### Format Check 🖌 \`Skipped - Environment not found\`
+            #### Validation 🔍 \`Skipped - Environment not found\`  
+            #### Plan ⚠️ \`Environment not found\`
+
+            ### ❌ Environment Directory Not Found
+            
+            The target environment directory \`${targetPath}\` was not found in the repository.
+            
+            This indicates a repository structure issue that needs to be investigated.
+            
+            ### 🔍 Debug Information
+            
+            Debug artifacts have been uploaded to help investigate this issue.
+            
+            *Last updated: ${new Date().toISOString()} | Pushed by: @${{ github.actor }} | Action: \`${{ github.event_name }}\`*`;
+
+            // Find existing comment for this environment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const botCommentIdentifier = `## 📋 Terragrunt Results for \`${environment}\``;
+            const existingComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes(botCommentIdentifier)
+            );
+
+            if (existingComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingComment.id,
+                body: commentBody
+              });
+              console.log(`✅ Updated existing comment for ${environment}`);
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody
+              });
+              console.log(`✅ Created new comment for ${environment}`);
+            }
+
   security-scan:
     name: Security Analysis
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history to ensure all files are available
+          ref: ${{ github.event.pull_request.head.sha }}  # Checkout the exact PR commit
+
+      - name: Debug Repository Structure for Security Scan
+        run: |
+          echo "=== Repository Root Contents ==="
+          ls -la
+          echo ""
+          echo "=== Terraform Directory Check ==="
+          if [ -d "terraform" ]; then
+            echo "✅ terraform directory exists"
+            find terraform -type f -name "*.tf" | head -10
+          else
+            echo "❌ terraform directory not found!"
+          fi
+          echo ""
+          echo "=== Terragrunt Directory Check ==="
+          if [ -d "terragrunt" ]; then
+            echo "✅ terragrunt directory exists"
+            find terragrunt -type f -name "*.hcl" | head -10
+          else
+            echo "❌ terragrunt directory not found!"
+          fi
 
       - name: Setup aqua
         uses: aquaproj/aqua-installer@v4.0.2
@@ -388,9 +784,62 @@ jobs:
           aqua_version: v2.30.0
 
       - name: Install tools via aqua
-        run: aqua install --all
+        run: |
+          # Clean up any existing tool binaries that might conflict with aqua installations
+          # Note: We only remove individual binary files, NOT the project directories
+          rm -f ./terragrunt ./terraform ./tflint ./aws ./jq ./yq 2>/dev/null || true
+          aqua install --all
+
+      - name: Setup TFLint and Trivy configurations for Security Scan
+        run: |
+          echo "🔧 Setting up TFLint and Trivy configurations for security scan..."
+          
+          # Verify TFLint configuration exists
+          if [ -f ".tflint.hcl" ]; then
+            echo "✅ TFLint configuration found: .tflint.hcl"
+          else
+            echo "❌ TFLint configuration not found!"
+          fi
+          
+          # Verify Trivy configuration exists
+          if [ -f "trivy.yaml" ]; then
+            echo "✅ Trivy configuration found: trivy.yaml"
+          else
+            echo "❌ Trivy configuration not found!"
+          fi
+          
+          # Initialize TFLint if terraform directory exists
+          if [ -d "terraform" ]; then
+            echo "🔧 Initializing TFLint plugins for security scan..."
+            cd terraform
+            tflint --init --config=../.tflint.hcl || echo "TFLint init failed - will continue without plugins"
+            cd ..
+          fi
+
+      - name: Check if terraform directory exists
+        id: check-terraform
+        run: |
+          if [ -d "terraform" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Terraform directory exists"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "❌ Terraform directory does not exist"
+          fi
+
+      - name: Check if terragrunt directory exists
+        id: check-terragrunt
+        run: |
+          if [ -d "terragrunt" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Terragrunt directory exists"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "❌ Terragrunt directory does not exist"
+          fi
 
       - name: TFLint
+        if: steps.check-terraform.outputs.exists == 'true'
         uses: reviewdog/action-tflint@master
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -399,24 +848,30 @@ jobs:
           filter_mode: nofilter
           fail_level: error
           tflint_version: "v0.53.0"
+          tflint_config: ../.tflint.hcl
+        continue-on-error: true
 
       - name: Trivy - Terraform Security Scan
+        if: steps.check-terraform.outputs.exists == 'true'
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'config'
           scan-ref: 'terraform/'
           format: 'sarif'
           output: 'trivy-terraform.sarif'
+          trivy-config: 'trivy.yaml'
         continue-on-error: true
 
       - name: Trivy - Terraform Security Scan (Table Format)
         id: trivy-terraform
+        if: steps.check-terraform.outputs.exists == 'true'
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'config'
           scan-ref: 'terraform/'
           format: 'table'
           output: 'trivy-terraform-results.txt'
+          trivy-config: 'trivy.yaml'
         continue-on-error: true
 
       - name: Check Trivy Terraform SARIF exists
@@ -436,22 +891,26 @@ jobs:
         if: steps.check-terraform-sarif.outputs.sarif_exists == 'true'
 
       - name: Trivy - Terragrunt Security Scan
+        if: steps.check-terragrunt.outputs.exists == 'true'
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'config'
           scan-ref: 'terragrunt/'
           format: 'sarif'
           output: 'trivy-terragrunt.sarif'
+          trivy-config: 'trivy.yaml'
         continue-on-error: true
 
       - name: Trivy - Terragrunt Security Scan (Table Format)
         id: trivy-terragrunt
+        if: steps.check-terragrunt.outputs.exists == 'true'
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'config'
           scan-ref: 'terragrunt/'
           format: 'table'
           output: 'trivy-terragrunt-results.txt'
+          trivy-config: 'trivy.yaml'
         continue-on-error: true
 
       - name: Check Trivy Terragrunt SARIF exists
@@ -478,36 +937,48 @@ jobs:
             const fs = require('fs');
             let hasIssues = false;
             let commentBody = '## 🛡️ Security Scan Results\n\n';
+            
+            const terraformExists = '${{ steps.check-terraform.outputs.exists }}' === 'true';
+            const terragruntExists = '${{ steps.check-terragrunt.outputs.exists }}' === 'true';
 
-            // Check Trivy Terraform results
-            if (fs.existsSync('trivy-terraform-results.txt')) {
-              const trivyTerraformResults = fs.readFileSync('trivy-terraform-results.txt', 'utf8');
-              const hasVulns = trivyTerraformResults.includes('CRITICAL') || 
-                              trivyTerraformResults.includes('HIGH') || 
-                              trivyTerraformResults.includes('MEDIUM');
-              
-              if (hasVulns) {
-                hasIssues = true;
-                commentBody += '### 🔍 Trivy - Terraform Security Issues\n\n';
-                commentBody += '<details><summary>View Terraform Security Scan Results</summary>\n\n';
-                commentBody += '```\n' + trivyTerraformResults + '\n```\n\n';
-                commentBody += '</details>\n\n';
+            if (!terraformExists && !terragruntExists) {
+              commentBody += '⚠️ **No terraform or terragrunt directories found to scan.**\n\n';
+              commentBody += 'This indicates a repository structure issue that needs to be investigated.\n\n';
+            } else {
+              // Check Trivy Terraform results
+              if (terraformExists && fs.existsSync('trivy-terraform-results.txt')) {
+                const trivyTerraformResults = fs.readFileSync('trivy-terraform-results.txt', 'utf8');
+                const hasVulns = trivyTerraformResults.includes('CRITICAL') || 
+                                trivyTerraformResults.includes('HIGH') || 
+                                trivyTerraformResults.includes('MEDIUM');
+                
+                if (hasVulns) {
+                  hasIssues = true;
+                  commentBody += '### 🔍 Trivy - Terraform Security Issues\n\n';
+                  commentBody += '<details><summary>View Terraform Security Scan Results</summary>\n\n';
+                  commentBody += '```\n' + trivyTerraformResults + '\n```\n\n';
+                  commentBody += '</details>\n\n';
+                }
+              } else if (terraformExists) {
+                commentBody += '### ✅ Terraform Security Scan\n\nNo security issues found in Terraform configuration.\n\n';
               }
-            }
 
-            // Check Trivy Terragrunt results
-            if (fs.existsSync('trivy-terragrunt-results.txt')) {
-              const trivyTerragruntResults = fs.readFileSync('trivy-terragrunt-results.txt', 'utf8');
-              const hasVulns = trivyTerragruntResults.includes('CRITICAL') || 
-                              trivyTerragruntResults.includes('HIGH') || 
-                              trivyTerragruntResults.includes('MEDIUM');
-              
-              if (hasVulns) {
-                hasIssues = true;
-                commentBody += '### 🔍 Trivy - Terragrunt Security Issues\n\n';
-                commentBody += '<details><summary>View Terragrunt Security Scan Results</summary>\n\n';
-                commentBody += '```\n' + trivyTerragruntResults + '\n```\n\n';
-                commentBody += '</details>\n\n';
+              // Check Trivy Terragrunt results
+              if (terragruntExists && fs.existsSync('trivy-terragrunt-results.txt')) {
+                const trivyTerragruntResults = fs.readFileSync('trivy-terragrunt-results.txt', 'utf8');
+                const hasVulns = trivyTerragruntResults.includes('CRITICAL') || 
+                                trivyTerragruntResults.includes('HIGH') || 
+                                trivyTerragruntResults.includes('MEDIUM');
+                
+                if (hasVulns) {
+                  hasIssues = true;
+                  commentBody += '### 🔍 Trivy - Terragrunt Security Issues\n\n';
+                  commentBody += '<details><summary>View Terragrunt Security Scan Results</summary>\n\n';
+                  commentBody += '```\n' + trivyTerragruntResults + '\n```\n\n';
+                  commentBody += '</details>\n\n';
+                }
+              } else if (terragruntExists) {
+                commentBody += '### ✅ Terragrunt Security Scan\n\nNo security issues found in Terragrunt configuration.\n\n';
               }
             }
 
@@ -516,10 +987,12 @@ jobs:
               commentBody += '> **Note**: TFLint results are shown as inline comments in the PR review.\n';
               commentBody += '> **Action Required**: Please review and address the security issues above.\n\n';
               commentBody += '*🤖 This comment was generated automatically by the security scan workflow.*';
-            } else {
+            } else if (terraformExists || terragruntExists) {
               commentBody = '## 🛡️ Security Scan Results\n\n';
               commentBody += '✅ **No security issues found!**\n\n';
               commentBody += '> **Note**: TFLint results are shown as inline comments in the PR review.\n\n';
+              commentBody += '*🤖 This comment was generated automatically by the security scan workflow.*';
+            } else {
               commentBody += '*🤖 This comment was generated automatically by the security scan workflow.*';
             }
 
@@ -562,6 +1035,9 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # Fetch full history to ensure all files are available
+          ref: ${{ github.event.pull_request.head.sha }}  # Checkout the exact PR commit
 
       - name: Setup aqua
         uses: aquaproj/aqua-installer@v4.0.2
@@ -569,9 +1045,36 @@ jobs:
           aqua_version: v2.30.0
 
       - name: Install tools via aqua
-        run: aqua install --all
+        run: |
+          # Clean up any existing tool binaries that might conflict with aqua installations
+          # Note: We only remove individual binary files, NOT the project directories
+          rm -f ./terragrunt ./terraform ./tflint ./aws ./jq ./yq 2>/dev/null || true
+          aqua install --all
+
+      - name: Check if terraform directory exists
+        id: check-terraform
+        run: |
+          if [ -d "terraform" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Terraform directory exists"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "❌ Terraform directory does not exist"
+          fi
+
+      - name: Check if terragrunt directory exists
+        id: check-terragrunt
+        run: |
+          if [ -d "terragrunt" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Terragrunt directory exists"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "❌ Terragrunt directory does not exist"
+          fi
 
       - name: Terraform Module Dependency Check
+        if: steps.check-terraform.outputs.exists == 'true'
         run: |
           {
             echo "## Terraform Module Dependencies"
@@ -585,6 +1088,7 @@ jobs:
           } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Terragrunt Configuration Check
+        if: steps.check-terragrunt.outputs.exists == 'true'
         run: |
           {
             echo "## Terragrunt Configuration Analysis"
@@ -597,4 +1101,14 @@ jobs:
               grep -A 10 "module_versions" terragrunt/terragrunt.hcl || true
               echo "\`\`\`"
             fi
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: No Dependencies Found
+        if: steps.check-terraform.outputs.exists != 'true' && steps.check-terragrunt.outputs.exists != 'true'
+        run: |
+          {
+            echo "## Dependency Analysis"
+            echo "⚠️ No terraform or terragrunt directories found for dependency analysis."
+            echo ""
+            echo "This indicates a repository structure issue that needs to be investigated."
           } >> "$GITHUB_STEP_SUMMARY"
