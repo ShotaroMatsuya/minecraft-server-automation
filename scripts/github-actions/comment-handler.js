@@ -50,6 +50,38 @@ async function main(github, context, inputs) {
         await updateTerragruntPlanComment(github, context, commentBody, inputs.environment);
         break;
         
+      case 'terragrunt-plan-summary':
+        // Create a simple summary comment for when all environments are skipped
+        commentBody = `## 📋 Terragrunt Plan Summary\n\n${inputs.message}\n\n---\n*Updated: ${new Date().toISOString()}*`;
+        
+        // Find existing plan comments and update them or create a new one
+        const { data: comments } = await github.rest.issues.listComments({
+          owner: context.repo.owner,
+          repo: context.repo.repo,
+          issue_number: context.issue.number,
+        });
+        
+        const existingComment = comments.find(comment => 
+          comment.body.includes('📋 Terragrunt Plan Summary')
+        );
+        
+        if (existingComment) {
+          await github.rest.issues.updateComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            comment_id: existingComment.id,
+            body: commentBody
+          });
+        } else {
+          await github.rest.issues.createComment({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            issue_number: context.issue.number,
+            body: commentBody
+          });
+        }
+        break;
+        
       case 'terragrunt-apply':
         const applyInputs = {
           environment: inputs.environment,
