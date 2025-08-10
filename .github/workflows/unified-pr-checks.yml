@@ -4,12 +4,7 @@ on:
   pull_request:
     branches:
       - main
-    paths:
-      - 'terragrunt/**'
-      - 'terraform/**'
-      - '.github/workflows/**'
-      - '.tflint.hcl'
-      - 'trivy.yaml'
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 
 env:
   TF_VAR_WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
@@ -25,9 +20,45 @@ permissions:
   security-events: write
 
 jobs:
+  check-targets:
+    name: Check Target Environments
+    runs-on: ubuntu-latest
+    outputs:
+      should_run_keeping: ${{ steps.check-labels.outputs.should_run_keeping }}
+      should_run_scheduling: ${{ steps.check-labels.outputs.should_run_scheduling }}
+      should_run_checks: ${{ steps.check-labels.outputs.should_run_checks }}
+    steps:
+      - name: Check PR Labels
+        id: check-labels
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: pullRequest } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: context.issue.number,
+            });
+            
+            const labels = pullRequest.labels.map(label => label.name);
+            console.log('PR Labels:', labels);
+            
+            const hasKeepingLabel = labels.includes('target:keeping');
+            const hasSchedulingLabel = labels.includes('target:scheduling');
+            const hasAnyTargetLabel = hasKeepingLabel || hasSchedulingLabel;
+            
+            console.log('Has keeping label:', hasKeepingLabel);
+            console.log('Has scheduling label:', hasSchedulingLabel);
+            console.log('Should run checks:', hasAnyTargetLabel);
+            
+            core.setOutput('should_run_keeping', hasKeepingLabel);
+            core.setOutput('should_run_scheduling', hasSchedulingLabel);
+            core.setOutput('should_run_checks', hasAnyTargetLabel);
+
   security-scan:
     name: Infrastructure Security Scan
     runs-on: ubuntu-latest
+    needs: [check-targets]
+    if: needs.check-targets.outputs.should_run_checks == 'true'
     outputs:
       has_issues: ${{ steps.check-results.outputs.has_issues }}
       results_summary: ${{ steps.check-results.outputs.results_summary }}
@@ -130,6 +161,8 @@ jobs:
   code-quality:
     name: TFLint Code Quality
     runs-on: ubuntu-latest
+    needs: [check-targets]
+    if: needs.check-targets.outputs.should_run_checks == 'true'
     outputs:
       has_issues: ${{ steps.check-results.outputs.has_issues }}
       results_summary: ${{ steps.check-results.outputs.results_summary }}
@@ -217,25 +250,49 @@ jobs:
   terragrunt-plan:
     name: Terragrunt Plan
     runs-on: ubuntu-latest
+    needs: [check-targets]
+    if: needs.check-targets.outputs.should_run_checks == 'true'
     strategy:
       matrix:
         environment: [keeping, scheduling]
         include:
           - environment: keeping
             path: terragrunt/environments/keeping
+            should_run: ${{ needs.check-targets.outputs.should_run_keeping }}
           - environment: scheduling
             path: terragrunt/environments/scheduling
+            should_run: ${{ needs.check-targets.outputs.should_run_scheduling }}
     outputs:
       plan_status_keeping: ${{ steps.plan-keeping.outputs.status }}
       plan_status_scheduling: ${{ steps.plan-scheduling.outputs.status }}
     steps:
+      - name: Check if this environment should run
+        id: should-run
+        run: |
+          if [ "${{ matrix.environment }}" = "keeping" ]; then
+            should_run="${{ needs.check-targets.outputs.should_run_keeping }}"
+          elif [ "${{ matrix.environment }}" = "scheduling" ]; then
+            should_run="${{ needs.check-targets.outputs.should_run_scheduling }}"
+          else
+            should_run="false"
+          fi
+          
+          echo "should_run=$should_run" >> "$GITHUB_OUTPUT"
+          echo "Environment ${{ matrix.environment }} should run: $should_run"
+          
+          if [ "$should_run" != "true" ]; then
+            echo "⏭️ Skipping ${{ matrix.environment }} environment - not targeted by labels"
+          fi
+
       - name: Checkout
+        if: steps.should-run.outputs.should_run == 'true'
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Configure AWS Credentials
+        if: steps.should-run.outputs.should_run == 'true'
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
@@ -243,16 +300,19 @@ jobs:
           aws-region: ap-northeast-1
 
       - name: Setup aqua
+        if: steps.should-run.outputs.should_run == 'true'
         uses: aquaproj/aqua-installer@v3.0.1
         with:
           aqua_version: v2.30.0
 
       - name: Install tools via aqua
+        if: steps.should-run.outputs.should_run == 'true'
         run: |
           rm -f ./terragrunt ./terraform ./tflint ./aws ./jq ./yq 2>/dev/null || true
           aqua install --all
 
       - name: Check if environment exists
+        if: steps.should-run.outputs.should_run == 'true'
         id: check-env
         run: |
           if [ -d "${{ matrix.path }}" ]; then
@@ -263,7 +323,7 @@ jobs:
 
       - name: Terragrunt Format Check
         id: fmt-check
-        if: steps.check-env.outputs.exists == 'true'
+        if: steps.should-run.outputs.should_run == 'true' && steps.check-env.outputs.exists == 'true'
         run: |
           cd "${{ matrix.path }}"
           format_exit_code=0
@@ -287,7 +347,7 @@ jobs:
 
       - name: Terragrunt Validation
         id: validate
-        if: steps.check-env.outputs.exists == 'true'
+        if: steps.should-run.outputs.should_run == 'true' && steps.check-env.outputs.exists == 'true'
         run: |
           cd "${{ matrix.path }}"
           validate_exit_code=0
@@ -311,7 +371,7 @@ jobs:
 
       - name: Terragrunt Plan
         id: plan
-        if: steps.check-env.outputs.exists == 'true'
+        if: steps.should-run.outputs.should_run == 'true' && steps.check-env.outputs.exists == 'true'
         run: |
           cd "${{ matrix.path }}"
           
@@ -398,17 +458,25 @@ jobs:
         id: plan-keeping
         if: matrix.environment == 'keeping'
         run: |
-          echo "status=${{ steps.plan.outputs.status }}" >> "$GITHUB_OUTPUT"
+          if [ "${{ steps.should-run.outputs.should_run }}" = "true" ]; then
+            echo "status=${{ steps.plan.outputs.status }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=skipped" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set environment-specific output
         id: plan-scheduling
         if: matrix.environment == 'scheduling'
         run: |
-          echo "status=${{ steps.plan.outputs.status }}" >> "$GITHUB_OUTPUT"
+          if [ "${{ steps.should-run.outputs.should_run }}" = "true" ]; then
+            echo "status=${{ steps.plan.outputs.status }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=skipped" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Upload Plan Results
         uses: actions/upload-artifact@v4
-        if: always()
+        if: always() && steps.should-run.outputs.should_run == 'true'
         with:
           name: terragrunt-plan-${{ matrix.environment }}
           path: |

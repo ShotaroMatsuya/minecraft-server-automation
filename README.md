@@ -82,10 +82,50 @@ Improves operability by defining container environment variables in multiple YAM
 By default, restore is performed from the latest backup when the container starts. It is also possible to restore world data from a specific recovery point via Terragrunt variables. This is useful when you want to travel back in time to your precious world.
 
 ### 🚀 GitHub Actions CI/CD
+
+- **Label-Based Environment Targeting**: Automatically detects infrastructure changes and applies appropriate labels (`target:keeping`, `target:scheduling`) for environment-specific deployment
+- **Manual Label Override**: Manually apply labels to force deployment even without infrastructure changes (useful for configuration updates or emergency deployments)
 - **Enhanced PR Validation**: Detailed Terragrunt plan output with resource counting
 - **Security Scanning**: Trivy SAST analysis with SARIF reporting
 - **Comment Management**: Prevents PR spam with comment updates
 - **AWS OIDC**: Secure authentication without long-lived credentials
+
+### 🏷️ PR Label System
+
+The project uses an intelligent labeling system to control which environments are affected by changes:
+
+#### Automatic Labels
+
+- **`target:keeping`**: Automatically applied when changes affect keeping environment files
+- **`target:scheduling`**: Automatically applied when changes affect scheduling environment files
+
+#### Manual Labels
+
+- **`target:keeping`**: Manually apply to force keeping environment deployment
+- **`target:scheduling`**: Manually apply to force scheduling environment deployment  
+- **`no-apply`**: Prevent any apply operations (useful for testing or documentation changes)
+
+#### Label Behavior
+
+```bash
+# Files changed: terragrunt/environments/keeping/
+# → Automatically adds: target:keeping
+
+# Files changed: terragrunt/environments/scheduling/
+# → Automatically adds: target:scheduling
+
+# Manual label added: target:scheduling
+# → Forces scheduling apply even without file changes
+
+# Manual label added: no-apply
+# → Prevents all applies regardless of changes
+```
+
+#### Workflow Triggers
+
+- **PR Checks**: Run only for environments with `target:*` labels
+- **Apply Operations**: Execute only for labeled environments after merge
+- **Comment System**: Report results only for executed environments
 
 ## 🎯 Dispatch Workflows
 
