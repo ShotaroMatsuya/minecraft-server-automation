@@ -6,6 +6,7 @@
 const { createSecurityComment, updateSecurityComment } = require('./security-comment.js');
 const { createCodeQualityComment, updateCodeQualityComment } = require('./code-quality-comment.js');
 const { createTerragruntPlanComment, updateTerragruntPlanComment } = require('./terragrunt-plan-comment.js');
+const { createTerragruntApplyComment, updateTerragruntApplyComment } = require('./terragrunt-apply-comment.js');
 
 /**
  * Main function to handle comment generation and posting
@@ -47,6 +48,19 @@ async function main(github, context, inputs) {
         };
         commentBody = createTerragruntPlanComment(terragruntInputs);
         await updateTerragruntPlanComment(github, context, commentBody, inputs.environment);
+        break;
+        
+      case 'terragrunt-apply':
+        const applyInputs = {
+          environment: inputs.environment,
+          status: inputs.status,
+          applyFilePath: inputs.applyFilePath,
+          initErrorLogPath: inputs.initErrorLogPath,
+          applyErrorLogPath: inputs.applyErrorLogPath,
+          artifactBasePath: inputs.artifactBasePath
+        };
+        commentBody = createTerragruntApplyComment(applyInputs);
+        await updateTerragruntApplyComment(github, context, commentBody, inputs.environment);
         break;
         
       default:
