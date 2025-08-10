@@ -255,13 +255,6 @@ jobs:
           echo "Python executable path: $(which python3)"
           echo "Lambda packaging will use this Python interpreter"
 
-      - name: Download PR Plan Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: terragrunt-plan-keeping
-          path: pr-plan-keeping/
-        continue-on-error: true
-
       - name: Check if keeping environment exists
         id: check-env
         run: |
@@ -540,13 +533,6 @@ jobs:
           echo "Python version: $(python3 --version)"
           echo "Python executable path: $(which python3)"
           echo "Lambda packaging will use this Python interpreter"
-
-      - name: Download PR Plan Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: terragrunt-plan-scheduling
-          path: pr-plan-scheduling/
-        continue-on-error: true
 
       - name: Create Mapping Yaml for scheduling
         working-directory: terraform/scheduling
