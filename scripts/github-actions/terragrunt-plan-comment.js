@@ -120,6 +120,16 @@ function createTerragruntPlanComment(inputs) {
   // Only treat as plan error if we have definitive errors AND no valid plan
   const hasPlanError = (status === 'failed' && !hasValidPlan) || hasDefinitivePlanErrors || (hasActualErrors(planErrorLog) && !hasValidPlan);
   
+  // Determine plan status for display
+  let planStatusDisplay = '⚠️ Unknown';
+  if (hasPlanError) {
+    planStatusDisplay = '❌ Failed';
+  } else if (status === 'has_changes' || hasChanges) {
+    planStatusDisplay = '🔄 Changes Detected';
+  } else if (hasValidPlan || status === 'no_changes') {
+    planStatusDisplay = '✅ No Changes';
+  }
+  
   // Show step-by-step status
   commentBody += `### 🔄 Execution Steps\n\n`;
   commentBody += `| Step | Status |\n`;
@@ -127,7 +137,7 @@ function createTerragruntPlanComment(inputs) {
   commentBody += `| 🎨 **Format Check** | ${hasFormatError ? '❌ Failed' : '✅ Passed'} |\n`;
   commentBody += `| ✅ **Validation** | ${hasValidateError ? '❌ Failed' : '✅ Passed'} |\n`;
   commentBody += `| 🚀 **Init** | ${hasInitError ? '❌ Failed' : '✅ Passed'} |\n`;
-  commentBody += `| 📋 **Plan** | ${hasPlanError ? '❌ Failed' : hasValidPlan && (status === 'has_changes' || planContentForCheck.includes('to add')) ? '🔄 Changes Detected' : hasValidPlan ? '✅ No Changes' : '⚠️ Unknown'} |\n\n`;
+  commentBody += `| 📋 **Plan** | ${planStatusDisplay} |\n\n`;
   
   // If any errors occurred, show them first
   if (hasFormatError || hasValidateError || hasInitError || hasPlanError) {
@@ -292,15 +302,17 @@ function createTerragruntPlanComment(inputs) {
     const toChange = changeMatches ? parseInt(changeMatches[1]) : 0;
     const toDestroy = destroyMatches ? parseInt(destroyMatches[1]) : 0;
     
-    // Show warnings if present but plan was successful
-    if (hasWarnings && (toAdd > 0 || toChange > 0 || toDestroy > 0)) {
-      commentBody += `⚠️ **Infrastructure changes with warnings**\n\n`;
-      commentBody += `The plan was generated successfully but contains warnings that should be reviewed.\n\n`;
-    } else if (toDestroy > 0) {
-      commentBody += `⚠️ **Resource Deletion will happen**\n\n`;
-      commentBody += `This plan contains resource delete operation. Please check the plan result very carefully!\n\n`;
-    } else if (toAdd > 0 || toChange > 0) {
-      commentBody += `🔄 **Infrastructure changes detected**\n\n`;
+    // Show summary message based on status and plan content
+    if (status === 'has_changes' || toAdd > 0 || toChange > 0) {
+      if (hasWarnings && (toAdd > 0 || toChange > 0 || toDestroy > 0)) {
+        commentBody += `⚠️ **Infrastructure changes with warnings**\n\n`;
+        commentBody += `The plan was generated successfully but contains warnings that should be reviewed.\n\n`;
+      } else if (toDestroy > 0) {
+        commentBody += `⚠️ **Resource Deletion will happen**\n\n`;
+        commentBody += `This plan contains resource delete operation. Please check the plan result very carefully!\n\n`;
+      } else {
+        commentBody += `🔄 **Infrastructure changes detected**\n\n`;
+      }
     } else {
       commentBody += `✅ **No changes detected**\n\n`;
       commentBody += `Infrastructure is up to date with the configuration.\n\n`;
