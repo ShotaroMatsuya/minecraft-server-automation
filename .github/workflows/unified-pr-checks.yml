@@ -556,6 +556,7 @@ jobs:
             await commentHandler(github, context, inputs);
 
       - name: Download Terragrunt Plan Results
+        id: download-artifacts
         uses: actions/download-artifact@v4
         with:
           pattern: terragrunt-plan-*
@@ -563,14 +564,23 @@ jobs:
           merge-multiple: false
         continue-on-error: true
 
-      - name: Debug Downloaded Artifacts
+      - name: Check Downloaded Artifacts
+        id: check-artifacts
         run: |
-          echo "=== Debug: Downloaded artifact structure ==="
-          find plan-results/ -type f -name "*.txt" -exec ls -la {} \; 2>/dev/null || echo "No plan artifacts found"
-          echo "=== Debug: Full directory tree ==="
-          find plan-results/ -type f 2>/dev/null | head -20 || echo "No plan results directory"
-          echo "=== Debug: Looking for plan_output.txt files ==="
-          find plan-results/ -name "plan_output.txt" -exec ls -la {} \; 2>/dev/null || echo "No plan output files found"
+          echo "🔍 Checking for downloaded plan artifacts..."
+          
+          # Check if plan-results directory exists and has content
+          if [ -d "plan-results" ] && [ "$(find plan-results/ -type f 2>/dev/null | wc -l)" -gt 0 ]; then
+            echo "artifacts_found=true" >> "$GITHUB_OUTPUT"
+            echo "✅ Plan artifacts found"
+            
+            # List found artifacts for transparency
+            echo "📁 Found artifacts:"
+            find plan-results/ -type f -name "*.txt" -exec basename {} \; | sort | uniq | sed 's/^/  - /'
+          else
+            echo "artifacts_found=false" >> "$GITHUB_OUTPUT"
+            echo "⚠️ No plan artifacts found - environments may have been skipped"
+          fi
 
       - name: Comment Terragrunt Plan Results
         if: needs.terragrunt-plan.result != 'skipped'
@@ -579,7 +589,24 @@ jobs:
           script: |
             const commentHandler = require('./scripts/github-actions/comment-handler.js');
             
-            // Process both environments in a single step
+            // Check if we have any artifacts to process
+            const artifactsFound = '${{ steps.check-artifacts.outputs.artifacts_found }}' === 'true';
+            
+            if (!artifactsFound) {
+              console.log('ℹ️ No plan artifacts found - likely all environments were skipped by label targeting');
+              
+              // Still post a comment to inform about the skipped state
+              const inputs = {
+                commentType: 'terragrunt-plan-summary',
+                message: 'All Terragrunt environments were skipped based on PR labels. No plan execution was performed.',
+                artifactBasePath: 'plan-results'
+              };
+              
+              await commentHandler(github, context, inputs);
+              return;
+            }
+            
+            // Process both environments if artifacts are available
             const environments = [
               {
                 name: 'keeping',
@@ -598,7 +625,7 @@ jobs:
                 continue;
               }
               
-              console.log(`Processing ${env.name} environment...`);
+              console.log(`🔄 Processing ${env.name} environment...`);
               
               const inputs = {
                 commentType: 'terragrunt-plan',
