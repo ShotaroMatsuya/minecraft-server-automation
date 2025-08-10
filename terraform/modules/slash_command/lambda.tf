@@ -5,7 +5,7 @@ module "dispatch_backup_function" {
   function_name          = "dispatch_workflow_from_slack-function"
   description            = "My awsome lambda function"
   handler                = "index.lambda_handler"
-  runtime                = "python3.9"
+  runtime                = "python3.13"
   ephemeral_storage_size = 512
   architectures          = ["x86_64"]
   publish                = true
@@ -14,7 +14,7 @@ module "dispatch_backup_function" {
   recreate_missing_package = true
 
   source_path = [{
-    path             = "${path.module}/fixtures/python3.9"
+    path             = "${path.module}/fixtures/python3.13"
     pip_requirements = true
   }]
   create_lambda_function_url = true

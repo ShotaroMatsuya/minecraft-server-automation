@@ -251,6 +251,12 @@ jobs:
           chmod +x terragrunt_binary
           sudo mv terragrunt_binary /usr/local/bin/terragrunt
 
+      - name: Verify Python Installation
+        run: |
+          echo "Python version: $(python3 --version)"
+          echo "Python executable path: $(which python3)"
+          echo "Lambda packaging will use this Python interpreter (managed by aqua)"
+
       - name: Check if keeping environment exists
         id: check-env
         run: |
@@ -525,6 +531,12 @@ jobs:
           curl -Lo terragrunt_binary https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64
           chmod +x terragrunt_binary
           sudo mv terragrunt_binary /usr/local/bin/terragrunt
+
+      - name: Verify Python Installation
+        run: |
+          echo "Python version: $(python3 --version)"
+          echo "Python executable path: $(which python3)"
+          echo "Lambda packaging will use this Python interpreter (managed by aqua)"
 
       - name: Create Mapping Yaml for scheduling
         working-directory: terraform/scheduling

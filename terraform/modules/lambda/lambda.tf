@@ -4,7 +4,7 @@ module "user_action_filter_function" {
   function_name          = "user-action-filter-function"
   description            = "My awsome lambda function"
   handler                = "index.lambda_handler"
-  runtime                = "python3.9"
+  runtime                = "python3.13"
   ephemeral_storage_size = 512
   architectures          = ["x86_64"]
   publish                = true
@@ -12,7 +12,7 @@ module "user_action_filter_function" {
 
   recreate_missing_package = false
 
-  source_path = ["${path.module}/fixtures/python3.9/index.py"]
+  source_path = ["${path.module}/fixtures/python3.13/index.py"]
 
   environment_variables = {
     SNS_TOPIC_ARN = var.sns_topic_arn

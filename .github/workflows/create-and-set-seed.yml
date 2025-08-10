@@ -45,6 +45,12 @@ jobs:
     - name: Install tools via aqua
       run: aqua install --all
 
+    - name: Verify Python Installation
+      run: |
+        echo "Python version: $(python3 --version)"
+        echo "Python executable path: $(which python3)"
+        echo "Lambda packaging will use this Python interpreter (managed by aqua)"
+
     - name: Test Toggle Display Feature
       run: |
         echo "🧪 Testing toggle display functionality..."
