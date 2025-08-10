@@ -98,36 +98,23 @@ jobs:
         run: |
           LABELS="${{ steps.pr_labels.outputs.labels }}"
           
-          # Check for target labels
-          KEEPING_LABEL=$(echo "$LABELS" | grep -o "target:keeping" || echo "")
-          SCHEDULING_LABEL=$(echo "$LABELS" | grep -o "target:scheduling" || echo "")
-          NO_APPLY_LABEL=$(echo "$LABELS" | grep -o "no-apply" || echo "")
+          # Convert space-separated labels to JavaScript array
+          node -e "
+          const applyTargetChecker = require('./scripts/github-actions/apply-target-checker.js');
+          const fs = require('fs');
           
-          echo "Found labels: $LABELS"
-          echo "Keeping label: $KEEPING_LABEL"
-          echo "Scheduling label: $SCHEDULING_LABEL"
-          echo "No-apply label: $NO_APPLY_LABEL"
+          const labels = '$LABELS'.split(' ').filter(l => l);
+          const keepingChanges = '${{ steps.changes.outputs.keeping_changes }}' === 'true';
+          const schedulingChanges = '${{ steps.changes.outputs.scheduling_changes }}' === 'true';
           
-          # Determine if we should run each environment
-          # Run if: (file changes OR target label) AND NOT no-apply label
-          should_run_keeping="false"
-          should_run_scheduling="false"
+          const result = applyTargetChecker(labels, keepingChanges, schedulingChanges);
           
-          if [ -z "$NO_APPLY_LABEL" ]; then
-            if [ "${{ steps.changes.outputs.keeping_changes }}" = "true" ] || [ -n "$KEEPING_LABEL" ]; then
-              should_run_keeping="true"
-            fi
-            
-            if [ "${{ steps.changes.outputs.scheduling_changes }}" = "true" ] || [ -n "$SCHEDULING_LABEL" ]; then
-              should_run_scheduling="true"
-            fi
-          fi
-          
-          echo "Should run keeping: $should_run_keeping"
-          echo "Should run scheduling: $should_run_scheduling"
-          
-          echo "should_run_keeping=$should_run_keeping" >> "$GITHUB_OUTPUT"
-          echo "should_run_scheduling=$should_run_scheduling" >> "$GITHUB_OUTPUT"
+          // Write outputs to GITHUB_OUTPUT
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 
+            \`should_run_keeping=\${result.should_run_keeping}\\n\`);
+          fs.appendFileSync(process.env.GITHUB_OUTPUT, 
+            \`should_run_scheduling=\${result.should_run_scheduling}\\n\`);
+          "
 
   apply-keeping:
     name: Terragrunt Apply - Keeping
