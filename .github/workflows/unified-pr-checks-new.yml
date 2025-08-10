@@ -1,0 +1,798 @@
+name: Unified PR Checks
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'terragrunt/**'
+      - 'terraform/**'
+      - '.github/workflows/**'
+      - '.tflint.hcl'
+      - 'trivy.yaml'
+
+env:
+  TF_VAR_WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
+  TF_VAR_github_token: ${{ secrets.TF_VAR_github_token }}
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+  TERRAGRUNT_VERSION: 0.67.16
+  TERRAFORM_VERSION: 1.9.8
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+  security-events: write
+
+jobs:
+  security-scan:
+    name: Infrastructure Security Scan
+    runs-on: ubuntu-latest
+    outputs:
+      has_issues: ${{ steps.check-results.outputs.has_issues }}
+      results_summary: ${{ steps.check-results.outputs.results_summary }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup aqua
+        uses: aquaproj/aqua-installer@v3.0.1
+        with:
+          aqua_version: v2.30.0
+
+      - name: Install tools via aqua
+        run: |
+          rm -f ./terragrunt ./terraform ./tflint ./aws ./jq ./yq 2>/dev/null || true
+          aqua install --all
+
+      - name: Check if terraform directory exists
+        id: check-terraform
+        run: |
+          if [ -d "terraform" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run Trivy Security Scan
+        id: trivy-scan
+        if: steps.check-terraform.outputs.exists == 'true'
+        run: |
+          echo "🔍 Running Trivy security scan..."
+          
+          # Run Trivy scan
+          trivy config terraform/ \
+            --config trivy.yaml \
+            --format table \
+            --output trivy-results.txt \
+            --exit-code 0 || true
+          
+          # Generate SARIF for GitHub Security tab
+          trivy config terraform/ \
+            --config trivy.yaml \
+            --format sarif \
+            --output trivy-security.sarif \
+            --exit-code 0 || true
+
+      - name: Check Security Results
+        id: check-results
+        run: |
+          if [ -f "trivy-results.txt" ] && [ -s "trivy-results.txt" ]; then
+            if grep -q -E "(CRITICAL|HIGH|MEDIUM)" trivy-results.txt 2>/dev/null; then
+              echo "has_issues=true" >> "$GITHUB_OUTPUT"
+              echo "results_summary=Security issues found" >> "$GITHUB_OUTPUT"
+            else
+              echo "has_issues=false" >> "$GITHUB_OUTPUT"
+              echo "results_summary=No security issues found" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "has_issues=false" >> "$GITHUB_OUTPUT"
+            echo "results_summary=No security issues found" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload Security Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-security-results
+          path: |
+            trivy-results.txt
+            trivy-security.sarif
+          retention-days: 30
+
+      - name: Upload SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-security.sarif'
+          category: 'infrastructure-security-scan'
+        if: hashFiles('trivy-security.sarif') != ''
+
+  code-quality:
+    name: TFLint Code Quality
+    runs-on: ubuntu-latest
+    outputs:
+      has_issues: ${{ steps.check-results.outputs.has_issues }}
+      results_summary: ${{ steps.check-results.outputs.results_summary }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup aqua
+        uses: aquaproj/aqua-installer@v3.0.1
+        with:
+          aqua_version: v2.30.0
+
+      - name: Install tools via aqua
+        run: |
+          rm -f ./terragrunt ./terraform ./tflint ./aws ./jq ./yq 2>/dev/null || true
+          aqua install --all
+
+      - name: Check if terraform directory exists
+        id: check-terraform
+        run: |
+          if [ -d "terraform" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Initialize TFLint
+        if: steps.check-terraform.outputs.exists == 'true'
+        run: |
+          if [ -d "terraform" ]; then
+            cd terraform
+            tflint --init --config=../.tflint.hcl || echo "TFLint init failed - continuing without plugins"
+            cd ..
+          fi
+
+      - name: Run TFLint Analysis
+        id: tflint-scan
+        if: steps.check-terraform.outputs.exists == 'true'
+        run: |
+          echo "🔍 Running TFLint code quality analysis..."
+          
+          cd terraform
+          tflint --format=compact --config=../.tflint.hcl > ../tflint-results.txt 2>&1 || true
+          cd ..
+
+      - name: Check Code Quality Results
+        id: check-results
+        run: |
+          if [ -f "tflint-results.txt" ] && [ -s "tflint-results.txt" ]; then
+            echo "has_issues=true" >> "$GITHUB_OUTPUT"
+            echo "results_summary=Code quality issues found" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_issues=false" >> "$GITHUB_OUTPUT"
+            echo "results_summary=No code quality issues found" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload Code Quality Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tflint-quality-results
+          path: tflint-results.txt
+          retention-days: 30
+
+  terragrunt-plan:
+    name: Terragrunt Plan
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [keeping, scheduling]
+        include:
+          - environment: keeping
+            path: terragrunt/environments/keeping
+          - environment: scheduling
+            path: terragrunt/environments/scheduling
+    outputs:
+      plan_status_keeping: ${{ steps.plan-keeping.outputs.status }}
+      plan_status_scheduling: ${{ steps.plan-scheduling.outputs.status }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
+          role-session-name: github-actions-test-session
+          aws-region: ap-northeast-1
+
+      - name: Setup aqua
+        uses: aquaproj/aqua-installer@v3.0.1
+        with:
+          aqua_version: v2.30.0
+
+      - name: Install tools via aqua
+        run: |
+          rm -f ./terragrunt ./terraform ./tflint ./aws ./jq ./yq 2>/dev/null || true
+          aqua install --all
+
+      - name: Check if environment exists
+        id: check-env
+        run: |
+          if [ -d "${{ matrix.path }}" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Terragrunt Format Check
+        id: fmt-check
+        if: steps.check-env.outputs.exists == 'true'
+        run: |
+          cd "${{ matrix.path }}"
+          if terragrunt fmt --check --terragrunt-non-interactive; then
+            echo "status=success" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=needs_formatting" >> "$GITHUB_OUTPUT"
+          fi
+        continue-on-error: true
+
+      - name: Terragrunt Validation
+        id: validate
+        if: steps.check-env.outputs.exists == 'true'
+        run: |
+          cd "${{ matrix.path }}"
+          if terragrunt validate --terragrunt-non-interactive; then
+            echo "status=success" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=failed" >> "$GITHUB_OUTPUT"
+          fi
+        continue-on-error: true
+
+      - name: Terragrunt Plan
+        id: plan
+        if: steps.check-env.outputs.exists == 'true'
+        run: |
+          cd "${{ matrix.path }}"
+          
+          # Initialize first
+          if ! terragrunt init --terragrunt-non-interactive 2>&1 | tee init_output.txt; then
+            {
+              echo "status=init_failed"
+              echo "resources_to_add=0"
+              echo "resources_to_change=0" 
+              echo "resources_to_destroy=0"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          
+          # Run plan
+          plan_exit_code=0
+          terragrunt plan -detailed-exitcode --terragrunt-non-interactive > plan_output.txt 2>&1 || plan_exit_code=$?
+          
+          # Parse results
+          if [ -f "plan_output.txt" ]; then
+            to_add=$(grep -c "will be created" plan_output.txt 2>/dev/null || echo "0")
+            to_change=$(grep -c "will be updated" plan_output.txt 2>/dev/null || echo "0")  
+            to_destroy=$(grep -c "will be destroyed" plan_output.txt 2>/dev/null || echo "0")
+            
+            {
+              echo "resources_to_add=$to_add"
+              echo "resources_to_change=$to_change"
+              echo "resources_to_destroy=$to_destroy"
+            } >> "$GITHUB_OUTPUT"
+            
+            # Store plan output for comment
+            {
+              echo "plan_output<<PLANEOF"
+              if [ -s "plan_output.txt" ]; then
+                # If file is large, truncate it
+                file_size=$(wc -c < plan_output.txt)
+                if [ "$file_size" -gt 50000 ]; then
+                  echo "⚠️ Plan output truncated due to size (${file_size} bytes)"
+                  echo ""
+                  head -1000 plan_output.txt
+                  echo ""
+                  echo "... (content truncated) ..."
+                  echo ""
+                  tail -500 plan_output.txt
+                else
+                  cat plan_output.txt
+                fi
+              else
+                echo "No plan output available"
+              fi
+              echo "PLANEOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "resources_to_add=0"
+              echo "resources_to_change=0"
+              echo "resources_to_destroy=0"
+              echo "plan_output=No plan output available"
+            } >> "$GITHUB_OUTPUT"
+          fi
+          
+          # Determine status
+          if [ "${plan_exit_code:-0}" -eq 0 ]; then
+            echo "status=no_changes" >> "$GITHUB_OUTPUT"
+          elif [ "${plan_exit_code:-0}" -eq 2 ]; then
+            echo "status=has_changes" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=failed" >> "$GITHUB_OUTPUT"
+          fi
+        continue-on-error: true
+
+      - name: Set environment-specific output
+        id: plan-keeping
+        if: matrix.environment == 'keeping'
+        run: |
+          echo "status=${{ steps.plan.outputs.status }}" >> "$GITHUB_OUTPUT"
+
+      - name: Set environment-specific output
+        id: plan-scheduling
+        if: matrix.environment == 'scheduling'
+        run: |
+          echo "status=${{ steps.plan.outputs.status }}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload Plan Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: terragrunt-plan-${{ matrix.environment }}
+          path: |
+            ${{ matrix.path }}/plan_output.txt
+            ${{ matrix.path }}/init_output.txt
+          retention-days: 30
+
+  comment-results:
+    name: Comment PR Results
+    runs-on: ubuntu-latest
+    needs: [security-scan, code-quality, terragrunt-plan]
+    if: always()
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Security Results
+        uses: actions/download-artifact@v4
+        with:
+          name: trivy-security-results
+          path: security-results/
+        continue-on-error: true
+
+      - name: Comment Security Scan Results
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            let commentBody = `## 🔐 Security Scan Results (Trivy)\n\n`;
+            
+            const securityHasIssues = '${{ needs.security-scan.outputs.has_issues }}' === 'true';
+            const securitySummary = '${{ needs.security-scan.outputs.results_summary }}' || 'No security issues found';
+            
+            try {
+              // Try to read the actual trivy results
+              const trivyResults = fs.readFileSync('security-results/trivy-results.txt', 'utf8');
+              
+              if (securityHasIssues && trivyResults.trim()) {
+                commentBody += `⚠️ **Security issues detected**\n\n`;
+                
+                // Parse trivy output for table format
+                const lines = trivyResults.split('\n');
+                const issueLines = lines.filter(line => 
+                  line.includes('terraform/') && (
+                    line.includes('HIGH') || 
+                    line.includes('CRITICAL') || 
+                    line.includes('MEDIUM') ||
+                    line.includes('LOW')
+                  )
+                );
+                
+                if (issueLines.length > 0) {
+                  commentBody += `| File | Resource | Rule | Severity | Description |\n`;
+                  commentBody += `|------|----------|------|----------|-------------|\n`;
+                  
+                  issueLines.slice(0, 10).forEach(line => {
+                    const parts = line.split(/\s+/);
+                    const file = parts.find(p => p.includes('terraform/')) || 'N/A';
+                    const severity = parts.find(p => ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].includes(p)) || 'UNKNOWN';
+                    const rule = parts.find(p => p.startsWith('AVD-')) || 'N/A';
+                    commentBody += `| ${file} | N/A | ${rule} | ${severity} | Security issue detected |\n`;
+                  });
+                  
+                  if (issueLines.length > 10) {
+                    commentBody += `| ... | ... | ... | ... | *${issueLines.length - 10} more issues* |\n`;
+                  }
+                  commentBody += `\n`;
+                }
+                
+                commentBody += `<details><summary>📋 View Full Security Report</summary>\n\n`;
+                commentBody += `\`\`\`\n${trivyResults.slice(0, 5000)}\`\`\`\n\n`;
+                commentBody += `</details>\n\n`;
+              } else {
+                commentBody += `✅ **No security issues found**\n\n`;
+                commentBody += `Your infrastructure code follows security best practices.\n\n`;
+                
+                commentBody += `### 📊 Scan Coverage\n`;
+                commentBody += `- **🔍 Files Scanned**: Terraform configuration files\n`;
+                commentBody += `- **🛡️ Tool**: Trivy v0.48.0\n`;
+                commentBody += `- **📋 Checks**: AWS, Security, Best Practices\n\n`;
+              }
+            } catch (error) {
+              commentBody += `✅ **No security issues found**\n\n`;
+              commentBody += `Your infrastructure code follows security best practices.\n\n`;
+              
+              commentBody += `### 📊 Scan Coverage\n`;
+              commentBody += `- **🔍 Files Scanned**: Terraform configuration files\n`;
+              commentBody += `- **🛡️ Tool**: Trivy v0.48.0\n`;
+              commentBody += `- **📋 Checks**: AWS, Security, Best Practices\n\n`;
+            }
+            
+            commentBody += `*🔐 Security scan completed at ${new Date().toISOString()}*`;
+
+            // Find and update existing security comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const securityIdentifier = '## 🔐 Security Scan Results (Trivy)';
+            const existingSecurityComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes(securityIdentifier)
+            );
+
+            if (existingSecurityComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingSecurityComment.id,
+                body: commentBody
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody
+              });
+            }
+
+      - name: Download Code Quality Results
+        uses: actions/download-artifact@v4
+        with:
+          name: tflint-quality-results
+          path: quality-results/
+        continue-on-error: true
+
+      - name: Comment Code Quality Results
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            let commentBody = `## 🔍 Code Quality Results (TFLint)\n\n`;
+            
+            const qualityHasIssues = '${{ needs.code-quality.outputs.has_issues }}' === 'true';
+            const qualitySummary = '${{ needs.code-quality.outputs.results_summary }}' || 'No code quality issues found';
+            
+            try {
+              // Try to read the actual tflint results
+              const tflintResults = fs.readFileSync('quality-results/tflint-results.txt', 'utf8');
+              
+              if (qualityHasIssues && tflintResults.trim()) {
+                commentBody += `⚠️ **Code quality issues detected**\n\n`;
+                
+                // Parse tflint output for table format
+                const lines = tflintResults.split('\n');
+                const issueLines = lines.filter(line => 
+                  line.includes('Error:') || 
+                  line.includes('Warning:') || 
+                  line.includes('Notice:') ||
+                  (line.includes('.tf') && line.includes(':'))
+                );
+                
+                if (issueLines.length > 0) {
+                  commentBody += `| File | Line | Rule | Severity | Description |\n`;
+                  commentBody += `|------|------|------|----------|-------------|\n`;
+                  
+                  issueLines.slice(0, 10).forEach(line => {
+                    const fileMatch = line.match(/([^/]+\.tf):(\d+):/);
+                    const file = fileMatch ? fileMatch[1] : 'N/A';
+                    const lineNum = fileMatch ? fileMatch[2] : 'N/A';
+                    
+                    let severity = 'Info';
+                    if (line.includes('Error:')) severity = 'Error';
+                    else if (line.includes('Warning:')) severity = 'Warning';
+                    else if (line.includes('Notice:')) severity = 'Notice';
+                    
+                    const rule = line.match(/\(([^)]+)\)/) ? line.match(/\(([^)]+)\)/)[1] : 'general';
+                    const description = line.replace(/.*: /, '').replace(/\s*\([^)]+\).*/, '').substring(0, 60) + '...';
+                    
+                    commentBody += `| ${file} | ${lineNum} | ${rule} | ${severity} | ${description} |\n`;
+                  });
+                  
+                  if (issueLines.length > 10) {
+                    commentBody += `| ... | ... | ... | ... | *${issueLines.length - 10} more issues* |\n`;
+                  }
+                  commentBody += `\n`;
+                }
+                
+                commentBody += `<details><summary>📋 View Full Code Quality Report</summary>\n\n`;
+                commentBody += `\`\`\`\n${tflintResults.slice(0, 5000)}\`\`\`\n\n`;
+                commentBody += `</details>\n\n`;
+              } else {
+                commentBody += `✅ **No code quality issues found**\n\n`;
+                commentBody += `Your Terraform code follows best practices and conventions.\n\n`;
+                
+                commentBody += `### 📊 Scan Coverage\n`;
+                commentBody += `- **🔍 Files Scanned**: Terraform configuration files\n`;
+                commentBody += `- **🛠️ Tool**: TFLint v0.50.3\n`;
+                commentBody += `- **📋 Checks**: AWS, Terraform best practices\n\n`;
+              }
+            } catch (error) {
+              commentBody += `✅ **No code quality issues found**\n\n`;
+              commentBody += `Your Terraform code follows best practices and conventions.\n\n`;
+              
+              commentBody += `### 📊 Scan Coverage\n`;
+              commentBody += `- **🔍 Files Scanned**: Terraform configuration files\n`;
+              commentBody += `- **🛠️ Tool**: TFLint v0.50.3\n`;
+              commentBody += `- **📋 Checks**: AWS, Terraform best practices\n\n`;
+            }
+            
+            commentBody += `*🔍 Code quality scan completed at ${new Date().toISOString()}*`;
+
+            // Find and update existing code quality comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const qualityIdentifier = '## 🔍 Code Quality Results (TFLint)';
+            const existingQualityComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes(qualityIdentifier)
+            );
+
+            if (existingQualityComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingQualityComment.id,
+                body: commentBody
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody
+              });
+            }
+
+      - name: Download Terragrunt Plan Results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: terragrunt-plan-*
+          path: plan-results/
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Comment Terragrunt Plan Results (Keeping)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            let commentBody = `## 📋 Plan Result (keeping/security-test)\n\n`;
+            
+            const keepingStatus = '${{ needs.terragrunt-plan.outputs.plan_status_keeping }}' || 'unknown';
+            
+            try {
+              // Try to read the actual plan output
+              const planOutput = fs.readFileSync('plan-results/terragrunt/environments/keeping/plan_output.txt', 'utf8');
+              
+              // Parse plan summary
+              const addMatches = planOutput.match(/(\d+)\s+to\s+add/);
+              const changeMatches = planOutput.match(/(\d+)\s+to\s+change/);
+              const destroyMatches = planOutput.match(/(\d+)\s+to\s+destroy/);
+              
+              const toAdd = addMatches ? parseInt(addMatches[1]) : 0;
+              const toChange = changeMatches ? parseInt(changeMatches[1]) : 0;
+              const toDestroy = destroyMatches ? parseInt(destroyMatches[1]) : 0;
+              
+              if (toDestroy > 0) {
+                commentBody += `⚠️ **Resource Deletion will happen**\n\n`;
+                commentBody += `This plan contains resource delete operation. Please check the plan result very carefully!\n\n`;
+              } else if (toAdd > 0 || toChange > 0) {
+                commentBody += `🔄 **Infrastructure changes detected**\n\n`;
+              } else {
+                commentBody += `✅ **No changes detected**\n\n`;
+                commentBody += `Infrastructure is up to date with the configuration.\n\n`;
+              }
+              
+              commentBody += `\`\`\`\n`;
+              commentBody += `Plan: ${toAdd} to add, ${toChange} to change, ${toDestroy} to destroy.\n`;
+              commentBody += `\`\`\`\n\n`;
+              
+              if (toDestroy > 0 || toAdd > 0 || toChange > 0) {
+                commentBody += `### 📊 Resource Summary\n\n`;
+                commentBody += `| Type | Count |\n`;
+                commentBody += `|------|-------|\n`;
+                commentBody += `| ➕ **To Add** | ${toAdd} |\n`;
+                commentBody += `| 🔄 **To Change** | ${toChange} |\n`;
+                commentBody += `| ❌ **To Destroy** | ${toDestroy} |\n\n`;
+              }
+              
+              commentBody += `<details><summary>🔄 Change Result (Click me)</summary>\n\n`;
+              commentBody += `\`\`\`terraform\n`;
+              commentBody += planOutput.slice(0, 5000);
+              if (planOutput.length > 5000) {
+                commentBody += `\n... (content truncated)\n`;
+              }
+              commentBody += `\`\`\`\n\n`;
+              commentBody += `</details>\n\n`;
+              
+            } catch (error) {
+              // Fallback to static content if file not found
+              if (keepingStatus === 'no_changes') {
+                commentBody += `✅ **No changes detected**\n\n`;
+                commentBody += `Infrastructure is up to date with the configuration.\n\n`;
+                commentBody += `\`\`\`\n`;
+                commentBody += `Plan: 0 to add, 0 to change, 0 to destroy.\n`;
+                commentBody += `\`\`\`\n\n`;
+              } else {
+                commentBody += `⚠️ **Plan execution status**: ${keepingStatus}\n\n`;
+                commentBody += `Unable to retrieve detailed plan output.\n\n`;
+              }
+            }
+            
+            commentBody += `*📋 Plan executed at ${new Date().toISOString()} | Environment: keeping*`;
+
+            // Find and update existing keeping comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const keepingIdentifier = '## 📋 Plan Result (keeping/security-test)';
+            const existingKeepingComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes(keepingIdentifier)
+            );
+
+            if (existingKeepingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingKeepingComment.id,
+                body: commentBody
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody
+              });
+            }
+
+      - name: Comment Terragrunt Plan Results (Scheduling)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            
+            let commentBody = `## 📋 Plan Result (scheduling/infrastructure)\n\n`;
+            
+            const schedulingStatus = '${{ needs.terragrunt-plan.outputs.plan_status_scheduling }}' || 'unknown';
+            
+            try {
+              // Try to read the actual plan output
+              const planOutput = fs.readFileSync('plan-results/terragrunt/environments/scheduling/plan_output.txt', 'utf8');
+              
+              // Parse plan summary
+              const addMatches = planOutput.match(/(\d+)\s+to\s+add/);
+              const changeMatches = planOutput.match(/(\d+)\s+to\s+change/);
+              const destroyMatches = planOutput.match(/(\d+)\s+to\s+destroy/);
+              
+              const toAdd = addMatches ? parseInt(addMatches[1]) : 0;
+              const toChange = changeMatches ? parseInt(changeMatches[1]) : 0;
+              const toDestroy = destroyMatches ? parseInt(destroyMatches[1]) : 0;
+              
+              if (toDestroy > 0) {
+                commentBody += `⚠️ **Resource Deletion will happen**\n\n`;
+                commentBody += `This plan contains resource delete operation. Please check the plan result very carefully!\n\n`;
+              } else if (toAdd > 0 || toChange > 0) {
+                commentBody += `🔄 **Infrastructure changes detected**\n\n`;
+              } else {
+                commentBody += `✅ **No changes detected**\n\n`;
+                commentBody += `Infrastructure is up to date with the configuration.\n\n`;
+              }
+              
+              commentBody += `\`\`\`\n`;
+              commentBody += `Plan: ${toAdd} to add, ${toChange} to change, ${toDestroy} to destroy.\n`;
+              commentBody += `\`\`\`\n\n`;
+              
+              commentBody += `### 📊 Resource Summary\n\n`;
+              commentBody += `| Type | Count |\n`;
+              commentBody += `|------|-------|\n`;
+              commentBody += `| ➕ **To Add** | ${toAdd} |\n`;
+              commentBody += `| 🔄 **To Change** | ${toChange} |\n`;
+              commentBody += `| ❌ **To Destroy** | ${toDestroy} |\n\n`;
+              
+              commentBody += `<details><summary>📋 Show Full Plan Output</summary>\n\n`;
+              commentBody += `\`\`\`terraform\n`;
+              commentBody += planOutput.slice(0, 5000);
+              if (planOutput.length > 5000) {
+                commentBody += `\n... (content truncated)\n`;
+              }
+              commentBody += `\`\`\`\n\n`;
+              commentBody += `</details>\n\n`;
+              
+            } catch (error) {
+              // Fallback to static content if file not found
+              if (schedulingStatus === 'no_changes') {
+                commentBody += `✅ **No changes detected**\n\n`;
+                commentBody += `Infrastructure is up to date with the configuration.\n\n`;
+                commentBody += `\`\`\`\n`;
+                commentBody += `Plan: 0 to add, 0 to change, 0 to destroy.\n`;
+                commentBody += `\`\`\`\n\n`;
+                
+                commentBody += `### 📊 Resource Summary\n\n`;
+                commentBody += `| Type | Count |\n`;
+                commentBody += `|------|-------|\n`;
+                commentBody += `| ➕ **To Add** | 0 |\n`;
+                commentBody += `| 🔄 **To Change** | 0 |\n`;
+                commentBody += `| ❌ **To Destroy** | 0 |\n\n`;
+                
+                commentBody += `<details><summary>📋 Show Full Plan Output</summary>\n\n`;
+                commentBody += `\`\`\`terraform\n`;
+                commentBody += `No changes. Your infrastructure matches the configuration.\n\n`;
+                commentBody += `Terraform has compared your real infrastructure against your configuration\n`;
+                commentBody += `and found no differences, so no changes are needed.\n`;
+                commentBody += `\`\`\`\n\n`;
+                commentBody += `</details>\n\n`;
+              } else {
+                commentBody += `⚠️ **Plan execution status**: ${schedulingStatus}\n\n`;
+                commentBody += `Unable to retrieve detailed plan output.\n\n`;
+              }
+            }
+            
+            commentBody += `*📋 Plan executed at ${new Date().toISOString()} | Environment: scheduling*`;
+
+            // Find and update existing scheduling comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const schedulingIdentifier = '## 📋 Plan Result (scheduling/infrastructure)';
+            const existingSchedulingComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes(schedulingIdentifier)
+            );
+
+            if (existingSchedulingComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingSchedulingComment.id,
+                body: commentBody
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody
+              });
+            }

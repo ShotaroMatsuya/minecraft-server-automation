@@ -28,12 +28,57 @@ function createTerragruntPlanComment(inputs) {
   
   let commentBody = `${titles[environment] || `## 📋 Plan Result (${environment})`}\n\n`;
   
+  // Helper function to check if log contains actual errors (not just info/success messages)
+  function hasActualErrors(logContent) {
+    if (!logContent || logContent.trim() === '') return false;
+    
+    // Common success patterns that should not be treated as errors
+    const successPatterns = [
+      /Success! The configuration is valid/,
+      /Terraform has been successfully initialized/,
+      /You may now begin working with Terraform/,
+      /Initializing the backend/,
+      /Initializing modules/,
+      /Initializing provider plugins/,
+      /Using previously-installed/,
+      /Downloading/,
+      /Installed/
+    ];
+    
+    // Check if content is mainly success/info messages
+    const lines = logContent.split('\n').filter(line => line.trim());
+    const errorLines = lines.filter(line => {
+      return !successPatterns.some(pattern => pattern.test(line));
+    });
+    
+    // If most lines are success/info, and content is short, likely not an error
+    if (errorLines.length < lines.length * 0.3 && logContent.length < 1000) {
+      return false;
+    }
+    
+    // Look for actual error indicators
+    const errorIndicators = [
+      /error/i,
+      /failed/i,
+      /cannot/i,
+      /unable to/i,
+      /invalid/i,
+      /not found/i,
+      /denied/i,
+      /timeout/i,
+      /exception/i,
+      /runtime error/i
+    ];
+    
+    return errorIndicators.some(pattern => pattern.test(logContent));
+  }
+
   // Check if any step failed and show detailed error information
-  const hasFormatError = formatErrorLog && formatErrorLog.trim() !== '';
-  const hasValidateError = validateErrorLog && validateErrorLog.trim() !== '';
-  const hasInitError = status === 'init_failed' || (initErrorLog && initErrorLog.trim() !== '');
-  // Plan error check: exit code 1 usually means plan failed, or if we have substantial error content
-  const hasPlanError = status === 'failed' || (planErrorLog && planErrorLog.trim() !== '' && planErrorLog.length > 100);
+  const hasFormatError = hasActualErrors(formatErrorLog);
+  const hasValidateError = hasActualErrors(validateErrorLog);
+  const hasInitError = status === 'init_failed' || hasActualErrors(initErrorLog);
+  // Plan error check: status failed, or substantial error content that looks like actual errors
+  const hasPlanError = status === 'failed' || hasActualErrors(planErrorLog);
   
   // Show step-by-step status
   commentBody += `### 🔄 Execution Steps\n\n`;
@@ -139,8 +184,8 @@ function createTerragruntPlanComment(inputs) {
     // Try to read the actual plan output
     const planOutput = fs.readFileSync(planFilePath, 'utf8');
     
-    // If plan output is empty but we have error logs, treat as error
-    if (planOutput.trim() === '' && planErrorLog && planErrorLog.trim() !== '') {
+    // If plan output is empty but we have actual error logs, treat as error
+    if (planOutput.trim() === '' && hasActualErrors(planErrorLog)) {
       commentBody += `### 🚨 Plan Execution Error\n\n`;
       commentBody += `Plan execution failed with no output generated.\n\n`;
       commentBody += `<details><summary>📋 View Plan Error Log (Click to expand)</summary>\n\n`;
