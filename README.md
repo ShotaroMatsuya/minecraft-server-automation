@@ -8,6 +8,7 @@
 
 <!-- Test: Verify label-based environment targeting works with string outputs -->
 <!-- Test case: target:keeping label should trigger apply workflow -->
+<!-- Final verification: Hotfix PR #329 apply workflow fixes -->
 
 Cost-optimized Minecraft server infrastructure using **Terragrunt** for multi-environment management and automated CI/CD.
 
