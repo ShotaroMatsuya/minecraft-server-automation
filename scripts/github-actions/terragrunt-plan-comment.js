@@ -7,6 +7,61 @@ const fs = require('fs');
 const path = require('path');
 
 /**
+ * Remove ANSI escape sequences and control characters from text
+ * @param {string} text - Text containing ANSI codes
+ * @returns {string} Clean text without ANSI codes
+ */
+function stripAnsiCodes(text) {
+  if (!text || typeof text !== 'string') return text;
+  
+  // Remove ANSI escape sequences
+  // This regex matches:
+  // \x1b[ or \u001b[ (ESC[) followed by any combination of digits, semicolons, and letters
+  // \x1b] or \u001b] (ESC]) followed by any characters until \x07 or \x1b\
+  const ansiRegex = /\x1b\[[0-9;]*[a-zA-Z]|\x1b\].*?(?:\x07|\x1b\\)|\x1b[=>]|\x1b[()][AB012]|\x1b[PMX].*?\x1b\\/g;
+  
+  let cleaned = text.replace(ansiRegex, '');
+  
+  // Remove other control characters but preserve newlines and tabs
+  cleaned = cleaned.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
+  
+  // Clean up excessive whitespace while preserving structure
+  cleaned = cleaned
+    .replace(/\r\n/g, '\n')  // Normalize line endings
+    .replace(/\r/g, '\n')    // Convert remaining \r to \n
+    .replace(/[ \t]+$/gm, '') // Remove trailing whitespace on each line
+    .replace(/\n{3,}/g, '\n\n'); // Reduce multiple consecutive newlines to max 2
+  
+  return cleaned;
+}
+
+/**
+ * Format Terraform/Terragrunt output for better readability
+ * @param {string} content - Raw terraform output
+ * @returns {string} Formatted output
+ */
+function formatTerraformOutput(content) {
+  if (!content) return content;
+  
+  // First strip ANSI codes
+  let formatted = stripAnsiCodes(content);
+  
+  // Remove Terragrunt timestamp and logging prefixes for cleaner output
+  formatted = formatted.replace(/^\d{2}:\d{2}:\d{2}\.\d{3}\s+STDOUT\s+terraform:\s*/gm, '');
+  formatted = formatted.replace(/^\d{2}:\d{2}:\d{2}\.\d{3}\s+ERROR\s+terraform:\s*/gm, 'ERROR: ');
+  formatted = formatted.replace(/^\d{2}:\d{2}:\d{2}\.\d{3}\s+ERROR\s+/gm, 'ERROR: ');
+  
+  // Clean up terraform prefixes
+  formatted = formatted.replace(/^terraform:\s*/gm, '');
+  
+  // Remove excessive whitespace while preserving structure
+  formatted = formatted.replace(/^\s*$/gm, ''); // Remove empty lines with only whitespace
+  formatted = formatted.replace(/\n{3,}/g, '\n\n'); // Reduce multiple newlines
+  
+  return formatted.trim();
+}
+
+/**
  * Creates a Terragrunt plan results comment
  * @param {Object} inputs - Input parameters from GitHub Actions
  * @param {string} inputs.environment - Environment name (keeping/scheduling)
@@ -36,12 +91,13 @@ function createTerragruntPlanComment(inputs) {
   
   // Helper function to read file content from path
   function readFileFromPath(filePath, fallbackContent = '') {
-    if (fallbackContent) return fallbackContent; // Use legacy content if provided
+    if (fallbackContent) return stripAnsiCodes(fallbackContent); // Use legacy content if provided
     
     if (!filePath) return '';
     
     try {
-      return fs.readFileSync(filePath, 'utf8');
+      const content = fs.readFileSync(filePath, 'utf8');
+      return stripAnsiCodes(content);
     } catch (error) {
       console.log(`DEBUG: Failed to read ${filePath}: ${error.message}`);
       return '';
@@ -93,19 +149,17 @@ function createTerragruntPlanComment(inputs) {
     
     console.log('DEBUG: Trying plan paths:', possiblePlanPaths);
     
-    for (const planPath of possiblePlanPaths) {
-      if (planPath && planPath !== 'undefined') {
-        try {
-          planErrorLog = fs.readFileSync(planPath, 'utf8');
-          console.log(`DEBUG: Successfully read plan from ${planPath}, size: ${planErrorLog.length} bytes`);
-          break;
-        } catch (error) {
-          console.log(`DEBUG: Failed to read plan from ${planPath}: ${error.message}`);
+      for (const planPath of possiblePlanPaths) {
+        if (planPath && planPath !== 'undefined') {
+          try {
+            planErrorLog = stripAnsiCodes(fs.readFileSync(planPath, 'utf8'));
+            console.log(`DEBUG: Successfully read plan from ${planPath}, size: ${planErrorLog.length} bytes`);
+            break;
+          } catch (error) {
+            console.log(`DEBUG: Failed to read plan from ${planPath}: ${error.message}`);
+          }
         }
-      }
-    }
-    
-    // If no plan_output.txt found, try plan_errors.txt
+      }    // If no plan_output.txt found, try plan_errors.txt
     if (!planErrorLog || planErrorLog.trim() === '') {
       const possibleErrorPaths = [
         `${inputs.artifactBasePath}/terragrunt-plan-${environment}/plan_errors.txt`,
@@ -117,7 +171,7 @@ function createTerragruntPlanComment(inputs) {
       
       for (const errorPath of possibleErrorPaths) {
         try {
-          planErrorLog = fs.readFileSync(errorPath, 'utf8');
+          planErrorLog = stripAnsiCodes(fs.readFileSync(errorPath, 'utf8'));
           console.log(`DEBUG: Successfully read errors from ${errorPath}, size: ${planErrorLog.length} bytes`);
           break;
         } catch (error) {
@@ -226,7 +280,7 @@ function createTerragruntPlanComment(inputs) {
   // Based on terraform plan -detailed-exitcode: 0=no changes, 1=error, 2=changes
   let planContentForCheck = '';
   try {
-    planContentForCheck = fs.readFileSync(planFilePath, 'utf8');
+    planContentForCheck = stripAnsiCodes(fs.readFileSync(planFilePath, 'utf8'));
     console.log(`DEBUG: Successfully read planFilePath: ${planFilePath}, size: ${planContentForCheck.length} bytes`);
   } catch (error) {
     console.log(`DEBUG: Failed to read planFilePath: ${planFilePath}, error: ${error.message}`);
@@ -294,7 +348,7 @@ function createTerragruntPlanComment(inputs) {
       commentBody += `#### 🎨 Format Check Errors\n`;
       commentBody += `Code formatting issues were detected.\n\n`;
       commentBody += `<details><summary>📋 View Format Error Log (Click to expand)</summary>\n\n`;
-      commentBody += `\`\`\`\n${formatErrorLog.slice(0, 2000)}\`\`\`\n\n`;
+      commentBody += `\`\`\`\n${formatTerraformOutput(formatErrorLog).slice(0, 2000)}\`\`\`\n\n`;
       commentBody += `</details>\n\n`;
     }
     
@@ -302,7 +356,7 @@ function createTerragruntPlanComment(inputs) {
       commentBody += `#### ✅ Validation Errors\n`;
       commentBody += `Configuration validation failed.\n\n`;
       commentBody += `<details><summary>📋 View Validation Error Log (Click to expand)</summary>\n\n`;
-      commentBody += `\`\`\`\n${validateErrorLog.slice(0, 2000)}\`\`\`\n\n`;
+      commentBody += `\`\`\`\n${formatTerraformOutput(validateErrorLog).slice(0, 2000)}\`\`\`\n\n`;
       commentBody += `</details>\n\n`;
     }
     
@@ -310,7 +364,7 @@ function createTerragruntPlanComment(inputs) {
       commentBody += `#### 🚀 Initialization Errors\n`;
       commentBody += `Terragrunt initialization failed. Unable to initialize the working directory.\n\n`;
       commentBody += `<details><summary>📋 View Init Error Log (Click to expand)</summary>\n\n`;
-      commentBody += `\`\`\`\n${initErrorLog.slice(0, 3000)}\`\`\`\n\n`;
+      commentBody += `\`\`\`\n${formatTerraformOutput(initErrorLog).slice(0, 3000)}\`\`\`\n\n`;
       commentBody += `</details>\n\n`;
     }
     
@@ -338,7 +392,7 @@ function createTerragruntPlanComment(inputs) {
       }
       
       commentBody += `<details><summary>📋 View Plan Error Log (Click to expand)</summary>\n\n`;
-      commentBody += `\`\`\`\n${(planContentForCheck || planErrorLog).slice(0, 5000)}${(planContentForCheck || planErrorLog).length > 5000 ? '\n... (truncated)' : ''}\`\`\`\n\n`;
+      commentBody += `\`\`\`\n${formatTerraformOutput(planContentForCheck || planErrorLog).slice(0, 5000)}${(planContentForCheck || planErrorLog).length > 5000 ? '\n... (truncated)' : ''}\`\`\`\n\n`;
       commentBody += `</details>\n\n`;
     }
     
@@ -409,7 +463,7 @@ function createTerragruntPlanComment(inputs) {
     // Try to read the actual plan output
     let planOutput = '';
     try {
-      planOutput = fs.readFileSync(planFilePath, 'utf8');
+      planOutput = stripAnsiCodes(fs.readFileSync(planFilePath, 'utf8'));
       console.log(`DEBUG: Successfully read planOutput from ${planFilePath}, size: ${planOutput.length} bytes`);
       if (planOutput.length > 0) {
         console.log(`DEBUG: Plan output preview: ${planOutput.substring(0, 200)}...`);
@@ -439,7 +493,7 @@ function createTerragruntPlanComment(inputs) {
       commentBody += `### 🚨 Plan Execution Error\n\n`;
       commentBody += `Plan execution failed with no output generated.\n\n`;
       commentBody += `<details><summary>📋 View Plan Error Log (Click to expand)</summary>\n\n`;
-      commentBody += `\`\`\`\n${planErrorLog.slice(0, 5000)}${planErrorLog.length > 5000 ? '\n... (truncated)' : ''}\`\`\`\n\n`;
+      commentBody += `\`\`\`\n${formatTerraformOutput(planErrorLog).slice(0, 5000)}${planErrorLog.length > 5000 ? '\n... (truncated)' : ''}\`\`\`\n\n`;
       commentBody += `</details>\n\n`;
       
       commentBody += `### 🔧 Troubleshooting\n`;
@@ -517,13 +571,15 @@ function createTerragruntPlanComment(inputs) {
     
     commentBody += `<details><summary>${summaryTitle}</summary>\n\n`;
     commentBody += `\`\`\`terraform\n`;
+    // Format the output to remove ANSI codes and clean up presentation
+    const formattedPlanOutput = formatTerraformOutput(planOutput);
     // Truncate very long outputs
-    if (planOutput.length > 8000) {
-      commentBody += planOutput.slice(0, 4000);
+    if (formattedPlanOutput.length > 8000) {
+      commentBody += formattedPlanOutput.slice(0, 4000);
       commentBody += `\n\n... (content truncated due to length) ...\n\n`;
-      commentBody += planOutput.slice(-3000);
+      commentBody += formattedPlanOutput.slice(-3000);
     } else {
-      commentBody += planOutput;
+      commentBody += formattedPlanOutput;
     }
     commentBody += `\`\`\`\n\n`;
     commentBody += `</details>\n\n`;
@@ -561,7 +617,7 @@ function createTerragruntPlanComment(inputs) {
       if (planErrorLog && planErrorLog.trim() !== '') {
         commentBody += `### 🚨 Plan Error Details\n\n`;
         commentBody += `<details><summary>📋 View Plan Error Log (Click to expand)</summary>\n\n`;
-        commentBody += `\`\`\`\n${planErrorLog.slice(0, 3000)}\`\`\`\n\n`;
+        commentBody += `\`\`\`\n${formatTerraformOutput(planErrorLog).slice(0, 3000)}\`\`\`\n\n`;
         commentBody += `</details>\n\n`;
         
         // Add CI/CD links section for fallback errors
