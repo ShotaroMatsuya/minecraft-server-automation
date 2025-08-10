@@ -145,7 +145,7 @@ async function updateCodeQualityComment(github, context, commentBody) {
     issue_number: context.issue.number,
   });
 
-  const qualityIdentifier = '## 🔍 Code Quality Results (TFLint)';
+  const qualityIdentifier = '## ✨ Code Quality Results (TFLint)';
   const existingQualityComment = comments.find(comment => 
     comment.user.type === 'Bot' && 
     comment.body.includes(qualityIdentifier)
