@@ -64,7 +64,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup aqua
-        uses: aquaproj/aqua-installer@v3.0.1
+        uses: aquaproj/aqua-installer@v3.1.2
         with:
           aqua_version: v2.30.0
 
@@ -168,7 +168,7 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha }}
 
       - name: Setup aqua
-        uses: aquaproj/aqua-installer@v3.0.1
+        uses: aquaproj/aqua-installer@v3.1.2
         with:
           aqua_version: v2.30.0
 
@@ -300,7 +300,7 @@ jobs:
 
       - name: Setup aqua
         if: steps.should-run.outputs.should_run == 'true'
-        uses: aquaproj/aqua-installer@v3.0.1
+        uses: aquaproj/aqua-installer@v3.1.2
         with:
           aqua_version: v2.30.0
 
