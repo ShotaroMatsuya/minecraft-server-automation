@@ -103,12 +103,13 @@ function createSecurityComment(inputs) {
       if (inputs.hasIssues && totalFindings > 0) {
         commentBody += `⚠️ **Security issues detected**\n\n`;
         
-        // Add severity count summary
+        // Add severity count summary in code block
         commentBody += `**Findings by Severity:**\n`;
-        commentBody += `UNKNOWN: ${severityCounts.UNKNOWN}, LOW: ${severityCounts.LOW}, MEDIUM: ${severityCounts.MEDIUM}, HIGH: ${severityCounts.HIGH}, CRITICAL: ${severityCounts.CRITICAL}\n\n`;
-        
-        // Add table with findings
         commentBody += `\`\`\`\n`;
+        commentBody += `UNKNOWN: ${severityCounts.UNKNOWN}, LOW: ${severityCounts.LOW}, MEDIUM: ${severityCounts.MEDIUM}, HIGH: ${severityCounts.HIGH}, CRITICAL: ${severityCounts.CRITICAL}\n`;
+        commentBody += `\`\`\`\n\n`;
+        
+        // Add table with findings as proper Markdown table
         commentBody += `| Severity | Location | Error Title | ID |\n`;
         commentBody += `|----------|----------|-------------|----|\n`;
         
@@ -121,11 +122,18 @@ function createSecurityComment(inputs) {
         if (findings.length > 20) {
           commentBody += `| ... | ... | ... | *${findings.length - 20} more findings* |\n`;
         }
-        commentBody += `\`\`\`\n\n`;
+        commentBody += `\n`;
+        
+        // Add collapsible section for detailed JSON results
+        commentBody += `<details><summary>📋 View Full Security Report (Click to expand)</summary>\n\n`;
+        commentBody += `\`\`\`json\n${JSON.stringify(trivyData, null, 2).slice(0, 5000)}\`\`\`\n\n`;
+        commentBody += `</details>\n\n`;
       } else {
         commentBody += `✅ **No security issues found**\n\n`;
         commentBody += `**Findings by Severity:**\n`;
-        commentBody += `UNKNOWN: 0, LOW: 0, MEDIUM: 0, HIGH: 0, CRITICAL: 0\n\n`;
+        commentBody += `\`\`\`\n`;
+        commentBody += `UNKNOWN: 0, LOW: 0, MEDIUM: 0, HIGH: 0, CRITICAL: 0\n`;
+        commentBody += `\`\`\`\n\n`;
         commentBody += `Your infrastructure code follows security best practices.\n\n`;
       }
     } else {
@@ -146,8 +154,24 @@ function createSecurityComment(inputs) {
           )
         );
         
+        // Count severities for summary
+        const severityCounts = { UNKNOWN: 0, LOW: 0, MEDIUM: 0, HIGH: 0, CRITICAL: 0 };
+        issueLines.forEach(line => {
+          if (line.includes('CRITICAL')) severityCounts.CRITICAL++;
+          else if (line.includes('HIGH')) severityCounts.HIGH++;
+          else if (line.includes('MEDIUM')) severityCounts.MEDIUM++;
+          else if (line.includes('LOW')) severityCounts.LOW++;
+          else severityCounts.UNKNOWN++;
+        });
+        
+        // Add severity count summary in code block
+        commentBody += `**Findings by Severity:**\n`;
+        commentBody += `\`\`\`\n`;
+        commentBody += `UNKNOWN: ${severityCounts.UNKNOWN}, LOW: ${severityCounts.LOW}, MEDIUM: ${severityCounts.MEDIUM}, HIGH: ${severityCounts.HIGH}, CRITICAL: ${severityCounts.CRITICAL}\n`;
+        commentBody += `\`\`\`\n\n`;
+        
         if (issueLines.length > 0) {
-          commentBody += `\`\`\`\n`;
+          // Add table as proper Markdown table
           commentBody += `| Severity | Location | Error Title | ID |\n`;
           commentBody += `|----------|----------|-------------|----|\n`;
           
@@ -162,14 +186,18 @@ function createSecurityComment(inputs) {
           if (issueLines.length > 10) {
             commentBody += `| ... | ... | ... | *${issueLines.length - 10} more issues* |\n`;
           }
-          commentBody += `\`\`\`\n\n`;
+          commentBody += `\n`;
         }
         
-        commentBody += `<details><summary>📋 View Full Security Report</summary>\n\n`;
+        commentBody += `<details><summary>📋 View Full Security Report (Click to expand)</summary>\n\n`;
         commentBody += `\`\`\`\n${trivyResults.slice(0, 5000)}\`\`\`\n\n`;
         commentBody += `</details>\n\n`;
       } else {
         commentBody += `✅ **No security issues found**\n\n`;
+        commentBody += `**Findings by Severity:**\n`;
+        commentBody += `\`\`\`\n`;
+        commentBody += `UNKNOWN: 0, LOW: 0, MEDIUM: 0, HIGH: 0, CRITICAL: 0\n`;
+        commentBody += `\`\`\`\n\n`;
         commentBody += `Your infrastructure code follows security best practices.\n\n`;
       }
     }

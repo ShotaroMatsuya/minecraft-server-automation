@@ -72,6 +72,21 @@ function createCodeQualityComment(inputs) {
         (line.includes('.tf') && line.includes(':'))
       );
       
+      // Count issues by severity for summary
+      const severityCounts = { Error: 0, Warning: 0, Notice: 0, Info: 0 };
+      issueLines.forEach(line => {
+        if (line.includes('Error:')) severityCounts.Error++;
+        else if (line.includes('Warning:')) severityCounts.Warning++;
+        else if (line.includes('Notice:')) severityCounts.Notice++;
+        else severityCounts.Info++;
+      });
+      
+      // Add severity count summary in code block
+      commentBody += `**Issues by Severity:**\n`;
+      commentBody += `\`\`\`\n`;
+      commentBody += `Error: ${severityCounts.Error}, Warning: ${severityCounts.Warning}, Notice: ${severityCounts.Notice}, Info: ${severityCounts.Info}\n`;
+      commentBody += `\`\`\`\n\n`;
+      
       if (issueLines.length > 0) {
         commentBody += `| File | Line | Rule | Severity | Description |\n`;
         commentBody += `|------|------|------|----------|-------------|\n`;
@@ -98,11 +113,15 @@ function createCodeQualityComment(inputs) {
         commentBody += `\n`;
       }
       
-      commentBody += `<details><summary>📋 View Full Code Quality Report</summary>\n\n`;
+      commentBody += `<details><summary>📋 View Full Code Quality Report (Click to expand)</summary>\n\n`;
       commentBody += `\`\`\`\n${tflintResults.slice(0, 5000)}\`\`\`\n\n`;
       commentBody += `</details>\n\n`;
     } else {
       commentBody += `✅ **No code quality issues found**\n\n`;
+      commentBody += `**Issues by Severity:**\n`;
+      commentBody += `\`\`\`\n`;
+      commentBody += `Error: 0, Warning: 0, Notice: 0, Info: 0\n`;
+      commentBody += `\`\`\`\n\n`;
       commentBody += `Your Terraform code follows best practices and conventions.\n\n`;
       
       commentBody += `### 📊 Scan Coverage\n`;
