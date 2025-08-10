@@ -510,6 +510,15 @@ jobs:
           merge-multiple: true
         continue-on-error: true
 
+      - name: Debug Downloaded Artifacts
+        run: |
+          echo "=== Debug: Downloaded artifact structure ==="
+          find plan-results/ -type f -name "*.txt" -exec ls -la {} \;
+          echo "=== Debug: Full directory tree ==="
+          find plan-results/ -type f | head -20
+          echo "=== Debug: Looking for plan_output.txt files ==="
+          find plan-results/ -name "plan_output.txt" -exec ls -la {} \;
+
       - name: Comment Terragrunt Plan Results (Keeping)
         uses: actions/github-script@v7
         with:
@@ -524,48 +533,147 @@ jobs:
               plan_status_scheduling: '${{ needs.terragrunt-plan.outputs.plan_status_scheduling }}'
             }));
             
+            // Debug: Search for plan files in different possible locations
+            const fs = require('fs');
+            const path = require('path');
+            
+            function findPlanFiles(dir) {
+              const files = [];
+              try {
+                const items = fs.readdirSync(dir, { withFileTypes: true });
+                for (const item of items) {
+                  const fullPath = path.join(dir, item.name);
+                  if (item.isDirectory()) {
+                    files.push(...findPlanFiles(fullPath));
+                  } else if (item.name.includes('plan') && item.name.endsWith('.txt')) {
+                    files.push(fullPath);
+                  }
+                }
+              } catch (error) {
+                // Directory doesn't exist or can't read
+              }
+              return files;
+            }
+            
+            const allPlanFiles = findPlanFiles('plan-results');
+            console.log('DEBUG: Found plan files:', allPlanFiles);
+            
             // Read various error logs if they exist
             let initErrorLog = '';
             let planErrorLog = '';
             let formatErrorLog = '';
             let validateErrorLog = '';
             
-            try {
-              initErrorLog = fs.readFileSync('plan-results/terragrunt/environments/keeping/init_output.txt', 'utf8');
-            } catch (error) {
-              // Error file doesn't exist or is empty
-            }
+            // Try different possible paths for plan_output.txt
+            const possiblePlanPaths = [
+              'plan-results/terragrunt/environments/keeping/plan_output.txt',
+              'plan-results/plan_output.txt',
+              'plan-results/keeping/plan_output.txt',
+              ...allPlanFiles.filter(f => f.includes('keeping') && f.includes('plan_output'))
+            ];
             
-            try {
-              planErrorLog = fs.readFileSync('plan-results/terragrunt/environments/keeping/plan_output.txt', 'utf8');
-              console.log('DEBUG: Successfully read plan_output.txt for keeping environment');
-            } catch (error) {
-              // Fallback to plan_errors.txt if plan_output.txt doesn't exist
+            console.log('DEBUG: Trying plan paths:', possiblePlanPaths);
+            
+            for (const planPath of possiblePlanPaths) {
               try {
-                planErrorLog = fs.readFileSync('plan-results/terragrunt/environments/keeping/plan_errors.txt', 'utf8');
-                console.log('DEBUG: Using plan_errors.txt fallback for keeping environment');
-              } catch (fallbackError) {
-                console.log('DEBUG: Neither plan_output.txt nor plan_errors.txt found for keeping environment');
+                planErrorLog = fs.readFileSync(planPath, 'utf8');
+                console.log(`DEBUG: Successfully read plan from ${planPath}, size: ${planErrorLog.length} bytes`);
+                break;
+              } catch (error) {
+                console.log(`DEBUG: Failed to read plan from ${planPath}: ${error.message}`);
               }
             }
             
+            // If no plan_output.txt found, try plan_errors.txt
+            if (!planErrorLog) {
+              const possibleErrorPaths = [
+                'plan-results/terragrunt/environments/keeping/plan_errors.txt',
+                'plan-results/plan_errors.txt',
+                'plan-results/keeping/plan_errors.txt',
+                ...allPlanFiles.filter(f => f.includes('keeping') && f.includes('plan_errors'))
+              ];
+              
+              for (const errorPath of possibleErrorPaths) {
+                try {
+                  planErrorLog = fs.readFileSync(errorPath, 'utf8');
+                  console.log(`DEBUG: Successfully read errors from ${errorPath}, size: ${planErrorLog.length} bytes`);
+                  break;
+                } catch (error) {
+                  console.log(`DEBUG: Failed to read errors from ${errorPath}: ${error.message}`);
+                }
+              }
+            }
+            
+            // Try to read other log files with fallback paths
             try {
-              formatErrorLog = fs.readFileSync('plan-results/terragrunt/environments/keeping/format_errors.txt', 'utf8');
+              const initPaths = [
+                'plan-results/terragrunt/environments/keeping/init_output.txt',
+                'plan-results/init_output.txt',
+                'plan-results/keeping/init_output.txt'
+              ];
+              for (const initPath of initPaths) {
+                try {
+                  initErrorLog = fs.readFileSync(initPath, 'utf8');
+                  break;
+                } catch (error) {
+                  // Continue trying other paths
+                }
+              }
             } catch (error) {
               // Error file doesn't exist or is empty
             }
             
             try {
-              validateErrorLog = fs.readFileSync('plan-results/terragrunt/environments/keeping/validate_errors.txt', 'utf8');
+              const formatPaths = [
+                'plan-results/terragrunt/environments/keeping/format_errors.txt',
+                'plan-results/format_errors.txt',
+                'plan-results/keeping/format_errors.txt'
+              ];
+              for (const formatPath of formatPaths) {
+                try {
+                  formatErrorLog = fs.readFileSync(formatPath, 'utf8');
+                  break;
+                } catch (error) {
+                  // Continue trying other paths
+                }
+              }
             } catch (error) {
               // Error file doesn't exist or is empty
+            }
+            
+            try {
+              const validatePaths = [
+                'plan-results/terragrunt/environments/keeping/validate_errors.txt',
+                'plan-results/validate_errors.txt',
+                'plan-results/keeping/validate_errors.txt'
+              ];
+              for (const validatePath of validatePaths) {
+                try {
+                  validateErrorLog = fs.readFileSync(validatePath, 'utf8');
+                  break;
+                } catch (error) {
+                  // Continue trying other paths
+                }
+              }
+            } catch (error) {
+              // Error file doesn't exist or is empty
+            }
+            
+            // Determine the actual plan file path to use
+            let actualPlanFilePath = 'plan-results/terragrunt/environments/keeping/plan_output.txt'; // default
+            if (allPlanFiles.length > 0) {
+              const keepingPlanFile = allPlanFiles.find(f => f.includes('keeping') && f.includes('plan_output'));
+              if (keepingPlanFile) {
+                actualPlanFilePath = keepingPlanFile;
+                console.log(`DEBUG: Using discovered plan file path: ${actualPlanFilePath}`);
+              }
             }
             
             const inputs = {
               commentType: 'terragrunt-plan',
               environment: 'keeping',
               status: '${{ needs.terragrunt-plan.outputs.plan_status_keeping }}' || 'unknown',
-              planFilePath: 'plan-results/terragrunt/environments/keeping/plan_output.txt',
+              planFilePath: actualPlanFilePath,
               initErrorLog: initErrorLog,
               planErrorLog: planErrorLog,
               formatErrorLog: formatErrorLog,
