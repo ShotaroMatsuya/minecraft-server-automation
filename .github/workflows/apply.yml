@@ -505,6 +505,25 @@ jobs:
       resources_changed: ${{ steps.apply.outputs.resources_changed }}
       resources_destroyed: ${{ steps.apply.outputs.resources_destroyed }}
     steps:
+      - name: Debug Job Conditions
+        run: |
+          echo "=== Debugging apply-scheduling job conditions ==="
+          echo "should_run_scheduling output: '${{ needs.check-changes.outputs.should_run_scheduling }}'"
+          echo "Type check: '${{ needs.check-changes.outputs.should_run_scheduling }}' == 'true'"
+          echo "Condition result: ${{ needs.check-changes.outputs.should_run_scheduling == 'true' }}"
+          echo "apply-keeping result: '${{ needs.apply-keeping.result }}'"
+          echo "apply-keeping apply_status: '${{ needs.apply-keeping.outputs.apply_status }}'"
+          echo "apply-keeping skipped check: ${{ needs.apply-keeping.result == 'skipped' }}"
+          echo "apply-keeping success check: ${{ needs.apply-keeping.outputs.apply_status == 'success' }}"
+          echo "Combined condition: ${{ needs.check-changes.outputs.should_run_scheduling == 'true' && (needs.apply-keeping.outputs.apply_status == 'success' || needs.apply-keeping.result == 'skipped') }}"
+          echo "All check-changes outputs:"
+          echo "  changes: '${{ needs.check-changes.outputs.changes }}'"
+          echo "  keeping_changes: '${{ needs.check-changes.outputs.keeping_changes }}'"
+          echo "  scheduling_changes: '${{ needs.check-changes.outputs.scheduling_changes }}'"
+          echo "  pr_number: '${{ needs.check-changes.outputs.pr_number }}'"
+          echo "  labels: '${{ needs.check-changes.outputs.labels }}'"
+          echo "  should_run_keeping: '${{ needs.check-changes.outputs.should_run_keeping }}'"
+          echo "  should_run_scheduling: '${{ needs.check-changes.outputs.should_run_scheduling }}'"
       - name: Checkout
         uses: actions/checkout@v4
 
