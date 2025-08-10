@@ -309,9 +309,31 @@ jobs:
                 continue
               fi
               
-              # Run apply with auto-approve
+              # Run plan first to validate the configuration
+              plan_exit_code=0
+              terragrunt plan --terragrunt-non-interactive -out=tfplan > plan_output.txt 2>&1 || plan_exit_code=$?
+              
+              if [ "$plan_exit_code" -ne 0 ]; then
+                echo "❌ Plan failed on attempt $((retry_count + 1))"
+                cat plan_output.txt
+                if [ "$retry_count" -eq $((max_retries - 1)) ]; then
+                  echo "status=plan_failed" >> "$GITHUB_OUTPUT"
+                  echo "resources_applied=0" >> "$GITHUB_OUTPUT"
+                  echo "resources_changed=0" >> "$GITHUB_OUTPUT"
+                  echo "resources_destroyed=0" >> "$GITHUB_OUTPUT"
+                  return 1
+                fi
+                retry_count=$((retry_count + 1))
+                echo "⏳ Waiting 30 seconds before retry..."
+                sleep 30
+                continue
+              fi
+              
+              echo "✅ Plan completed successfully, proceeding with apply"
+              
+              # Run apply with auto-approve using the saved plan
               apply_exit_code=0
-              terragrunt apply --terragrunt-non-interactive -auto-approve > apply_output.txt 2>&1 || apply_exit_code=$?
+              terragrunt apply --terragrunt-non-interactive -auto-approve tfplan > apply_output.txt 2>&1 || apply_exit_code=$?
               
               # Check if this was a lock error
               if [ "$apply_exit_code" -ne 0 ] && grep -q "Error acquiring the state lock" apply_output.txt; then
@@ -392,6 +414,48 @@ jobs:
         env:
           TF_VAR_aws_account_id: ${{ env.AWS_ACCOUNT_ID }}
 
+      - name: Debug Apply Results for Keeping
+        if: always() && steps.check-env.outputs.exists == 'true'
+        working-directory: terragrunt/environments/keeping
+        run: |
+          echo "=== Debugging Apply Results for Keeping ==="
+          echo "Checking for apply output files..."
+          
+          if [ -f "apply_output.txt" ]; then
+            echo "✅ apply_output.txt exists, size: $(wc -c < apply_output.txt) bytes"
+            echo "=== Full Apply Output ==="
+            cat apply_output.txt
+            echo "=== End Full Apply Output ==="
+          else
+            echo "❌ apply_output.txt not found"
+          fi
+          
+          if [ -f "plan_output.txt" ]; then
+            echo "✅ plan_output.txt exists, size: $(wc -c < plan_output.txt) bytes"
+            echo "=== Plan Output ==="
+            cat plan_output.txt
+            echo "=== End Plan Output ==="
+          else
+            echo "❌ plan_output.txt not found"
+          fi
+          
+          if [ -f "init_output.txt" ]; then
+            echo "✅ init_output.txt exists, size: $(wc -c < init_output.txt) bytes"
+          else
+            echo "❌ init_output.txt not found"
+          fi
+          
+          if [ -f "apply_errors.txt" ]; then
+            echo "✅ apply_errors.txt exists, size: $(wc -c < apply_errors.txt) bytes"
+            if [ -s "apply_errors.txt" ]; then
+              echo "=== Apply Errors Content ==="
+              cat apply_errors.txt
+              echo "=== End Apply Errors ==="
+            fi
+          else
+            echo "❌ apply_errors.txt not found"
+          fi
+
       - name: Upload Keeping Apply Results
         uses: actions/upload-artifact@v4
         if: always()
@@ -399,6 +463,7 @@ jobs:
           name: terragrunt-apply-keeping
           path: |
             terragrunt/environments/keeping/apply_output.txt
+            terragrunt/environments/keeping/plan_output.txt
             terragrunt/environments/keeping/init_output.txt
             terragrunt/environments/keeping/apply_errors.txt
           retention-days: 30
@@ -514,9 +579,31 @@ jobs:
                 continue
               fi
               
-              # Run apply with auto-approve
+              # Run plan first to validate the configuration
+              plan_exit_code=0
+              terragrunt plan --terragrunt-non-interactive -out=tfplan > plan_output.txt 2>&1 || plan_exit_code=$?
+              
+              if [ "$plan_exit_code" -ne 0 ]; then
+                echo "❌ Plan failed on attempt $((retry_count + 1))"
+                cat plan_output.txt
+                if [ "$retry_count" -eq $((max_retries - 1)) ]; then
+                  echo "status=plan_failed" >> "$GITHUB_OUTPUT"
+                  echo "resources_applied=0" >> "$GITHUB_OUTPUT"
+                  echo "resources_changed=0" >> "$GITHUB_OUTPUT"
+                  echo "resources_destroyed=0" >> "$GITHUB_OUTPUT"
+                  return 1
+                fi
+                retry_count=$((retry_count + 1))
+                echo "⏳ Waiting 30 seconds before retry..."
+                sleep 30
+                continue
+              fi
+              
+              echo "✅ Plan completed successfully, proceeding with apply"
+              
+              # Run apply with auto-approve using the saved plan
               apply_exit_code=0
-              terragrunt apply --terragrunt-non-interactive -auto-approve > apply_output.txt 2>&1 || apply_exit_code=$?
+              terragrunt apply --terragrunt-non-interactive -auto-approve tfplan > apply_output.txt 2>&1 || apply_exit_code=$?
               
               # Check if this was a lock error
               if [ "$apply_exit_code" -ne 0 ] && grep -q "Error acquiring the state lock" apply_output.txt; then
@@ -603,6 +690,7 @@ jobs:
           name: terragrunt-apply-scheduling
           path: |
             terragrunt/environments/scheduling/apply_output.txt
+            terragrunt/environments/scheduling/plan_output.txt
             terragrunt/environments/scheduling/init_output.txt
             terragrunt/environments/scheduling/apply_errors.txt
           retention-days: 30
@@ -674,9 +762,17 @@ jobs:
             // Set context issue number from PR number
             const prNumber = '${{ needs.check-changes.outputs.pr_number }}';
             console.log('PR Number from previous step:', prNumber);
+            console.log('Type of PR number:', typeof prNumber);
+            console.log('PR number length:', prNumber ? prNumber.length : 'undefined');
+            console.log('PR number trimmed:', prNumber ? prNumber.trim() : 'undefined');
             
-            if (prNumber && prNumber !== '' && prNumber !== 'null' && !isNaN(parseInt(prNumber))) {
-              context.issue.number = parseInt(prNumber);
+            // Convert to number with validation
+            const prNumberInt = parseInt(prNumber ? prNumber.trim() : '', 10);
+            console.log('Parsed PR number (parseInt result):', prNumberInt);
+            console.log('Is parsed number valid:', !isNaN(prNumberInt) && prNumberInt > 0);
+            
+            if (prNumber && prNumber.trim() !== '' && prNumber !== 'null' && !isNaN(prNumberInt) && prNumberInt > 0) {
+              context.issue.number = prNumberInt;
               console.log('✅ Set context.issue.number to:', context.issue.number);
               
               for (const env of environments) {
@@ -710,6 +806,7 @@ jobs:
               console.log('❌ No valid PR number found, skipping comment operations');
               console.log('Available PR number value:', prNumber);
               console.log('Type of PR number:', typeof prNumber);
-              console.log('Is valid number:', !isNaN(parseInt(prNumber)));
+              console.log('Parsed number result:', prNumberInt);
+              console.log('Is valid number check result:', !isNaN(prNumberInt) && prNumberInt > 0);
               return;
             }
