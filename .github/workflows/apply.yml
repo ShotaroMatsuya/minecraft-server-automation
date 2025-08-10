@@ -392,6 +392,39 @@ jobs:
         env:
           TF_VAR_aws_account_id: ${{ env.AWS_ACCOUNT_ID }}
 
+      - name: Debug Apply Results for Keeping
+        if: always() && steps.check-env.outputs.exists == 'true'
+        working-directory: terragrunt/environments/keeping
+        run: |
+          echo "=== Debugging Apply Results for Keeping ==="
+          echo "Checking for apply output files..."
+          
+          if [ -f "apply_output.txt" ]; then
+            echo "✅ apply_output.txt exists, size: $(wc -c < apply_output.txt) bytes"
+            echo "=== Full Apply Output ==="
+            cat apply_output.txt
+            echo "=== End Full Apply Output ==="
+          else
+            echo "❌ apply_output.txt not found"
+          fi
+          
+          if [ -f "init_output.txt" ]; then
+            echo "✅ init_output.txt exists, size: $(wc -c < init_output.txt) bytes"
+          else
+            echo "❌ init_output.txt not found"
+          fi
+          
+          if [ -f "apply_errors.txt" ]; then
+            echo "✅ apply_errors.txt exists, size: $(wc -c < apply_errors.txt) bytes"
+            if [ -s "apply_errors.txt" ]; then
+              echo "=== Apply Errors Content ==="
+              cat apply_errors.txt
+              echo "=== End Apply Errors ==="
+            fi
+          else
+            echo "❌ apply_errors.txt not found"
+          fi
+
       - name: Upload Keeping Apply Results
         uses: actions/upload-artifact@v4
         if: always()
