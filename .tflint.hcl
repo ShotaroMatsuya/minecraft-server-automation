@@ -8,7 +8,7 @@ config {
 # AWS provider rules
 plugin "aws" {
   enabled = true
-  version = "0.34.0"
+  version = "0.42.0"
   source  = "github.com/terraform-linters/tflint-ruleset-aws"
 }
 
