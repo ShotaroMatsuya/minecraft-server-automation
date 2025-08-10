@@ -39,8 +39,9 @@ jobs:
     steps:
       - name: Check comment format
         id: check-command
+        env:
+          COMMENT_BODY: ${{ github.event.comment.body }}
         run: |
-          COMMENT_BODY="${{ github.event.comment.body }}"
           echo "Original comment: $COMMENT_BODY"
           
           # Check if comment starts with /approve (allowing for whitespace)
