@@ -4,6 +4,7 @@
  */
 
 const fs = require('fs');
+const path = require('path');
 
 /**
  * Creates a Terragrunt plan results comment
@@ -11,14 +12,19 @@ const fs = require('fs');
  * @param {string} inputs.environment - Environment name (keeping/scheduling)
  * @param {string} inputs.status - Plan execution status
  * @param {string} inputs.planFilePath - Path to plan output file
- * @param {string} inputs.initErrorLog - Error log from init step
- * @param {string} inputs.planErrorLog - Error log from plan step
- * @param {string} inputs.formatErrorLog - Error log from format check
- * @param {string} inputs.validateErrorLog - Error log from validate step
+ * @param {string} inputs.initErrorLog - Error log from init step (legacy)
+ * @param {string} inputs.planErrorLog - Error log from plan step (legacy)
+ * @param {string} inputs.formatErrorLog - Error log from format check (legacy)
+ * @param {string} inputs.validateErrorLog - Error log from validate step (legacy)
+ * @param {string} inputs.initErrorLogPath - Path to init error log file
+ * @param {string} inputs.planErrorLogPath - Path to plan error log file
+ * @param {string} inputs.formatErrorLogPath - Path to format error log file
+ * @param {string} inputs.validateErrorLogPath - Path to validate error log file
+ * @param {string} inputs.artifactBasePath - Base path for artifact discovery
  * @returns {string} Formatted comment body
  */
 function createTerragruntPlanComment(inputs) {
-  const { environment, status, planFilePath, initErrorLog, planErrorLog, formatErrorLog, validateErrorLog } = inputs;
+  const { environment, status, planFilePath } = inputs;
   
   // Environment-specific titles
   const titles = {
@@ -27,6 +33,138 @@ function createTerragruntPlanComment(inputs) {
   };
   
   let commentBody = `${titles[environment] || `## 📋 Plan Result (${environment})`}\n\n`;
+  
+  // Helper function to read file content from path
+  function readFileFromPath(filePath, fallbackContent = '') {
+    if (fallbackContent) return fallbackContent; // Use legacy content if provided
+    
+    if (!filePath) return '';
+    
+    try {
+      return fs.readFileSync(filePath, 'utf8');
+    } catch (error) {
+      console.log(`DEBUG: Failed to read ${filePath}: ${error.message}`);
+      return '';
+    }
+  }
+  
+  // Helper function for dynamic file discovery (for keeping environment)
+  function findPlanFiles(dir, environment) {
+    const files = [];
+    try {
+      const items = fs.readdirSync(dir, { withFileTypes: true });
+      for (const item of items) {
+        const fullPath = path.join(dir, item.name);
+        if (item.isDirectory()) {
+          files.push(...findPlanFiles(fullPath, environment));
+        } else if (item.name.includes('plan') && item.name.endsWith('.txt')) {
+          files.push(fullPath);
+        }
+      }
+    } catch (error) {
+      // Directory doesn't exist or can't read
+    }
+    return files.filter(f => f.includes(environment));
+  }
+  
+  // Read error logs from various sources
+  let initErrorLog = readFileFromPath(inputs.initErrorLogPath, inputs.initErrorLog);
+  let planErrorLog = readFileFromPath(inputs.planErrorLogPath, inputs.planErrorLog);
+  let formatErrorLog = readFileFromPath(inputs.formatErrorLogPath, inputs.formatErrorLog);
+  let validateErrorLog = readFileFromPath(inputs.validateErrorLogPath, inputs.validateErrorLog);
+  
+  // Enhanced file discovery for keeping environment (fallback mechanism)
+  if (environment === 'keeping' && inputs.artifactBasePath && (!planErrorLog || planErrorLog.trim() === '')) {
+    console.log('DEBUG: Attempting dynamic file discovery for keeping environment');
+    
+    const allPlanFiles = findPlanFiles(inputs.artifactBasePath, environment);
+    console.log('DEBUG: Found plan files:', allPlanFiles);
+    
+    // Try different possible paths for plan_output.txt
+    const possiblePlanPaths = [
+      inputs.planFilePath,
+      `${inputs.artifactBasePath}/terragrunt/environments/keeping/plan_output.txt`,
+      `${inputs.artifactBasePath}/plan_output.txt`,
+      `${inputs.artifactBasePath}/keeping/plan_output.txt`,
+      ...allPlanFiles.filter(f => f.includes('plan_output'))
+    ];
+    
+    console.log('DEBUG: Trying plan paths:', possiblePlanPaths);
+    
+    for (const planPath of possiblePlanPaths) {
+      if (planPath && planPath !== 'undefined') {
+        try {
+          planErrorLog = fs.readFileSync(planPath, 'utf8');
+          console.log(`DEBUG: Successfully read plan from ${planPath}, size: ${planErrorLog.length} bytes`);
+          break;
+        } catch (error) {
+          console.log(`DEBUG: Failed to read plan from ${planPath}: ${error.message}`);
+        }
+      }
+    }
+    
+    // If no plan_output.txt found, try plan_errors.txt
+    if (!planErrorLog || planErrorLog.trim() === '') {
+      const possibleErrorPaths = [
+        `${inputs.artifactBasePath}/terragrunt/environments/keeping/plan_errors.txt`,
+        `${inputs.artifactBasePath}/plan_errors.txt`,
+        `${inputs.artifactBasePath}/keeping/plan_errors.txt`,
+        ...allPlanFiles.filter(f => f.includes('plan_errors'))
+      ];
+      
+      for (const errorPath of possibleErrorPaths) {
+        try {
+          planErrorLog = fs.readFileSync(errorPath, 'utf8');
+          console.log(`DEBUG: Successfully read errors from ${errorPath}, size: ${planErrorLog.length} bytes`);
+          break;
+        } catch (error) {
+          console.log(`DEBUG: Failed to read errors from ${errorPath}: ${error.message}`);
+        }
+      }
+    }
+    
+    // Try to read other log files with fallback paths
+    if (!initErrorLog) {
+      const initPaths = [
+        `${inputs.artifactBasePath}/terragrunt/environments/keeping/init_output.txt`,
+        `${inputs.artifactBasePath}/init_output.txt`,
+        `${inputs.artifactBasePath}/keeping/init_output.txt`
+      ];
+      for (const initPath of initPaths) {
+        initErrorLog = readFileFromPath(initPath);
+        if (initErrorLog) break;
+      }
+    }
+    
+    if (!formatErrorLog) {
+      const formatPaths = [
+        `${inputs.artifactBasePath}/terragrunt/environments/keeping/format_errors.txt`,
+        `${inputs.artifactBasePath}/format_errors.txt`,
+        `${inputs.artifactBasePath}/keeping/format_errors.txt`
+      ];
+      for (const formatPath of formatPaths) {
+        formatErrorLog = readFileFromPath(formatPath);
+        if (formatErrorLog) break;
+      }
+    }
+    
+    if (!validateErrorLog) {
+      const validatePaths = [
+        `${inputs.artifactBasePath}/terragrunt/environments/keeping/validate_errors.txt`,
+        `${inputs.artifactBasePath}/validate_errors.txt`,
+        `${inputs.artifactBasePath}/keeping/validate_errors.txt`
+      ];
+      for (const validatePath of validatePaths) {
+        validateErrorLog = readFileFromPath(validatePath);
+        if (validateErrorLog) break;
+      }
+    }
+  }
+  
+  // If not using dynamic discovery, try the primary plan file path
+  if (!planErrorLog || planErrorLog.trim() === '') {
+    planErrorLog = readFileFromPath(planFilePath);
+  }
   
   // Helper function to check if log contains actual errors (not just info/success messages)
   function hasActualErrors(logContent) {
@@ -240,6 +378,12 @@ function createTerragruntPlanComment(inputs) {
     commentBody += `- Verify AWS service limits and quotas\n`;
     commentBody += `- Ensure proper IAM permissions for all required actions\n\n`;
     
+    // Add CI/CD links section for error cases
+    commentBody += `### 🔗 Links\n\n`;
+    commentBody += `- 📊 **[View GitHub Actions Run](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})**\n`;
+    commentBody += `- 📦 **[Download Artifacts](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}#artifacts)**\n`;
+    commentBody += `- 🔍 **[View Terragrunt Plan Job](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/job/${process.env.GITHUB_JOB})**\n\n`;
+    
     const failureTime = new Date().toISOString();
     if (hasInitError) {
       commentBody += `*❌ Init failed at ${failureTime} | Environment: ${environment}*`;
@@ -297,6 +441,12 @@ function createTerragruntPlanComment(inputs) {
       commentBody += `- Verify Terraform configuration syntax\n`;
       commentBody += `- Check for resource conflicts or dependencies\n`;
       commentBody += `- Review the error log above for specific issues\n\n`;
+      
+      // Add CI/CD links section for plan execution errors
+      commentBody += `### 🔗 Links\n\n`;
+      commentBody += `- 📊 **[View GitHub Actions Run](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})**\n`;
+      commentBody += `- 📦 **[Download Artifacts](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}#artifacts)**\n`;
+      commentBody += `- 🔍 **[View Terragrunt Plan Job](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/job/${process.env.GITHUB_JOB})**\n\n`;
       
       commentBody += `*❌ Plan failed at ${new Date().toISOString()} | Environment: ${environment}*`;
       return commentBody;
@@ -407,9 +557,21 @@ function createTerragruntPlanComment(inputs) {
         commentBody += `<details><summary>📋 View Plan Error Log (Click to expand)</summary>\n\n`;
         commentBody += `\`\`\`\n${planErrorLog.slice(0, 3000)}\`\`\`\n\n`;
         commentBody += `</details>\n\n`;
+        
+        // Add CI/CD links section for fallback errors
+        commentBody += `### 🔗 Links\n\n`;
+        commentBody += `- 📊 **[View GitHub Actions Run](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})**\n`;
+        commentBody += `- 📦 **[Download Artifacts](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}#artifacts)**\n`;
+        commentBody += `- 🔍 **[View Terragrunt Plan Job](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/job/${process.env.GITHUB_JOB})**\n\n`;
       }
     }
   }
+  
+  // Add CI/CD links section
+  commentBody += `### 🔗 Links\n\n`;
+  commentBody += `- 📊 **[View GitHub Actions Run](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})**\n`;
+  commentBody += `- 📦 **[Download Artifacts](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}#artifacts)**\n`;
+  commentBody += `- 🔍 **[View Terragrunt Plan Job](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/job/${process.env.GITHUB_JOB})**\n\n`;
   
   commentBody += `*📋 Plan executed at ${new Date().toISOString()} | Environment: ${environment}*`;
   

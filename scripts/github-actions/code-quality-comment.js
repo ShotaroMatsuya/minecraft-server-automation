@@ -1,31 +1,42 @@
 /**
- * Code quality comment generator for GitHub Actions
+ * Code Quality comment generator for GitHub Actions
  * Processes TFLint code quality results and creates formatted PR comments
  */
 
 const fs = require('fs');
 
 /**
- * Creates a code quality results comment
+ * Creates a code quality scan results comment
  * @param {Object} inputs - Input parameters from GitHub Actions
  * @param {boolean} inputs.hasIssues - Whether code quality issues were found
  * @param {string} inputs.resultsSummary - Summary of scan results
  * @param {string} inputs.scanStatus - Status of the scan (success, failed, error)
- * @param {string} inputs.errorLog - Error log if scan failed
+ * @param {string} inputs.errorLog - Error log if scan failed (legacy)
+ * @param {string} inputs.errorLogPath - Path to error log file
  * @returns {string} Formatted comment body
  */
 function createCodeQualityComment(inputs) {
-  let commentBody = `## 🔍 Code Quality Results (TFLint)\n\n`;
+  let commentBody = `## ✨ Code Quality Results (TFLint)\n\n`;
+  
+  // Read error log from file path if provided
+  let errorLog = inputs.errorLog || '';
+  if (inputs.errorLogPath && !errorLog) {
+    try {
+      errorLog = fs.readFileSync(inputs.errorLogPath, 'utf8');
+    } catch (error) {
+      // Error file doesn't exist or is empty
+    }
+  }
   
   // Check if scan failed
   if (inputs.scanStatus === 'failed' || inputs.scanStatus === 'error') {
     commentBody += `❌ **Code quality scan failed**\n\n`;
     commentBody += `The TFLint code quality scan encountered an error and could not complete successfully.\n\n`;
     
-    if (inputs.errorLog) {
+    if (errorLog) {
       commentBody += `### 🚨 Error Details\n\n`;
       commentBody += `<details><summary>📋 View Error Log (Click to expand)</summary>\n\n`;
-      commentBody += `\`\`\`\n${inputs.errorLog.slice(0, 3000)}\`\`\`\n\n`;
+      commentBody += `\`\`\`\n${errorLog.slice(0, 3000)}\`\`\`\n\n`;
       commentBody += `</details>\n\n`;
     }
     
@@ -34,6 +45,12 @@ function createCodeQualityComment(inputs) {
     commentBody += `- Verify TFLint configuration in \`.tflint.hcl\`\n`;
     commentBody += `- Ensure TFLint initialization completed successfully\n`;
     commentBody += `- Check workflow logs for detailed error information\n\n`;
+    
+    // Add CI/CD links section for failed scans
+    commentBody += `### 🔗 Links\n\n`;
+    commentBody += `- 📊 **[View GitHub Actions Run](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})**\n`;
+    commentBody += `- 📦 **[Download Code Quality Artifacts](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}#artifacts)**\n`;
+    commentBody += `- 🔍 **[View Code Quality Job](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/job/${process.env.GITHUB_JOB})**\n\n`;
     
     commentBody += `*❌ Code quality scan failed at ${new Date().toISOString()}*`;
     return commentBody;
@@ -102,6 +119,12 @@ function createCodeQualityComment(inputs) {
     commentBody += `- **🛠️ Tool**: TFLint v0.50.3\n`;
     commentBody += `- **📋 Checks**: AWS, Terraform best practices\n\n`;
   }
+  
+  // Add CI/CD links section
+  commentBody += `### 🔗 Links\n\n`;
+  commentBody += `- 📊 **[View GitHub Actions Run](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})**\n`;
+  commentBody += `- 📦 **[Download Code Quality Artifacts](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}#artifacts)**\n`;
+  commentBody += `- 🔍 **[View Code Quality Job](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/job/${process.env.GITHUB_JOB})**\n\n`;
   
   commentBody += `*🔍 Code quality scan completed at ${new Date().toISOString()}*`;
   

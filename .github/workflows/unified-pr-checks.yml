@@ -331,16 +331,6 @@ jobs:
           plan_exit_code=0
           terragrunt plan -detailed-exitcode --terragrunt-non-interactive > plan_output.txt 2>&1 || plan_exit_code=$?
           
-          # Check if plan output contains actual blocking errors (not just warnings)
-          has_plan_errors=false
-          if [ -f "plan_output.txt" ]; then
-            # Only consider it an error if there's no successful plan generation
-            if ! grep -q "Plan:" plan_output.txt && grep -q -E "(Error: External Program Execution Failed|terraform invocation failed)" plan_output.txt; then
-              has_plan_errors=true
-              echo "Plan contains blocking errors: $plan_exit_code"
-            fi
-          fi
-          
           # Create empty error file for consistency
           touch plan_errors.txt
           
@@ -449,23 +439,14 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('fs');
             const commentHandler = require('./scripts/github-actions/comment-handler.js');
-            
-            // Read error log if it exists
-            let errorLog = '';
-            try {
-              errorLog = fs.readFileSync('security-results/trivy-errors.txt', 'utf8');
-            } catch (error) {
-              // Error file doesn't exist or is empty
-            }
             
             const inputs = {
               commentType: 'security',
               hasIssues: '${{ needs.security-scan.outputs.has_issues }}' === 'true',
               resultsSummary: '${{ needs.security-scan.outputs.results_summary }}' || 'No security issues found',
               scanStatus: '${{ needs.security-scan.outputs.scan_status }}' || 'success',
-              errorLog: errorLog
+              errorLogPath: 'security-results/trivy-errors.txt'
             };
             
             await commentHandler(github, context, inputs);
@@ -481,23 +462,14 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('fs');
             const commentHandler = require('./scripts/github-actions/comment-handler.js');
-            
-            // Read error log if it exists
-            let errorLog = '';
-            try {
-              errorLog = fs.readFileSync('quality-results/tflint-errors.txt', 'utf8');
-            } catch (error) {
-              // Error file doesn't exist or is empty
-            }
             
             const inputs = {
               commentType: 'code-quality',
               hasIssues: '${{ needs.code-quality.outputs.has_issues }}' === 'true',
               resultsSummary: '${{ needs.code-quality.outputs.results_summary }}' || 'No code quality issues found',
               scanStatus: '${{ needs.code-quality.outputs.scan_status }}' || 'success',
-              errorLog: errorLog
+              errorLogPath: 'quality-results/tflint-errors.txt'
             };
             
             await commentHandler(github, context, inputs);
@@ -519,224 +491,44 @@ jobs:
           echo "=== Debug: Looking for plan_output.txt files ==="
           find plan-results/ -name "plan_output.txt" -exec ls -la {} \;
 
-      - name: Comment Terragrunt Plan Results (Keeping)
+      - name: Comment Terragrunt Plan Results
         uses: actions/github-script@v7
         with:
           script: |
-            const fs = require('fs');
             const commentHandler = require('./scripts/github-actions/comment-handler.js');
             
-            // Debug: log the status value received
-            console.log('DEBUG: plan_status_keeping value:', '${{ needs.terragrunt-plan.outputs.plan_status_keeping }}');
-            console.log('DEBUG: all terragrunt-plan outputs:', JSON.stringify({
-              plan_status_keeping: '${{ needs.terragrunt-plan.outputs.plan_status_keeping }}',
-              plan_status_scheduling: '${{ needs.terragrunt-plan.outputs.plan_status_scheduling }}'
-            }));
-            
-            // Debug: Search for plan files in different possible locations
-            const fs = require('fs');
-            const path = require('path');
-            
-            function findPlanFiles(dir) {
-              const files = [];
-              try {
-                const items = fs.readdirSync(dir, { withFileTypes: true });
-                for (const item of items) {
-                  const fullPath = path.join(dir, item.name);
-                  if (item.isDirectory()) {
-                    files.push(...findPlanFiles(fullPath));
-                  } else if (item.name.includes('plan') && item.name.endsWith('.txt')) {
-                    files.push(fullPath);
-                  }
-                }
-              } catch (error) {
-                // Directory doesn't exist or can't read
+            // Process both environments in a single step
+            const environments = [
+              {
+                name: 'keeping',
+                status: '${{ needs.terragrunt-plan.outputs.plan_status_keeping }}'
+              },
+              {
+                name: 'scheduling', 
+                status: '${{ needs.terragrunt-plan.outputs.plan_status_scheduling }}'
               }
-              return files;
-            }
-            
-            const allPlanFiles = findPlanFiles('plan-results');
-            console.log('DEBUG: Found plan files:', allPlanFiles);
-            
-            // Read various error logs if they exist
-            let initErrorLog = '';
-            let planErrorLog = '';
-            let formatErrorLog = '';
-            let validateErrorLog = '';
-            
-            // Try different possible paths for plan_output.txt
-            const possiblePlanPaths = [
-              'plan-results/terragrunt/environments/keeping/plan_output.txt',
-              'plan-results/plan_output.txt',
-              'plan-results/keeping/plan_output.txt',
-              ...allPlanFiles.filter(f => f.includes('keeping') && f.includes('plan_output'))
             ];
             
-            console.log('DEBUG: Trying plan paths:', possiblePlanPaths);
-            
-            for (const planPath of possiblePlanPaths) {
-              try {
-                planErrorLog = fs.readFileSync(planPath, 'utf8');
-                console.log(`DEBUG: Successfully read plan from ${planPath}, size: ${planErrorLog.length} bytes`);
-                break;
-              } catch (error) {
-                console.log(`DEBUG: Failed to read plan from ${planPath}: ${error.message}`);
-              }
-            }
-            
-            // If no plan_output.txt found, try plan_errors.txt
-            if (!planErrorLog) {
-              const possibleErrorPaths = [
-                'plan-results/terragrunt/environments/keeping/plan_errors.txt',
-                'plan-results/plan_errors.txt',
-                'plan-results/keeping/plan_errors.txt',
-                ...allPlanFiles.filter(f => f.includes('keeping') && f.includes('plan_errors'))
-              ];
+            for (const env of environments) {
+              console.log(`Processing ${env.name} environment...`);
               
-              for (const errorPath of possibleErrorPaths) {
-                try {
-                  planErrorLog = fs.readFileSync(errorPath, 'utf8');
-                  console.log(`DEBUG: Successfully read errors from ${errorPath}, size: ${planErrorLog.length} bytes`);
-                  break;
-                } catch (error) {
-                  console.log(`DEBUG: Failed to read errors from ${errorPath}: ${error.message}`);
-                }
-              }
-            }
-            
-            // Try to read other log files with fallback paths
-            try {
-              const initPaths = [
-                'plan-results/terragrunt/environments/keeping/init_output.txt',
-                'plan-results/init_output.txt',
-                'plan-results/keeping/init_output.txt'
-              ];
-              for (const initPath of initPaths) {
-                try {
-                  initErrorLog = fs.readFileSync(initPath, 'utf8');
-                  break;
-                } catch (error) {
-                  // Continue trying other paths
-                }
-              }
-            } catch (error) {
-              // Error file doesn't exist or is empty
-            }
-            
-            try {
-              const formatPaths = [
-                'plan-results/terragrunt/environments/keeping/format_errors.txt',
-                'plan-results/format_errors.txt',
-                'plan-results/keeping/format_errors.txt'
-              ];
-              for (const formatPath of formatPaths) {
-                try {
-                  formatErrorLog = fs.readFileSync(formatPath, 'utf8');
-                  break;
-                } catch (error) {
-                  // Continue trying other paths
-                }
-              }
-            } catch (error) {
-              // Error file doesn't exist or is empty
-            }
-            
-            try {
-              const validatePaths = [
-                'plan-results/terragrunt/environments/keeping/validate_errors.txt',
-                'plan-results/validate_errors.txt',
-                'plan-results/keeping/validate_errors.txt'
-              ];
-              for (const validatePath of validatePaths) {
-                try {
-                  validateErrorLog = fs.readFileSync(validatePath, 'utf8');
-                  break;
-                } catch (error) {
-                  // Continue trying other paths
-                }
-              }
-            } catch (error) {
-              // Error file doesn't exist or is empty
-            }
-            
-            // Determine the actual plan file path to use
-            let actualPlanFilePath = 'plan-results/terragrunt/environments/keeping/plan_output.txt'; // default
-            if (allPlanFiles.length > 0) {
-              const keepingPlanFile = allPlanFiles.find(f => f.includes('keeping') && f.includes('plan_output'));
-              if (keepingPlanFile) {
-                actualPlanFilePath = keepingPlanFile;
-                console.log(`DEBUG: Using discovered plan file path: ${actualPlanFilePath}`);
-              }
-            }
-            
-            const inputs = {
-              commentType: 'terragrunt-plan',
-              environment: 'keeping',
-              status: '${{ needs.terragrunt-plan.outputs.plan_status_keeping }}' || 'unknown',
-              planFilePath: actualPlanFilePath,
-              initErrorLog: initErrorLog,
-              planErrorLog: planErrorLog,
-              formatErrorLog: formatErrorLog,
-              validateErrorLog: validateErrorLog
-            };
-            
-            console.log('DEBUG: inputs object:', JSON.stringify(inputs, null, 2));
-            
-            await commentHandler(github, context, inputs);
-
-      - name: Comment Terragrunt Plan Results (Scheduling)
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const commentHandler = require('./scripts/github-actions/comment-handler.js');
-            
-            // Read various error logs if they exist
-            let initErrorLog = '';
-            let planErrorLog = '';
-            let formatErrorLog = '';
-            let validateErrorLog = '';
-            
-            try {
-              initErrorLog = fs.readFileSync('plan-results/terragrunt/environments/scheduling/init_output.txt', 'utf8');
-            } catch (error) {
-              // Error file doesn't exist or is empty
-            }
-            
-            try {
-              planErrorLog = fs.readFileSync('plan-results/terragrunt/environments/scheduling/plan_output.txt', 'utf8');
-              console.log('DEBUG: Successfully read plan_output.txt for scheduling environment');
-            } catch (error) {
-              // Fallback to plan_errors.txt if plan_output.txt doesn't exist
+              const inputs = {
+                commentType: 'terragrunt-plan',
+                environment: env.name,
+                status: env.status || 'unknown',
+                planFilePath: `plan-results/terragrunt/environments/${env.name}/plan_output.txt`,
+                initErrorLogPath: `plan-results/terragrunt/environments/${env.name}/init_output.txt`,
+                planErrorLogPath: `plan-results/terragrunt/environments/${env.name}/plan_errors.txt`,
+                formatErrorLogPath: `plan-results/terragrunt/environments/${env.name}/format_errors.txt`,
+                validateErrorLogPath: `plan-results/terragrunt/environments/${env.name}/validate_errors.txt`,
+                artifactBasePath: 'plan-results'
+              };
+              
               try {
-                planErrorLog = fs.readFileSync('plan-results/terragrunt/environments/scheduling/plan_errors.txt', 'utf8');
-                console.log('DEBUG: Using plan_errors.txt fallback for scheduling environment');
-              } catch (fallbackError) {
-                console.log('DEBUG: Neither plan_output.txt nor plan_errors.txt found for scheduling environment');
+                await commentHandler(github, context, inputs);
+                console.log(`✅ Successfully processed ${env.name} environment`);
+              } catch (error) {
+                console.error(`❌ Error processing ${env.name} environment:`, error);
+                // Continue processing other environments even if one fails
               }
             }
-            
-            try {
-              formatErrorLog = fs.readFileSync('plan-results/terragrunt/environments/scheduling/format_errors.txt', 'utf8');
-            } catch (error) {
-              // Error file doesn't exist or is empty
-            }
-            
-            try {
-              validateErrorLog = fs.readFileSync('plan-results/terragrunt/environments/scheduling/validate_errors.txt', 'utf8');
-            } catch (error) {
-              // Error file doesn't exist or is empty
-            }
-            
-            const inputs = {
-              commentType: 'terragrunt-plan',
-              environment: 'scheduling',
-              status: '${{ needs.terragrunt-plan.outputs.plan_status_scheduling }}' || 'unknown',
-              planFilePath: 'plan-results/terragrunt/environments/scheduling/plan_output.txt',
-              initErrorLog: initErrorLog,
-              planErrorLog: planErrorLog,
-              formatErrorLog: formatErrorLog,
-              validateErrorLog: validateErrorLog
-            };
-            
-            await commentHandler(github, context, inputs);

@@ -11,21 +11,32 @@ const fs = require('fs');
  * @param {boolean} inputs.hasIssues - Whether security issues were found
  * @param {string} inputs.resultsSummary - Summary of scan results
  * @param {string} inputs.scanStatus - Status of the scan (success, failed, error)
- * @param {string} inputs.errorLog - Error log if scan failed
+ * @param {string} inputs.errorLog - Error log if scan failed (legacy)
+ * @param {string} inputs.errorLogPath - Path to error log file
  * @returns {string} Formatted comment body
  */
 function createSecurityComment(inputs) {
   let commentBody = `## 🔐 Security Scan Results (Trivy)\n\n`;
+  
+  // Read error log from file path if provided
+  let errorLog = inputs.errorLog || '';
+  if (inputs.errorLogPath && !errorLog) {
+    try {
+      errorLog = fs.readFileSync(inputs.errorLogPath, 'utf8');
+    } catch (error) {
+      // Error file doesn't exist or is empty
+    }
+  }
   
   // Check if scan failed
   if (inputs.scanStatus === 'failed' || inputs.scanStatus === 'error') {
     commentBody += `❌ **Security scan failed**\n\n`;
     commentBody += `The Trivy security scan encountered an error and could not complete successfully.\n\n`;
     
-    if (inputs.errorLog) {
+    if (errorLog) {
       commentBody += `### 🚨 Error Details\n\n`;
       commentBody += `<details><summary>📋 View Error Log (Click to expand)</summary>\n\n`;
-      commentBody += `\`\`\`\n${inputs.errorLog.slice(0, 3000)}\`\`\`\n\n`;
+      commentBody += `\`\`\`\n${errorLog.slice(0, 3000)}\`\`\`\n\n`;
       commentBody += `</details>\n\n`;
     }
     
@@ -33,6 +44,12 @@ function createSecurityComment(inputs) {
     commentBody += `- Check if Terraform files are valid\n`;
     commentBody += `- Verify Trivy configuration in \`trivy.yaml\`\n`;
     commentBody += `- Check workflow logs for detailed error information\n\n`;
+    
+    // Add CI/CD links section for failed scans
+    commentBody += `### 🔗 Links\n\n`;
+    commentBody += `- 📊 **[View GitHub Actions Run](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})**\n`;
+    commentBody += `- 📦 **[Download Security Artifacts](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}#artifacts)**\n`;
+    commentBody += `- 🔍 **[View Security Scan Job](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/job/${process.env.GITHUB_JOB})**\n\n`;
     
     commentBody += `*❌ Security scan failed at ${new Date().toISOString()}*`;
     return commentBody;
@@ -95,6 +112,12 @@ function createSecurityComment(inputs) {
     commentBody += `- **🛡️ Tool**: Trivy v0.48.0\n`;
     commentBody += `- **📋 Checks**: AWS, Security, Best Practices\n\n`;
   }
+  
+  // Add CI/CD links section
+  commentBody += `### 🔗 Links\n\n`;
+  commentBody += `- 📊 **[View GitHub Actions Run](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})**\n`;
+  commentBody += `- 📦 **[Download Security Artifacts](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}#artifacts)**\n`;
+  commentBody += `- 🔍 **[View Security Scan Job](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/job/${process.env.GITHUB_JOB})**\n\n`;
   
   commentBody += `*🔐 Security scan completed at ${new Date().toISOString()}*`;
   
