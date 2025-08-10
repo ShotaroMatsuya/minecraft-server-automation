@@ -204,19 +204,30 @@ jobs:
     name: Terragrunt Apply - Keeping
     runs-on: ubuntu-latest
     needs: [check-changes]
-    if: needs.check-changes.outputs.should_run_keeping == 'true'
     outputs:
-      apply_status: ${{ steps.apply.outputs.status }}
-      resources_applied: ${{ steps.apply.outputs.resources_applied }}
-      resources_changed: ${{ steps.apply.outputs.resources_changed }}
-      resources_destroyed: ${{ steps.apply.outputs.resources_destroyed }}
+      apply_status: ${{ steps.determine-status.outputs.status }}
+      resources_applied: ${{ steps.apply.outputs.resources_applied || 0 }}
+      resources_changed: ${{ steps.apply.outputs.resources_changed || 0 }}
+      resources_destroyed: ${{ steps.apply.outputs.resources_destroyed || 0 }}
     steps:
+      - name: Check if job should run
+        id: should-run
+        run: |
+          SHOULD_RUN="${{ needs.check-changes.outputs.should_run_keeping }}"
+          echo "should_run_keeping: $SHOULD_RUN"
+          if [ "$SHOULD_RUN" = "true" ]; then
+            echo "✅ Job should run"
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "⏭️ Job should be skipped"
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Debug Job Conditions
         run: |
           echo "=== Debugging apply-keeping job conditions ==="
           echo "should_run_keeping output: '${{ needs.check-changes.outputs.should_run_keeping }}'"
-          echo "Type check: '${{ needs.check-changes.outputs.should_run_keeping }}' == 'true'"
-          echo "Condition result: ${{ needs.check-changes.outputs.should_run_keeping == 'true' }}"
+          echo "Job will run: '${{ steps.should-run.outputs.run }}'"
           echo "All check-changes outputs:"
           echo "  changes: '${{ needs.check-changes.outputs.changes }}'"
           echo "  keeping_changes: '${{ needs.check-changes.outputs.keeping_changes }}'"
@@ -283,7 +294,7 @@ jobs:
 
       - name: Terragrunt Apply - Keeping
         id: apply
-        if: steps.check-env.outputs.exists == 'true'
+        if: steps.should-run.outputs.run == 'true' && steps.check-env.outputs.exists == 'true'
         working-directory: terragrunt/environments/keeping
         run: |
           # Function to handle state lock issues
@@ -492,13 +503,33 @@ jobs:
           SLACK_COLOR: danger
           SLACK_MESSAGE: "keeping environment apply failed 😢"
 
+      - name: Determine Final Status
+        id: determine-status
+        if: always()
+        run: |
+          if [ "${{ steps.should-run.outputs.run }}" != "true" ]; then
+            echo "status=skipped" >> "$GITHUB_OUTPUT"
+            echo "Final status: skipped (should not run)"
+          elif [ "${{ steps.check-env.outputs.exists }}" != "true" ]; then
+            echo "status=skipped" >> "$GITHUB_OUTPUT"
+            echo "Final status: skipped (environment does not exist)"
+          elif [ "${{ steps.apply.outputs.status }}" != "" ]; then
+            echo "status=${{ steps.apply.outputs.status }}" >> "$GITHUB_OUTPUT"
+            echo "Final status: ${{ steps.apply.outputs.status }}"
+          else
+            echo "status=unknown" >> "$GITHUB_OUTPUT"
+            echo "Final status: unknown"
+          fi
+
   apply-scheduling:
     name: Terragrunt Apply - Scheduling
     runs-on: ubuntu-latest
     needs: [check-changes, apply-keeping]
     if: |
       needs.check-changes.outputs.should_run_scheduling == 'true' && 
-      (needs.apply-keeping.result == 'success' || needs.apply-keeping.result == 'skipped' || needs.check-changes.outputs.should_run_keeping == 'false')
+      (needs.apply-keeping.outputs.apply_status == 'success' || 
+       needs.apply-keeping.outputs.apply_status == 'skipped' || 
+       needs.check-changes.outputs.should_run_keeping == 'false')
     outputs:
       apply_status: ${{ steps.apply.outputs.status }}
       resources_applied: ${{ steps.apply.outputs.resources_applied }}
@@ -512,12 +543,11 @@ jobs:
           echo "should_run_keeping output: '${{ needs.check-changes.outputs.should_run_keeping }}'"
           echo "Type check: '${{ needs.check-changes.outputs.should_run_scheduling }}' == 'true'"
           echo "Condition result: ${{ needs.check-changes.outputs.should_run_scheduling == 'true' }}"
-          echo "apply-keeping result: '${{ needs.apply-keeping.result }}'"
           echo "apply-keeping apply_status: '${{ needs.apply-keeping.outputs.apply_status }}'"
-          echo "apply-keeping skipped check: ${{ needs.apply-keeping.result == 'skipped' }}"
+          echo "apply-keeping skipped check: ${{ needs.apply-keeping.outputs.apply_status == 'skipped' }}"
           echo "apply-keeping success check: ${{ needs.apply-keeping.outputs.apply_status == 'success' }}"
           echo "should_run_keeping false check: ${{ needs.check-changes.outputs.should_run_keeping == 'false' }}"
-          echo "Updated combined condition: ${{ needs.check-changes.outputs.should_run_scheduling == 'true' && (needs.apply-keeping.result == 'success' || needs.apply-keeping.result == 'skipped' || needs.check-changes.outputs.should_run_keeping == 'false') }}"
+          echo "Updated combined condition: ${{ needs.check-changes.outputs.should_run_scheduling == 'true' && (needs.apply-keeping.outputs.apply_status == 'success' || needs.apply-keeping.outputs.apply_status == 'skipped' || needs.check-changes.outputs.should_run_keeping == 'false') }}"
           echo "All check-changes outputs:"
           echo "  changes: '${{ needs.check-changes.outputs.changes }}'"
           echo "  keeping_changes: '${{ needs.check-changes.outputs.keeping_changes }}'"
@@ -748,7 +778,7 @@ jobs:
     name: Comment Apply Results
     runs-on: ubuntu-latest
     needs: [check-changes, apply-keeping, apply-scheduling]
-    if: always() && needs.check-changes.outputs.pr_number != '' && needs.check-changes.outputs.pr_number != null && (needs.apply-keeping.result == 'success' || needs.apply-scheduling.result == 'success' || needs.apply-keeping.result == 'failure' || needs.apply-scheduling.result == 'failure')
+    if: always() && needs.check-changes.outputs.pr_number != '' && needs.check-changes.outputs.pr_number != null && (needs.apply-keeping.outputs.apply_status == 'success' || needs.apply-scheduling.outputs.apply_status == 'success' || needs.apply-keeping.outputs.apply_status == 'failed' || needs.apply-scheduling.outputs.apply_status == 'failed')
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -762,7 +792,7 @@ jobs:
               {
                 name: 'keeping',
                 status: '${{ needs.apply-keeping.outputs.apply_status }}',
-                wasExecuted: '${{ needs.apply-keeping.result }}' !== 'skipped',
+                wasExecuted: '${{ needs.apply-keeping.outputs.apply_status }}' !== 'skipped' && '${{ needs.apply-keeping.outputs.apply_status }}' !== '',
                 resourcesApplied: '${{ needs.apply-keeping.outputs.resources_applied }}' || '0',
                 resourcesChanged: '${{ needs.apply-keeping.outputs.resources_changed }}' || '0',
                 resourcesDestroyed: '${{ needs.apply-keeping.outputs.resources_destroyed }}' || '0'
@@ -770,7 +800,7 @@ jobs:
               {
                 name: 'scheduling', 
                 status: '${{ needs.apply-scheduling.outputs.apply_status }}',
-                wasExecuted: '${{ needs.apply-scheduling.result }}' !== 'skipped',
+                wasExecuted: '${{ needs.apply-scheduling.outputs.apply_status }}' !== 'skipped' && '${{ needs.apply-scheduling.outputs.apply_status }}' !== '',
                 resourcesApplied: '${{ needs.apply-scheduling.outputs.resources_applied }}' || '0',
                 resourcesChanged: '${{ needs.apply-scheduling.outputs.resources_changed }}' || '0',
                 resourcesDestroyed: '${{ needs.apply-scheduling.outputs.resources_destroyed }}' || '0'
