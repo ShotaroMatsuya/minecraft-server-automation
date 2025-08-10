@@ -309,31 +309,9 @@ jobs:
                 continue
               fi
               
-              # Run plan first to validate the configuration
-              plan_exit_code=0
-              terragrunt plan --terragrunt-non-interactive -out=tfplan > plan_output.txt 2>&1 || plan_exit_code=$?
-              
-              if [ "$plan_exit_code" -ne 0 ]; then
-                echo "❌ Plan failed on attempt $((retry_count + 1))"
-                cat plan_output.txt
-                if [ "$retry_count" -eq $((max_retries - 1)) ]; then
-                  echo "status=plan_failed" >> "$GITHUB_OUTPUT"
-                  echo "resources_applied=0" >> "$GITHUB_OUTPUT"
-                  echo "resources_changed=0" >> "$GITHUB_OUTPUT"
-                  echo "resources_destroyed=0" >> "$GITHUB_OUTPUT"
-                  return 1
-                fi
-                retry_count=$((retry_count + 1))
-                echo "⏳ Waiting 30 seconds before retry..."
-                sleep 30
-                continue
-              fi
-              
-              echo "✅ Plan completed successfully, proceeding with apply"
-              
-              # Run apply with auto-approve using the saved plan
+              # Run apply with auto-approve
               apply_exit_code=0
-              terragrunt apply --terragrunt-non-interactive -auto-approve tfplan > apply_output.txt 2>&1 || apply_exit_code=$?
+              terragrunt apply --terragrunt-non-interactive -auto-approve > apply_output.txt 2>&1 || apply_exit_code=$?
               
               # Check if this was a lock error
               if [ "$apply_exit_code" -ne 0 ] && grep -q "Error acquiring the state lock" apply_output.txt; then
@@ -430,15 +408,6 @@ jobs:
             echo "❌ apply_output.txt not found"
           fi
           
-          if [ -f "plan_output.txt" ]; then
-            echo "✅ plan_output.txt exists, size: $(wc -c < plan_output.txt) bytes"
-            echo "=== Plan Output ==="
-            cat plan_output.txt
-            echo "=== End Plan Output ==="
-          else
-            echo "❌ plan_output.txt not found"
-          fi
-          
           if [ -f "init_output.txt" ]; then
             echo "✅ init_output.txt exists, size: $(wc -c < init_output.txt) bytes"
           else
@@ -463,7 +432,6 @@ jobs:
           name: terragrunt-apply-keeping
           path: |
             terragrunt/environments/keeping/apply_output.txt
-            terragrunt/environments/keeping/plan_output.txt
             terragrunt/environments/keeping/init_output.txt
             terragrunt/environments/keeping/apply_errors.txt
           retention-days: 30
@@ -579,31 +547,9 @@ jobs:
                 continue
               fi
               
-              # Run plan first to validate the configuration
-              plan_exit_code=0
-              terragrunt plan --terragrunt-non-interactive -out=tfplan > plan_output.txt 2>&1 || plan_exit_code=$?
-              
-              if [ "$plan_exit_code" -ne 0 ]; then
-                echo "❌ Plan failed on attempt $((retry_count + 1))"
-                cat plan_output.txt
-                if [ "$retry_count" -eq $((max_retries - 1)) ]; then
-                  echo "status=plan_failed" >> "$GITHUB_OUTPUT"
-                  echo "resources_applied=0" >> "$GITHUB_OUTPUT"
-                  echo "resources_changed=0" >> "$GITHUB_OUTPUT"
-                  echo "resources_destroyed=0" >> "$GITHUB_OUTPUT"
-                  return 1
-                fi
-                retry_count=$((retry_count + 1))
-                echo "⏳ Waiting 30 seconds before retry..."
-                sleep 30
-                continue
-              fi
-              
-              echo "✅ Plan completed successfully, proceeding with apply"
-              
-              # Run apply with auto-approve using the saved plan
+              # Run apply with auto-approve
               apply_exit_code=0
-              terragrunt apply --terragrunt-non-interactive -auto-approve tfplan > apply_output.txt 2>&1 || apply_exit_code=$?
+              terragrunt apply --terragrunt-non-interactive -auto-approve > apply_output.txt 2>&1 || apply_exit_code=$?
               
               # Check if this was a lock error
               if [ "$apply_exit_code" -ne 0 ] && grep -q "Error acquiring the state lock" apply_output.txt; then
@@ -690,7 +636,6 @@ jobs:
           name: terragrunt-apply-scheduling
           path: |
             terragrunt/environments/scheduling/apply_output.txt
-            terragrunt/environments/scheduling/plan_output.txt
             terragrunt/environments/scheduling/init_output.txt
             terragrunt/environments/scheduling/apply_errors.txt
           retention-days: 30
