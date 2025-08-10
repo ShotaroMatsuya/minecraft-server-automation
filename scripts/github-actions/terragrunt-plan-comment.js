@@ -149,17 +149,19 @@ function createTerragruntPlanComment(inputs) {
     
     console.log('DEBUG: Trying plan paths:', possiblePlanPaths);
     
-      for (const planPath of possiblePlanPaths) {
-        if (planPath && planPath !== 'undefined') {
-          try {
-            planErrorLog = stripAnsiCodes(fs.readFileSync(planPath, 'utf8'));
-            console.log(`DEBUG: Successfully read plan from ${planPath}, size: ${planErrorLog.length} bytes`);
-            break;
-          } catch (error) {
-            console.log(`DEBUG: Failed to read plan from ${planPath}: ${error.message}`);
-          }
+    for (const planPath of possiblePlanPaths) {
+      if (planPath && planPath !== 'undefined') {
+        try {
+          planErrorLog = stripAnsiCodes(fs.readFileSync(planPath, 'utf8'));
+          console.log(`DEBUG: Successfully read plan from ${planPath}, size: ${planErrorLog.length} bytes`);
+          break;
+        } catch (error) {
+          console.log(`DEBUG: Failed to read plan from ${planPath}: ${error.message}`);
         }
-      }    // If no plan_output.txt found, try plan_errors.txt
+      }
+    }
+    
+    // If no plan_output.txt found, try plan_errors.txt
     if (!planErrorLog || planErrorLog.trim() === '') {
       const possibleErrorPaths = [
         `${inputs.artifactBasePath}/terragrunt-plan-${environment}/plan_errors.txt`,
@@ -190,7 +192,10 @@ function createTerragruntPlanComment(inputs) {
       ];
       for (const initPath of initPaths) {
         initErrorLog = readFileFromPath(initPath);
-        if (initErrorLog) break;
+        if (initErrorLog) {
+          console.log(`DEBUG: Successfully read init from ${initPath}, size: ${initErrorLog.length} bytes`);
+          break;
+        }
       }
     }
     
@@ -203,7 +208,10 @@ function createTerragruntPlanComment(inputs) {
       ];
       for (const formatPath of formatPaths) {
         formatErrorLog = readFileFromPath(formatPath);
-        if (formatErrorLog) break;
+        if (formatErrorLog) {
+          console.log(`DEBUG: Successfully read format from ${formatPath}, size: ${formatErrorLog.length} bytes`);
+          break;
+        }
       }
     }
     
@@ -216,14 +224,31 @@ function createTerragruntPlanComment(inputs) {
       ];
       for (const validatePath of validatePaths) {
         validateErrorLog = readFileFromPath(validatePath);
-        if (validateErrorLog) break;
+        if (validateErrorLog) {
+          console.log(`DEBUG: Successfully read validate from ${validatePath}, size: ${validateErrorLog.length} bytes`);
+          break;
+        }
       }
     }
   }
   
-  // If not using dynamic discovery, try the primary plan file path
+  // If not using dynamic discovery, try the primary plan file path and alternatives
   if (!planErrorLog || planErrorLog.trim() === '') {
-    planErrorLog = readFileFromPath(planFilePath);
+    const primaryPaths = [
+      planFilePath, // Primary path from inputs
+      `${inputs.artifactBasePath}/terragrunt-plan-${environment}/plan_output.txt`, // Direct artifact path
+      `${inputs.artifactBasePath}/plan_output.txt` // Fallback merged path
+    ];
+    
+    for (const planPath of primaryPaths) {
+      if (planPath) {
+        planErrorLog = readFileFromPath(planPath);
+        if (planErrorLog && planErrorLog.trim() !== '') {
+          console.log(`DEBUG: Successfully read plan from primary path: ${planPath}, size: ${planErrorLog.length} bytes`);
+          break;
+        }
+      }
+    }
   }
   
   // Helper function to check if log contains actual errors (not just info/success messages)
@@ -284,8 +309,28 @@ function createTerragruntPlanComment(inputs) {
     console.log(`DEBUG: Successfully read planFilePath: ${planFilePath}, size: ${planContentForCheck.length} bytes`);
   } catch (error) {
     console.log(`DEBUG: Failed to read planFilePath: ${planFilePath}, error: ${error.message}`);
-    planContentForCheck = planErrorLog || '';
-    console.log(`DEBUG: Using planErrorLog fallback, size: ${planContentForCheck.length} bytes`);
+    
+    // Try alternative paths for plan content check
+    const alternativePaths = [
+      `${inputs.artifactBasePath}/terragrunt-plan-${environment}/plan_output.txt`,
+      `${inputs.artifactBasePath}/plan_output.txt`
+    ];
+    
+    for (const altPath of alternativePaths) {
+      try {
+        planContentForCheck = stripAnsiCodes(fs.readFileSync(altPath, 'utf8'));
+        console.log(`DEBUG: Successfully read planContentForCheck from ${altPath}, size: ${planContentForCheck.length} bytes`);
+        break;
+      } catch (altError) {
+        console.log(`DEBUG: Failed to read planContentForCheck from ${altPath}: ${altError.message}`);
+      }
+    }
+    
+    // Fallback to planErrorLog if no files found
+    if (planContentForCheck.trim() === '') {
+      planContentForCheck = planErrorLog || '';
+      console.log(`DEBUG: Using planErrorLog fallback, size: ${planContentForCheck.length} bytes`);
+    }
   }
   
   // Check if we have a valid plan result (most important indicator)
@@ -470,9 +515,26 @@ function createTerragruntPlanComment(inputs) {
       }
     } catch (planReadError) {
       console.log(`DEBUG: Failed to read planOutput from ${planFilePath}, error: ${planReadError.message}`);
+      
+      // Try alternative paths for plan output
+      const alternativePlanPaths = [
+        `${inputs.artifactBasePath}/terragrunt-plan-${environment}/plan_output.txt`,
+        `${inputs.artifactBasePath}/plan_output.txt`
+      ];
+      
+      for (const altPath of alternativePlanPaths) {
+        try {
+          planOutput = stripAnsiCodes(fs.readFileSync(altPath, 'utf8'));
+          console.log(`DEBUG: Successfully read planOutput from alternative path: ${altPath}, size: ${planOutput.length} bytes`);
+          break;
+        } catch (altError) {
+          console.log(`DEBUG: Failed to read planOutput from ${altPath}: ${altError.message}`);
+        }
+      }
+      
       // If plan_output.txt doesn't exist or is empty, try plan_errors.txt
       // Sometimes Terragrunt outputs plan to stderr
-      if (planErrorLog && planErrorLog.trim() !== '') {
+      if (planOutput.trim() === '' && planErrorLog && planErrorLog.trim() !== '') {
         planOutput = planErrorLog;
         console.log(`DEBUG: Using planErrorLog fallback, size: ${planOutput.length} bytes`);
       }
