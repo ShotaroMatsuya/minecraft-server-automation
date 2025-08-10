@@ -37,7 +37,7 @@ module.exports = async (labels, keepingChanges, schedulingChanges) => {
   console.log('Should run scheduling:', shouldRunScheduling);
   
   return {
-    should_run_keeping: shouldRunKeeping,
-    should_run_scheduling: shouldRunScheduling
+    should_run_keeping: shouldRunKeeping.toString(),
+    should_run_scheduling: shouldRunScheduling.toString()
   };
 };

@@ -24,8 +24,8 @@ module.exports = async (github, context) => {
   console.log('Should run checks:', hasAnyTargetLabel);
   
   return {
-    should_run_keeping: hasKeepingLabel,
-    should_run_scheduling: hasSchedulingLabel,
-    should_run_checks: hasAnyTargetLabel
+    should_run_keeping: hasKeepingLabel.toString(),
+    should_run_scheduling: hasSchedulingLabel.toString(),
+    should_run_checks: hasAnyTargetLabel.toString()
   };
 };
