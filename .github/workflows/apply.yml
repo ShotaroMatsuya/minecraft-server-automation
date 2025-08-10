@@ -411,7 +411,11 @@ jobs:
     name: Comment Apply Results
     runs-on: ubuntu-latest
     needs: [check-changes, apply-keeping, apply-scheduling]
-    if: always() && needs.check-changes.outputs.pr_number != ''
+    if: |
+      always() && 
+      needs.check-changes.outputs.pr_number != '' &&
+      (needs.apply-keeping.result == 'success' || needs.apply-scheduling.result == 'success' || 
+       needs.apply-keeping.result == 'failure' || needs.apply-scheduling.result == 'failure')
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -437,17 +441,82 @@ jobs:
           script: |
             const commentHandler = require('./scripts/github-actions/comment-handler.js');
             
+            // Check if any apply jobs were actually executed
+            const keepingExecuted = '${{ needs.apply-keeping.result }}' !== 'skipped';
+            const schedulingExecuted = '${{ needs.apply-scheduling.result }}' !== 'skipped';
+            
+            if (!keepingExecuted && !schedulingExecuted) {
+              console.log(`📝 No apply jobs were executed - no infrastructure changes detected`);
+              
+              // Create a summary comment explaining why no apply was run
+              const prNumber = '${{ needs.check-changes.outputs.pr_number }}';
+              if (prNumber) {
+                context.issue.number = parseInt(prNumber);
+                
+                const summaryComment = `## 📋 Apply Results Summary
+            
+            ✅ **No infrastructure changes detected**
+            
+            No Terragrunt apply operations were executed because:
+            - No changes were detected in \`terragrunt/\` or \`terraform/\` directories
+            - Changes were limited to workflow files, documentation, or other non-infrastructure files
+            
+            **Checked environments:**
+            - 🏠 **keeping**: No changes detected
+            - ⏰ **scheduling**: No changes detected
+            
+            *📋 Apply check completed at ${new Date().toISOString()}*`;
+                
+                try {
+                  // Find existing apply summary comment
+                  const { data: comments } = await github.rest.issues.listComments({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: context.issue.number,
+                  });
+                  
+                  const summaryIdentifier = '## 📋 Apply Results Summary';
+                  const existingSummary = comments.find(comment => 
+                    comment.user.type === 'Bot' && 
+                    comment.body.includes(summaryIdentifier)
+                  );
+                  
+                  if (existingSummary) {
+                    await github.rest.issues.updateComment({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      comment_id: existingSummary.id,
+                      body: summaryComment
+                    });
+                    console.log(`✅ Updated existing apply summary comment`);
+                  } else {
+                    await github.rest.issues.createComment({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: context.issue.number,
+                      body: summaryComment
+                    });
+                    console.log(`✅ Created new apply summary comment`);
+                  }
+                } catch (error) {
+                  console.error(`❌ Error creating apply summary comment:`, error);
+                }
+              }
+              
+              return; // Exit early
+            }
+            
             // Process both environments in sequence
             const environments = [
               {
                 name: 'keeping',
                 status: '${{ needs.apply-keeping.outputs.apply_status }}',
-                wasExecuted: '${{ needs.apply-keeping.result }}' !== 'skipped'
+                wasExecuted: keepingExecuted
               },
               {
                 name: 'scheduling', 
                 status: '${{ needs.apply-scheduling.outputs.apply_status }}',
-                wasExecuted: '${{ needs.apply-scheduling.result }}' !== 'skipped'
+                wasExecuted: schedulingExecuted
               }
             ];
             
