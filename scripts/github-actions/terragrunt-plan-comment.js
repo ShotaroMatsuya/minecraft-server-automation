@@ -11,11 +11,14 @@ const fs = require('fs');
  * @param {string} inputs.environment - Environment name (keeping/scheduling)
  * @param {string} inputs.status - Plan execution status
  * @param {string} inputs.planFilePath - Path to plan output file
- * @param {string} inputs.errorLog - Error log if plan failed
+ * @param {string} inputs.initErrorLog - Error log from init step
+ * @param {string} inputs.planErrorLog - Error log from plan step
+ * @param {string} inputs.formatErrorLog - Error log from format check
+ * @param {string} inputs.validateErrorLog - Error log from validate step
  * @returns {string} Formatted comment body
  */
 function createTerragruntPlanComment(inputs) {
-  const { environment, status, planFilePath, errorLog } = inputs;
+  const { environment, status, planFilePath, initErrorLog, planErrorLog, formatErrorLog, validateErrorLog } = inputs;
   
   // Environment-specific titles
   const titles = {
@@ -25,44 +28,112 @@ function createTerragruntPlanComment(inputs) {
   
   let commentBody = `${titles[environment] || `## 📋 Plan Result (${environment})`}\n\n`;
   
-  // Check if plan failed
-  if (status === 'failed' || status === 'init_failed' || status === 'error') {
-    commentBody += `❌ **Terragrunt plan failed**\n\n`;
+  // Check if any step failed and show detailed error information
+  const hasFormatError = formatErrorLog && formatErrorLog.trim() !== '';
+  const hasValidateError = validateErrorLog && validateErrorLog.trim() !== '';
+  const hasInitError = status === 'init_failed' || (initErrorLog && initErrorLog.trim() !== '');
+  const hasPlanError = status === 'failed' || (planErrorLog && planErrorLog.trim() !== '');
+  
+  // Show step-by-step status
+  commentBody += `### 🔄 Execution Steps\n\n`;
+  commentBody += `| Step | Status |\n`;
+  commentBody += `|------|--------|\n`;
+  commentBody += `| 🎨 **Format Check** | ${hasFormatError ? '❌ Failed' : '✅ Passed'} |\n`;
+  commentBody += `| ✅ **Validation** | ${hasValidateError ? '❌ Failed' : '✅ Passed'} |\n`;
+  commentBody += `| 🚀 **Init** | ${hasInitError ? '❌ Failed' : '✅ Passed'} |\n`;
+  commentBody += `| 📋 **Plan** | ${hasPlanError ? '❌ Failed' : status === 'has_changes' ? '🔄 Changes Detected' : status === 'no_changes' ? '✅ No Changes' : '⚠️ Unknown'} |\n\n`;
+  
+  // If any errors occurred, show them first
+  if (hasFormatError || hasValidateError || hasInitError || hasPlanError) {
+    commentBody += `### 🚨 Error Details\n\n`;
     
-    let errorMessage = '';
-    if (status === 'init_failed') {
-      errorMessage = 'Terragrunt initialization failed. Unable to initialize the working directory.';
-    } else {
-      errorMessage = 'Terragrunt plan execution failed. Unable to generate infrastructure plan.';
-    }
-    
-    commentBody += `${errorMessage}\n\n`;
-    
-    if (errorLog) {
-      commentBody += `### 🚨 Error Details\n\n`;
-      commentBody += `<details><summary>📋 View Error Log (Click to expand)</summary>\n\n`;
-      commentBody += `\`\`\`\n${errorLog.slice(0, 3000)}\`\`\`\n\n`;
+    if (hasFormatError) {
+      commentBody += `#### 🎨 Format Check Errors\n`;
+      commentBody += `Code formatting issues were detected.\n\n`;
+      commentBody += `<details><summary>📋 View Format Error Log (Click to expand)</summary>\n\n`;
+      commentBody += `\`\`\`\n${formatErrorLog.slice(0, 2000)}\`\`\`\n\n`;
       commentBody += `</details>\n\n`;
     }
     
-    // Add troubleshooting information
+    if (hasValidateError) {
+      commentBody += `#### ✅ Validation Errors\n`;
+      commentBody += `Configuration validation failed.\n\n`;
+      commentBody += `<details><summary>📋 View Validation Error Log (Click to expand)</summary>\n\n`;
+      commentBody += `\`\`\`\n${validateErrorLog.slice(0, 2000)}\`\`\`\n\n`;
+      commentBody += `</details>\n\n`;
+    }
+    
+    if (hasInitError) {
+      commentBody += `#### 🚀 Initialization Errors\n`;
+      commentBody += `Terragrunt initialization failed. Unable to initialize the working directory.\n\n`;
+      commentBody += `<details><summary>📋 View Init Error Log (Click to expand)</summary>\n\n`;
+      commentBody += `\`\`\`\n${initErrorLog.slice(0, 3000)}\`\`\`\n\n`;
+      commentBody += `</details>\n\n`;
+    }
+    
+    if (hasPlanError) {
+      commentBody += `#### � Plan Execution Errors\n`;
+      commentBody += `Terragrunt plan execution failed. Unable to generate infrastructure plan.\n\n`;
+      commentBody += `<details><summary>📋 View Plan Error Log (Click to expand)</summary>\n\n`;
+      commentBody += `\`\`\`\n${planErrorLog.slice(0, 3000)}\`\`\`\n\n`;
+      commentBody += `</details>\n\n`;
+    }
+    
+    // Add comprehensive troubleshooting information
     commentBody += `### 🔧 Troubleshooting\n`;
-    if (status === 'init_failed') {
+    
+    if (hasFormatError) {
+      commentBody += `**Format Check Issues:**\n`;
+      commentBody += `- Run \`terragrunt fmt\` to automatically fix formatting\n`;
+      commentBody += `- Check indentation and syntax consistency\n`;
+      commentBody += `- Ensure proper HCL formatting\n\n`;
+    }
+    
+    if (hasValidateError) {
+      commentBody += `**Validation Issues:**\n`;
+      commentBody += `- Check Terraform configuration syntax\n`;
+      commentBody += `- Verify variable declarations and references\n`;
+      commentBody += `- Ensure required providers are properly configured\n`;
+      commentBody += `- Validate \`terragrunt.hcl\` configuration\n\n`;
+    }
+    
+    if (hasInitError) {
+      commentBody += `**Initialization Issues:**\n`;
       commentBody += `- Check AWS credentials and permissions\n`;
       commentBody += `- Verify S3 bucket and DynamoDB table for Terraform state\n`;
       commentBody += `- Ensure required providers are accessible\n`;
-    } else {
+      commentBody += `- Check network connectivity to provider APIs\n\n`;
+    }
+    
+    if (hasPlanError) {
+      commentBody += `**Plan Execution Issues:**\n`;
       commentBody += `- Check Terraform configuration syntax\n`;
       commentBody += `- Verify resource dependencies and references\n`;
       commentBody += `- Check AWS provider credentials and permissions\n`;
+      commentBody += `- Ensure all required variables are defined\n\n`;
     }
-    commentBody += `- Review workflow logs for detailed error information\n`;
-    commentBody += `- Validate \`terragrunt.hcl\` configuration\n\n`;
     
-    commentBody += `*❌ Plan failed at ${new Date().toISOString()} | Environment: ${environment}*`;
+    commentBody += `**General Troubleshooting:**\n`;
+    commentBody += `- Review workflow logs for detailed error information\n`;
+    commentBody += `- Check if resources already exist with different configurations\n`;
+    commentBody += `- Verify AWS service limits and quotas\n`;
+    commentBody += `- Ensure proper IAM permissions for all required actions\n\n`;
+    
+    const failureTime = new Date().toISOString();
+    if (hasInitError) {
+      commentBody += `*❌ Init failed at ${failureTime} | Environment: ${environment}*`;
+    } else if (hasValidateError) {
+      commentBody += `*❌ Validation failed at ${failureTime} | Environment: ${environment}*`;
+    } else if (hasFormatError) {
+      commentBody += `*❌ Format check failed at ${failureTime} | Environment: ${environment}*`;
+    } else if (hasPlanError) {
+      commentBody += `*❌ Plan failed at ${failureTime} | Environment: ${environment}*`;
+    }
+    
     return commentBody;
   }
   
+  // If no errors, proceed with normal plan output
   try {
     // Try to read the actual plan output
     const planOutput = fs.readFileSync(planFilePath, 'utf8');

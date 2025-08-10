@@ -266,7 +266,10 @@ jobs:
         if: steps.check-env.outputs.exists == 'true'
         run: |
           cd "${{ matrix.path }}"
-          if terragrunt fmt --check --terragrunt-non-interactive; then
+          format_exit_code=0
+          terragrunt fmt --check --terragrunt-non-interactive 2> format_errors.txt || format_exit_code=$?
+          
+          if [ $format_exit_code -eq 0 ]; then
             echo "status=success" >> "$GITHUB_OUTPUT"
           else
             echo "status=needs_formatting" >> "$GITHUB_OUTPUT"
@@ -278,7 +281,10 @@ jobs:
         if: steps.check-env.outputs.exists == 'true'
         run: |
           cd "${{ matrix.path }}"
-          if terragrunt validate --terragrunt-non-interactive; then
+          validate_exit_code=0
+          terragrunt validate --terragrunt-non-interactive 2> validate_errors.txt || validate_exit_code=$?
+          
+          if [ $validate_exit_code -eq 0 ]; then
             echo "status=success" >> "$GITHUB_OUTPUT"
           else
             echo "status=failed" >> "$GITHUB_OUTPUT"
@@ -298,13 +304,15 @@ jobs:
               echo "resources_to_add=0"
               echo "resources_to_change=0" 
               echo "resources_to_destroy=0"
+              echo "fmt_status=${{ steps.fmt-check.outputs.status }}"
+              echo "validate_status=${{ steps.validate.outputs.status }}"
             } >> "$GITHUB_OUTPUT"
             exit 0
           fi
           
           # Run plan
           plan_exit_code=0
-          terragrunt plan -detailed-exitcode --terragrunt-non-interactive > plan_output.txt 2>&1 || plan_exit_code=$?
+          terragrunt plan -detailed-exitcode --terragrunt-non-interactive > plan_output.txt 2> plan_errors.txt || plan_exit_code=$?
           
           # Parse results
           if [ -f "plan_output.txt" ]; then
@@ -316,6 +324,8 @@ jobs:
               echo "resources_to_add=$to_add"
               echo "resources_to_change=$to_change"
               echo "resources_to_destroy=$to_destroy"
+              echo "fmt_status=${{ steps.fmt-check.outputs.status }}"
+              echo "validate_status=${{ steps.validate.outputs.status }}"
             } >> "$GITHUB_OUTPUT"
             
             # Store plan output for comment
@@ -346,6 +356,8 @@ jobs:
               echo "resources_to_change=0"
               echo "resources_to_destroy=0"
               echo "plan_output=No plan output available"
+              echo "fmt_status=${{ steps.fmt-check.outputs.status }}"
+              echo "validate_status=${{ steps.validate.outputs.status }}"
             } >> "$GITHUB_OUTPUT"
           fi
           
@@ -379,6 +391,9 @@ jobs:
           path: |
             ${{ matrix.path }}/plan_output.txt
             ${{ matrix.path }}/init_output.txt
+            ${{ matrix.path }}/plan_errors.txt
+            ${{ matrix.path }}/format_errors.txt
+            ${{ matrix.path }}/validate_errors.txt
           retention-days: 30
 
   comment-results:
@@ -469,10 +484,32 @@ jobs:
             const fs = require('fs');
             const commentHandler = require('./scripts/github-actions/comment-handler.js');
             
-            // Read error log if it exists
-            let errorLog = '';
+            // Read various error logs if they exist
+            let initErrorLog = '';
+            let planErrorLog = '';
+            let formatErrorLog = '';
+            let validateErrorLog = '';
+            
             try {
-              errorLog = fs.readFileSync('plan-results/terragrunt/environments/keeping/init_output.txt', 'utf8');
+              initErrorLog = fs.readFileSync('plan-results/terragrunt/environments/keeping/init_output.txt', 'utf8');
+            } catch (error) {
+              // Error file doesn't exist or is empty
+            }
+            
+            try {
+              planErrorLog = fs.readFileSync('plan-results/terragrunt/environments/keeping/plan_errors.txt', 'utf8');
+            } catch (error) {
+              // Error file doesn't exist or is empty
+            }
+            
+            try {
+              formatErrorLog = fs.readFileSync('plan-results/terragrunt/environments/keeping/format_errors.txt', 'utf8');
+            } catch (error) {
+              // Error file doesn't exist or is empty
+            }
+            
+            try {
+              validateErrorLog = fs.readFileSync('plan-results/terragrunt/environments/keeping/validate_errors.txt', 'utf8');
             } catch (error) {
               // Error file doesn't exist or is empty
             }
@@ -482,7 +519,10 @@ jobs:
               environment: 'keeping',
               status: '${{ needs.terragrunt-plan.outputs.plan_status_keeping }}' || 'unknown',
               planFilePath: 'plan-results/terragrunt/environments/keeping/plan_output.txt',
-              errorLog: errorLog
+              initErrorLog: initErrorLog,
+              planErrorLog: planErrorLog,
+              formatErrorLog: formatErrorLog,
+              validateErrorLog: validateErrorLog
             };
             
             await commentHandler(github, context, inputs);
@@ -494,10 +534,32 @@ jobs:
             const fs = require('fs');
             const commentHandler = require('./scripts/github-actions/comment-handler.js');
             
-            // Read error log if it exists
-            let errorLog = '';
+            // Read various error logs if they exist
+            let initErrorLog = '';
+            let planErrorLog = '';
+            let formatErrorLog = '';
+            let validateErrorLog = '';
+            
             try {
-              errorLog = fs.readFileSync('plan-results/terragrunt/environments/scheduling/init_output.txt', 'utf8');
+              initErrorLog = fs.readFileSync('plan-results/terragrunt/environments/scheduling/init_output.txt', 'utf8');
+            } catch (error) {
+              // Error file doesn't exist or is empty
+            }
+            
+            try {
+              planErrorLog = fs.readFileSync('plan-results/terragrunt/environments/scheduling/plan_errors.txt', 'utf8');
+            } catch (error) {
+              // Error file doesn't exist or is empty
+            }
+            
+            try {
+              formatErrorLog = fs.readFileSync('plan-results/terragrunt/environments/scheduling/format_errors.txt', 'utf8');
+            } catch (error) {
+              // Error file doesn't exist or is empty
+            }
+            
+            try {
+              validateErrorLog = fs.readFileSync('plan-results/terragrunt/environments/scheduling/validate_errors.txt', 'utf8');
             } catch (error) {
               // Error file doesn't exist or is empty
             }
@@ -507,7 +569,10 @@ jobs:
               environment: 'scheduling',
               status: '${{ needs.terragrunt-plan.outputs.plan_status_scheduling }}' || 'unknown',
               planFilePath: 'plan-results/terragrunt/environments/scheduling/plan_output.txt',
-              errorLog: errorLog
+              initErrorLog: initErrorLog,
+              planErrorLog: planErrorLog,
+              formatErrorLog: formatErrorLog,
+              validateErrorLog: validateErrorLog
             };
             
             await commentHandler(github, context, inputs);

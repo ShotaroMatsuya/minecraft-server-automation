@@ -31,9 +31,19 @@ async function main(github, context, inputs) {
         break;
         
       case 'terragrunt-plan':
-        commentBody = createTerragruntPlanComment(inputs);
-        await updateTerragruntPlanComment(github, context, commentBody, inputs.environment);
-        break;
+      const { createTerragruntPlanComment, updateTerragruntPlanComment } = require('./terragrunt-plan-comment.js');
+      const terragruntInputs = {
+        environment: inputs.environment,
+        status: inputs.status,
+        planFilePath: inputs.planFilePath,
+        initErrorLog: inputs.initErrorLog || '',
+        planErrorLog: inputs.planErrorLog || '',
+        formatErrorLog: inputs.formatErrorLog || '',
+        validateErrorLog: inputs.validateErrorLog || ''
+      };
+      commentBody = createTerragruntPlanComment(terragruntInputs);
+      await updateTerragruntPlanComment(github, context, commentBody, inputs.environment);
+      break;
         
       default:
         throw new Error(`Unknown comment type: ${commentType}`);
