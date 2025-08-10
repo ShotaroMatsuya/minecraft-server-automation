@@ -5,7 +5,7 @@
  * both file changes and PR labels.
  */
 
-module.exports = async (labels, keepingChanges, schedulingChanges) => {
+module.exports = (labels, keepingChanges, schedulingChanges) => {
   // Check for target labels
   const keepingLabel = labels.includes('target:keeping');
   const schedulingLabel = labels.includes('target:scheduling');
