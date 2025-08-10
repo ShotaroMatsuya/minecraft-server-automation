@@ -498,7 +498,7 @@ jobs:
     needs: [check-changes, apply-keeping]
     if: |
       needs.check-changes.outputs.should_run_scheduling == 'true' && 
-      (needs.apply-keeping.outputs.apply_status == 'success' || needs.apply-keeping.result == 'skipped')
+      (needs.apply-keeping.result == 'success' || needs.apply-keeping.result == 'skipped' || needs.check-changes.outputs.should_run_keeping == 'false')
     outputs:
       apply_status: ${{ steps.apply.outputs.status }}
       resources_applied: ${{ steps.apply.outputs.resources_applied }}
@@ -509,13 +509,15 @@ jobs:
         run: |
           echo "=== Debugging apply-scheduling job conditions ==="
           echo "should_run_scheduling output: '${{ needs.check-changes.outputs.should_run_scheduling }}'"
+          echo "should_run_keeping output: '${{ needs.check-changes.outputs.should_run_keeping }}'"
           echo "Type check: '${{ needs.check-changes.outputs.should_run_scheduling }}' == 'true'"
           echo "Condition result: ${{ needs.check-changes.outputs.should_run_scheduling == 'true' }}"
           echo "apply-keeping result: '${{ needs.apply-keeping.result }}'"
           echo "apply-keeping apply_status: '${{ needs.apply-keeping.outputs.apply_status }}'"
           echo "apply-keeping skipped check: ${{ needs.apply-keeping.result == 'skipped' }}"
           echo "apply-keeping success check: ${{ needs.apply-keeping.outputs.apply_status == 'success' }}"
-          echo "Combined condition: ${{ needs.check-changes.outputs.should_run_scheduling == 'true' && (needs.apply-keeping.outputs.apply_status == 'success' || needs.apply-keeping.result == 'skipped') }}"
+          echo "should_run_keeping false check: ${{ needs.check-changes.outputs.should_run_keeping == 'false' }}"
+          echo "Updated combined condition: ${{ needs.check-changes.outputs.should_run_scheduling == 'true' && (needs.apply-keeping.result == 'success' || needs.apply-keeping.result == 'skipped' || needs.check-changes.outputs.should_run_keeping == 'false') }}"
           echo "All check-changes outputs:"
           echo "  changes: '${{ needs.check-changes.outputs.changes }}'"
           echo "  keeping_changes: '${{ needs.check-changes.outputs.keeping_changes }}'"
