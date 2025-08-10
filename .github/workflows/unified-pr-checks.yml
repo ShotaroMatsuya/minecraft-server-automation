@@ -360,21 +360,36 @@ jobs:
             echo "resources_to_destroy=0" >> "$GITHUB_OUTPUT"
           fi
           
-          # Determine status - check for errors in content even if exit code is 0
-          if [ "${plan_exit_code:-0}" -eq 0 ]; then
-            if [ "$has_plan_errors" = true ]; then
-              echo "status=failed" >> "$GITHUB_OUTPUT"
+          # Determine status based on terraform plan -detailed-exitcode behavior
+          # 0: No changes, 1: Error, 2: Changes detected
+          # However, if we have valid plan output, prioritize that over exit codes
+          
+          if [ -f "plan_output.txt" ] && grep -q "Plan:" plan_output.txt; then
+            # We have a valid plan summary - extract resource counts
+            to_add_check=$(grep -o "[0-9]\+ to add" plan_output.txt | grep -o "[0-9]\+" | head -1 || echo "0")
+            to_change_check=$(grep -o "[0-9]\+ to change" plan_output.txt | grep -o "[0-9]\+" | head -1 || echo "0")
+            to_destroy_check=$(grep -o "[0-9]\+ to destroy" plan_output.txt | grep -o "[0-9]\+" | head -1 || echo "0")
+            
+            # If we have a valid plan, determine status based on resource changes
+            if [ "$to_add_check" -gt 0 ] || [ "$to_change_check" -gt 0 ] || [ "$to_destroy_check" -gt 0 ]; then
+              echo "status=has_changes" >> "$GITHUB_OUTPUT"
+              echo "✅ Plan successful: $to_add_check to add, $to_change_check to change, $to_destroy_check to destroy"
             else
               echo "status=no_changes" >> "$GITHUB_OUTPUT"
+              echo "✅ Plan successful: No changes detected"
             fi
+          elif [ "${plan_exit_code:-0}" -eq 0 ]; then
+            # Exit code 0: No changes (standard terraform behavior)
+            echo "status=no_changes" >> "$GITHUB_OUTPUT"
+            echo "✅ Plan completed: No changes"
           elif [ "${plan_exit_code:-0}" -eq 2 ]; then
-            if [ "$has_plan_errors" = true ]; then
-              echo "status=failed" >> "$GITHUB_OUTPUT"
-            else
-              echo "status=has_changes" >> "$GITHUB_OUTPUT"
-            fi
+            # Exit code 2: Changes detected (standard terraform behavior)
+            echo "status=has_changes" >> "$GITHUB_OUTPUT"
+            echo "✅ Plan completed: Changes detected"
           else
+            # Exit code 1 or other: Error occurred and no valid plan found
             echo "status=failed" >> "$GITHUB_OUTPUT"
+            echo "❌ Plan failed: Exit code ${plan_exit_code:-0}, no valid plan output"
           fi
           
           # Debug output

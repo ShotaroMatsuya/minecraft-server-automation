@@ -78,7 +78,8 @@ function createTerragruntPlanComment(inputs) {
   const hasValidateError = hasActualErrors(validateErrorLog);
   const hasInitError = status === 'init_failed' || hasActualErrors(initErrorLog);
   
-  // Enhanced plan error detection - check plan content for errors even if status suggests success
+  // Enhanced plan analysis - prioritize valid plan results over status codes
+  // Based on terraform plan -detailed-exitcode: 0=no changes, 1=error, 2=changes
   let planContentForCheck = '';
   try {
     planContentForCheck = fs.readFileSync(planFilePath, 'utf8');
@@ -86,20 +87,38 @@ function createTerragruntPlanComment(inputs) {
     planContentForCheck = planErrorLog || '';
   }
   
-  // Check for definitive plan errors in the content regardless of status
-  const hasDefinitivePlanErrors = planContentForCheck && (
-    (planContentForCheck.includes('Error: External Program Execution Failed') && !planContentForCheck.includes('Plan:')) ||
-    (planContentForCheck.includes('terraform invocation failed') && !planContentForCheck.includes('Plan:')) ||
-    (/╷[\s\S]*Error:[\s\S]*╵/.test(planContentForCheck) && !planContentForCheck.includes('Plan:'))
+  // Check if we have a valid plan result (most important indicator)
+  const hasValidPlan = planContentForCheck && (
+    planContentForCheck.includes('Plan:') ||
+    (planContentForCheck.includes('to add') && planContentForCheck.includes('to change') && planContentForCheck.includes('to destroy'))
   );
   
-  // Check for warnings (not blocking errors) that should be shown with plan results
+  // Extract plan summary if available
+  const addMatches = planContentForCheck.match(/(\d+)\s+to\s+add/);
+  const changeMatches = planContentForCheck.match(/(\d+)\s+to\s+change/);
+  const destroyMatches = planContentForCheck.match(/(\d+)\s+to\s+destroy/);
+  
+  const planToAdd = addMatches ? parseInt(addMatches[1]) : 0;
+  const planToChange = changeMatches ? parseInt(changeMatches[1]) : 0;
+  const planToDestroy = destroyMatches ? parseInt(destroyMatches[1]) : 0;
+  
+  const hasChanges = planToAdd > 0 || planToChange > 0 || planToDestroy > 0;
+  
+  // Check for definitive blocking errors (only if no valid plan exists)
+  const hasDefinitivePlanErrors = !hasValidPlan && planContentForCheck && (
+    planContentForCheck.includes('Error: External Program Execution Failed') ||
+    planContentForCheck.includes('terraform invocation failed') ||
+    /╷[\s\S]*Error:[\s\S]*╵/.test(planContentForCheck)
+  );
+  
+  // Check for warnings (non-blocking issues shown with successful plans)
   const hasWarnings = planContentForCheck && (
     planContentForCheck.includes('RuntimeError: Python interpreter') ||
     planContentForCheck.includes('Warning:')
   );
   
-  const hasPlanError = status === 'failed' || hasDefinitivePlanErrors || hasActualErrors(planErrorLog);
+  // Only treat as plan error if we have definitive errors AND no valid plan
+  const hasPlanError = (status === 'failed' && !hasValidPlan) || hasDefinitivePlanErrors || (hasActualErrors(planErrorLog) && !hasValidPlan);
   
   // Show step-by-step status
   commentBody += `### 🔄 Execution Steps\n\n`;
@@ -108,7 +127,7 @@ function createTerragruntPlanComment(inputs) {
   commentBody += `| 🎨 **Format Check** | ${hasFormatError ? '❌ Failed' : '✅ Passed'} |\n`;
   commentBody += `| ✅ **Validation** | ${hasValidateError ? '❌ Failed' : '✅ Passed'} |\n`;
   commentBody += `| 🚀 **Init** | ${hasInitError ? '❌ Failed' : '✅ Passed'} |\n`;
-  commentBody += `| 📋 **Plan** | ${hasPlanError ? '❌ Failed' : status === 'has_changes' ? '🔄 Changes Detected' : status === 'no_changes' ? '✅ No Changes' : '⚠️ Unknown'} |\n\n`;
+  commentBody += `| 📋 **Plan** | ${hasPlanError ? '❌ Failed' : hasValidPlan && (status === 'has_changes' || planContentForCheck.includes('to add')) ? '🔄 Changes Detected' : hasValidPlan ? '✅ No Changes' : '⚠️ Unknown'} |\n\n`;
   
   // If any errors occurred, show them first
   if (hasFormatError || hasValidateError || hasInitError || hasPlanError) {
