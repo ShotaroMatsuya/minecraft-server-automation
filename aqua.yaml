@@ -20,3 +20,5 @@ packages:
   - name: mikefarah/yq@v4.44.3
   # actionlint - GitHub Actions linter
   - name: rhysd/actionlint@v1.7.1
+  # Trivy - Security scanner
+  - name: aquasecurity/trivy@v0.58.1
