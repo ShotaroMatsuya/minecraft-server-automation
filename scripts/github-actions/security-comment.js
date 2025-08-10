@@ -128,6 +128,12 @@ function createSecurityComment(inputs) {
         commentBody += `<details><summary>📋 View Full Security Report (Click to expand)</summary>\n\n`;
         commentBody += `\`\`\`json\n${JSON.stringify(trivyData, null, 2).slice(0, 5000)}\`\`\`\n\n`;
         commentBody += `</details>\n\n`;
+        
+        // Add Scan Coverage section for security issues found
+        commentBody += `### 📊 Scan Coverage\n`;
+        commentBody += `- **🔍 Files Scanned**: Terraform configuration files\n`;
+        commentBody += `- **🛡️ Tool**: Trivy v0.58.1\n`;
+        commentBody += `- **📋 Checks**: AWS, Security, Best Practices\n\n`;
       } else {
         commentBody += `✅ **No security issues found**\n\n`;
         commentBody += `**Findings by Severity:**\n`;
@@ -135,6 +141,12 @@ function createSecurityComment(inputs) {
         commentBody += `UNKNOWN: 0, LOW: 0, MEDIUM: 0, HIGH: 0, CRITICAL: 0\n`;
         commentBody += `\`\`\`\n\n`;
         commentBody += `Your infrastructure code follows security best practices.\n\n`;
+        
+        // Add Scan Coverage section for no security issues
+        commentBody += `### 📊 Scan Coverage\n`;
+        commentBody += `- **🔍 Files Scanned**: Terraform configuration files\n`;
+        commentBody += `- **🛡️ Tool**: Trivy v0.58.1\n`;
+        commentBody += `- **📋 Checks**: AWS, Security, Best Practices\n\n`;
       }
     } else {
       // Fallback to table format parsing
@@ -192,6 +204,12 @@ function createSecurityComment(inputs) {
         commentBody += `<details><summary>📋 View Full Security Report (Click to expand)</summary>\n\n`;
         commentBody += `\`\`\`\n${trivyResults.slice(0, 5000)}\`\`\`\n\n`;
         commentBody += `</details>\n\n`;
+        
+        // Add Scan Coverage section for security issues found
+        commentBody += `### 📊 Scan Coverage\n`;
+        commentBody += `- **🔍 Files Scanned**: Terraform configuration files\n`;
+        commentBody += `- **🛡️ Tool**: Trivy v0.58.1\n`;
+        commentBody += `- **📋 Checks**: AWS, Security, Best Practices\n\n`;
       } else {
         commentBody += `✅ **No security issues found**\n\n`;
         commentBody += `**Findings by Severity:**\n`;
@@ -199,13 +217,14 @@ function createSecurityComment(inputs) {
         commentBody += `UNKNOWN: 0, LOW: 0, MEDIUM: 0, HIGH: 0, CRITICAL: 0\n`;
         commentBody += `\`\`\`\n\n`;
         commentBody += `Your infrastructure code follows security best practices.\n\n`;
+        
+        // Add Scan Coverage section for no security issues
+        commentBody += `### 📊 Scan Coverage\n`;
+        commentBody += `- **🔍 Files Scanned**: Terraform configuration files\n`;
+        commentBody += `- **🛡️ Tool**: Trivy v0.58.1\n`;
+        commentBody += `- **📋 Checks**: AWS, Security, Best Practices\n\n`;
       }
     }
-    
-    commentBody += `### 📊 Scan Coverage\n`;
-    commentBody += `- **🔍 Files Scanned**: Terraform configuration files\n`;
-    commentBody += `- **🛡️ Tool**: Trivy v0.58.1\n`;
-    commentBody += `- **📋 Checks**: AWS, Security, Best Practices\n\n`;
     
   } catch (error) {
     commentBody += `✅ **No security issues found**\n\n`;
