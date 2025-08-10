@@ -517,6 +517,13 @@ jobs:
             const fs = require('fs');
             const commentHandler = require('./scripts/github-actions/comment-handler.js');
             
+            // Debug: log the status value received
+            console.log('DEBUG: plan_status_keeping value:', '${{ needs.terragrunt-plan.outputs.plan_status_keeping }}');
+            console.log('DEBUG: all terragrunt-plan outputs:', JSON.stringify({
+              plan_status_keeping: '${{ needs.terragrunt-plan.outputs.plan_status_keeping }}',
+              plan_status_scheduling: '${{ needs.terragrunt-plan.outputs.plan_status_scheduling }}'
+            }));
+            
             // Read various error logs if they exist
             let initErrorLog = '';
             let planErrorLog = '';
@@ -557,6 +564,8 @@ jobs:
               formatErrorLog: formatErrorLog,
               validateErrorLog: validateErrorLog
             };
+            
+            console.log('DEBUG: inputs object:', JSON.stringify(inputs, null, 2));
             
             await commentHandler(github, context, inputs);
 
