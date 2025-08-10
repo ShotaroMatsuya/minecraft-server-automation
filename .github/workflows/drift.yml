@@ -45,7 +45,7 @@ jobs:
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Setup aqua
-        uses: aquaproj/aqua-installer@v3.0.1
+        uses: aquaproj/aqua-installer@v4.0.2
         with:
           aqua_version: v2.30.0
 
