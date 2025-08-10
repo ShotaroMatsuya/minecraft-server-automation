@@ -119,6 +119,12 @@ function createCodeQualityComment(inputs) {
       commentBody += `- **🛠️ Tool**: TFLint v0.50.3\n`;
       commentBody += `- **📋 Checks**: AWS, Terraform best practices\n\n`;
       
+      // Add CI/CD links section
+      commentBody += `### 🔗 Links\n\n`;
+      commentBody += `- 📊 **[View GitHub Actions Run](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})**\n`;
+      commentBody += `- 📦 **[Download Code Quality Artifacts](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}#artifacts)**\n`;
+      commentBody += `- 🔍 **[View Code Quality Job](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/job/${process.env.GITHUB_JOB})**\n\n`;
+      
       commentBody += `<details><summary>📋 View Full Code Quality Report (Click to expand)</summary>\n\n`;
       commentBody += `\`\`\`\n${tflintResults.slice(0, 5000)}\`\`\`\n\n`;
       commentBody += `</details>\n\n`;
@@ -134,6 +140,17 @@ function createCodeQualityComment(inputs) {
       commentBody += `- **🔍 Files Scanned**: Terraform configuration files\n`;
       commentBody += `- **🛠️ Tool**: TFLint v0.50.3\n`;
       commentBody += `- **📋 Checks**: AWS, Terraform best practices\n\n`;
+      
+      // Add CI/CD links section
+      commentBody += `### 🔗 Links\n\n`;
+      commentBody += `- 📊 **[View GitHub Actions Run](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})**\n`;
+      commentBody += `- 📦 **[Download Code Quality Artifacts](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}#artifacts)**\n`;
+      commentBody += `- 🔍 **[View Code Quality Job](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/job/${process.env.GITHUB_JOB})**\n\n`;
+      
+      // Add collapsible section for detailed results even when no issues
+      commentBody += `<details><summary>📋 View Full Code Quality Report (Click to expand)</summary>\n\n`;
+      commentBody += `\`\`\`\n${tflintResults.slice(0, 5000)}\`\`\`\n\n`;
+      commentBody += `</details>\n\n`;
     }
   } catch (error) {
     commentBody += `✅ **No code quality issues found**\n\n`;
@@ -143,13 +160,18 @@ function createCodeQualityComment(inputs) {
     commentBody += `- **🔍 Files Scanned**: Terraform configuration files\n`;
     commentBody += `- **🛠️ Tool**: TFLint v0.50.3\n`;
     commentBody += `- **📋 Checks**: AWS, Terraform best practices\n\n`;
+    
+    // Add CI/CD links section
+    commentBody += `### 🔗 Links\n\n`;
+    commentBody += `- 📊 **[View GitHub Actions Run](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})**\n`;
+    commentBody += `- 📦 **[Download Code Quality Artifacts](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}#artifacts)**\n`;
+    commentBody += `- 🔍 **[View Code Quality Job](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/job/${process.env.GITHUB_JOB})**\n\n`;
+    
+    // Add collapsible section for detailed results even when no scan results
+    commentBody += `<details><summary>📋 View Full Code Quality Report (Click to expand)</summary>\n\n`;
+    commentBody += `\`\`\`\nNo code quality scan results available.\`\`\`\n\n`;
+    commentBody += `</details>\n\n`;
   }
-  
-  // Add CI/CD links section
-  commentBody += `### 🔗 Links\n\n`;
-  commentBody += `- 📊 **[View GitHub Actions Run](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})**\n`;
-  commentBody += `- 📦 **[Download Code Quality Artifacts](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}#artifacts)**\n`;
-  commentBody += `- 🔍 **[View Code Quality Job](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/job/${process.env.GITHUB_JOB})**\n\n`;
   
   commentBody += `*🔍 Code quality scan completed at ${new Date().toISOString()}*`;
   

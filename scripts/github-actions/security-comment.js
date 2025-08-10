@@ -130,6 +130,12 @@ function createSecurityComment(inputs) {
         commentBody += `- **🛡️ Tool**: Trivy v0.58.1\n`;
         commentBody += `- **📋 Checks**: AWS, Security, Best Practices\n\n`;
         
+        // Add CI/CD links section
+        commentBody += `### 🔗 Links\n\n`;
+        commentBody += `- 📊 **[View GitHub Actions Run](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})**\n`;
+        commentBody += `- 📦 **[Download Security Artifacts](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}#artifacts)**\n`;
+        commentBody += `- 🔍 **[View Security Scan Job](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/job/${process.env.GITHUB_JOB})**\n\n`;
+        
         // Add collapsible section for detailed JSON results
         commentBody += `<details><summary>📋 View Full Security Report (Click to expand)</summary>\n\n`;
         commentBody += `\`\`\`json\n${JSON.stringify(trivyData, null, 2).slice(0, 5000)}\`\`\`\n\n`;
@@ -147,6 +153,17 @@ function createSecurityComment(inputs) {
         commentBody += `- **🔍 Files Scanned**: Terraform configuration files\n`;
         commentBody += `- **🛡️ Tool**: Trivy v0.58.1\n`;
         commentBody += `- **📋 Checks**: AWS, Security, Best Practices\n\n`;
+        
+        // Add CI/CD links section
+        commentBody += `### 🔗 Links\n\n`;
+        commentBody += `- 📊 **[View GitHub Actions Run](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})**\n`;
+        commentBody += `- 📦 **[Download Security Artifacts](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}#artifacts)**\n`;
+        commentBody += `- 🔍 **[View Security Scan Job](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/job/${process.env.GITHUB_JOB})**\n\n`;
+        
+        // Add collapsible section for detailed JSON results even when no issues
+        commentBody += `<details><summary>📋 View Full Security Report (Click to expand)</summary>\n\n`;
+        commentBody += `\`\`\`json\n${JSON.stringify(trivyData, null, 2).slice(0, 5000)}\`\`\`\n\n`;
+        commentBody += `</details>\n\n`;
       }
     } else {
       // Fallback to table format parsing
@@ -207,6 +224,12 @@ function createSecurityComment(inputs) {
         commentBody += `- **🛡️ Tool**: Trivy v0.58.1\n`;
         commentBody += `- **📋 Checks**: AWS, Security, Best Practices\n\n`;
         
+        // Add CI/CD links section
+        commentBody += `### 🔗 Links\n\n`;
+        commentBody += `- 📊 **[View GitHub Actions Run](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})**\n`;
+        commentBody += `- 📦 **[Download Security Artifacts](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}#artifacts)**\n`;
+        commentBody += `- 🔍 **[View Security Scan Job](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/job/${process.env.GITHUB_JOB})**\n\n`;
+        
         commentBody += `<details><summary>📋 View Full Security Report (Click to expand)</summary>\n\n`;
         commentBody += `\`\`\`\n${trivyResults.slice(0, 5000)}\`\`\`\n\n`;
         commentBody += `</details>\n\n`;
@@ -223,6 +246,17 @@ function createSecurityComment(inputs) {
         commentBody += `- **🔍 Files Scanned**: Terraform configuration files\n`;
         commentBody += `- **🛡️ Tool**: Trivy v0.58.1\n`;
         commentBody += `- **📋 Checks**: AWS, Security, Best Practices\n\n`;
+        
+        // Add CI/CD links section
+        commentBody += `### 🔗 Links\n\n`;
+        commentBody += `- 📊 **[View GitHub Actions Run](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})**\n`;
+        commentBody += `- 📦 **[Download Security Artifacts](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}#artifacts)**\n`;
+        commentBody += `- 🔍 **[View Security Scan Job](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/job/${process.env.GITHUB_JOB})**\n\n`;
+        
+        // Add collapsible section for detailed results even when no issues
+        commentBody += `<details><summary>📋 View Full Security Report (Click to expand)</summary>\n\n`;
+        commentBody += `\`\`\`\n${trivyResults.slice(0, 5000)}\`\`\`\n\n`;
+        commentBody += `</details>\n\n`;
       }
     }
     
@@ -234,13 +268,18 @@ function createSecurityComment(inputs) {
     commentBody += `- **🔍 Files Scanned**: Terraform configuration files\n`;
     commentBody += `- **🛡️ Tool**: Trivy v0.58.1\n`;
     commentBody += `- **📋 Checks**: AWS, Security, Best Practices\n\n`;
+    
+    // Add CI/CD links section
+    commentBody += `### 🔗 Links\n\n`;
+    commentBody += `- 📊 **[View GitHub Actions Run](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})**\n`;
+    commentBody += `- 📦 **[Download Security Artifacts](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}#artifacts)**\n`;
+    commentBody += `- 🔍 **[View Security Scan Job](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/job/${process.env.GITHUB_JOB})**\n\n`;
+    
+    // Add collapsible section for detailed results even when no scan results
+    commentBody += `<details><summary>📋 View Full Security Report (Click to expand)</summary>\n\n`;
+    commentBody += `\`\`\`\nNo security scan results available.\`\`\`\n\n`;
+    commentBody += `</details>\n\n`;
   }
-  
-  // Add CI/CD links section
-  commentBody += `### 🔗 Links\n\n`;
-  commentBody += `- 📊 **[View GitHub Actions Run](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})**\n`;
-  commentBody += `- 📦 **[Download Security Artifacts](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}#artifacts)**\n`;
-  commentBody += `- 🔍 **[View Security Scan Job](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/job/${process.env.GITHUB_JOB})**\n\n`;
   
   commentBody += `*🔐 Security scan completed at ${new Date().toISOString()}*`;
   
