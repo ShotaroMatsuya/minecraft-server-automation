@@ -736,8 +736,6 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
-            const commentHandler = require('./scripts/github-actions/comment-handler.js');
-            
             // Process both environments in sequence
             const environments = [
               {
@@ -758,7 +756,7 @@ jobs:
               }
             ];
             
-            // Set context issue number from PR number
+            // Get PR number and validate
             const prNumber = '${{ needs.check-changes.outputs.pr_number }}';
             console.log('PR Number from previous step:', prNumber);
             console.log('Type of PR number:', typeof prNumber);
@@ -771,10 +769,7 @@ jobs:
             console.log('Is parsed number valid:', !isNaN(prNumberInt) && prNumberInt > 0);
             
             if (prNumber && prNumber.trim() !== '' && prNumber !== 'null' && !isNaN(prNumberInt) && prNumberInt > 0) {
-              // Set the issue number correctly
-              console.log('✅ Setting context.issue.number to:', prNumberInt);
-              context.issue = { ...context.issue, number: prNumberInt };
-              console.log('✅ Final context.issue:', context.issue);
+              console.log('✅ Using PR number for comments:', prNumberInt);
               
               for (const env of environments) {
                 // Skip if the job was skipped (e.g., keeping failed so scheduling was skipped)
@@ -784,24 +779,59 @@ jobs:
                 }
                 
                 console.log(`Processing ${env.name} environment apply results...`);
-                
-                const inputs = {
-                  commentType: 'terragrunt-apply',
-                  environment: env.name,
-                  status: env.status || 'unknown',
-                  // Use apply results from job outputs instead of artifacts
-                  resourcesApplied: env.resourcesApplied,
-                  resourcesChanged: env.resourcesChanged,
-                  resourcesDestroyed: env.resourcesDestroyed,
-                  // Flag to indicate this is from apply workflow
-                  isApplyWorkflow: true
-                };
+                console.log(`Creating apply comment for ${env.name} environment with status: ${env.status}`);
                 
                 try {
-                  await commentHandler(github, context, inputs);
-                  console.log(`✅ Successfully processed ${env.name} environment apply results`);
+                  // Create comment body with apply workflow logic
+                  const commentBody = createApplyWorkflowComment(env);
+                  
+                  // Define comment identifier for this environment
+                  const commentIdentifier = `<!-- terragrunt-apply-${env.name} -->`;
+                  const fullCommentBody = `${commentIdentifier}\n${commentBody}`;
+                  
+                  // Get existing comments to find if we need to update or create
+                  console.log(`Fetching existing comments for PR #${prNumberInt}...`);
+                  const { data: comments } = await github.rest.issues.listComments({
+                    owner: context.repo.owner,
+                    repo: context.repo.repo,
+                    issue_number: prNumberInt,
+                  });
+                  
+                  console.log(`Found ${comments.length} existing comments`);
+                  
+                  // Find existing apply comment for this environment
+                  const existingComment = comments.find(comment => 
+                    comment.body && comment.body.includes(commentIdentifier)
+                  );
+                  
+                  if (existingComment) {
+                    // Update existing comment
+                    console.log(`Updating existing apply comment for ${env.name} environment (comment ID: ${existingComment.id})`);
+                    await github.rest.issues.updateComment({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      comment_id: existingComment.id,
+                      body: fullCommentBody,
+                    });
+                    console.log(`✅ Updated existing apply comment for ${env.name} environment`);
+                  } else {
+                    // Create new comment
+                    console.log(`Creating new apply comment for ${env.name} environment`);
+                    await github.rest.issues.createComment({
+                      owner: context.repo.owner,
+                      repo: context.repo.repo,
+                      issue_number: prNumberInt,
+                      body: fullCommentBody,
+                    });
+                    console.log(`✅ Created new apply comment for ${env.name} environment`);
+                  }
                 } catch (error) {
                   console.error(`❌ Error processing ${env.name} environment apply results:`, error);
+                  console.error('Error details:', {
+                    message: error.message,
+                    status: error.status,
+                    response: error.response?.data
+                  });
                   // Continue processing other environments even if one fails
                 }
               }
@@ -812,4 +842,80 @@ jobs:
               console.log('Parsed number result:', prNumberInt);
               console.log('Is valid number check result:', !isNaN(prNumberInt) && prNumberInt > 0);
               return;
+            }
+            
+            // Helper function to create apply workflow comments
+            function createApplyWorkflowComment(env) {
+              const { name: environment, status, resourcesApplied, resourcesChanged, resourcesDestroyed } = env;
+              
+              // Generate status emoji and text
+              let statusEmoji, statusText;
+              switch (status) {
+                case 'success':
+                  statusEmoji = '✅';
+                  statusText = 'Success';
+                  break;
+                case 'failed':
+                  statusEmoji = '❌';
+                  statusText = 'Failed';
+                  break;
+                case 'init_failed':
+                  statusEmoji = '🔧';
+                  statusText = 'Init Failed';
+                  break;
+                case 'completed_with_warnings':
+                  statusEmoji = '⚠️';
+                  statusText = 'Completed with Warnings';
+                  break;
+                default:
+                  statusEmoji = '❓';
+                  statusText = 'Unknown';
+              }
+              
+              // Parse resource counts
+              const applied = parseInt(resourcesApplied) || 0;
+              const changed = parseInt(resourcesChanged) || 0;
+              const destroyed = parseInt(resourcesDestroyed) || 0;
+              const totalChanges = applied + changed + destroyed;
+              
+              // Create summary
+              let summary;
+              if (totalChanges === 0) {
+                summary = 'No changes needed - infrastructure is up-to-date';
+              } else {
+                const parts = [];
+                if (applied > 0) parts.push(`${applied} added`);
+                if (changed > 0) parts.push(`${changed} changed`);
+                if (destroyed > 0) parts.push(`${destroyed} destroyed`);
+                summary = `Apply completed: ${parts.join(', ')}`;
+              }
+              
+              // Build comment body
+              let commentBody = `## ${statusEmoji} Terragrunt Apply Results - ${environment.charAt(0).toUpperCase() + environment.slice(1)}\n\n`;
+              
+              commentBody += `**Status:** ${statusText}\n`;
+              commentBody += `**Summary:** ${summary}\n\n`;
+              
+              // Add resource changes summary if there were changes
+              if (totalChanges > 0) {
+                commentBody += `### 📊 Resource Changes\n\n`;
+                commentBody += `| Action | Count |\n`;
+                commentBody += `|--------|-------|\n`;
+                if (applied > 0) {
+                  commentBody += `| ➕ Added | ${applied} |\n`;
+                }
+                if (changed > 0) {
+                  commentBody += `| 🔄 Changed | ${changed} |\n`;
+                }
+                if (destroyed > 0) {
+                  commentBody += `| ➖ Destroyed | ${destroyed} |\n`;
+                }
+                commentBody += `\n`;
+              }
+              
+              // Add footer with timestamp
+              const timestamp = new Date().toISOString();
+              commentBody += `---\n*Apply completed at ${timestamp}*\n`;
+              
+              return commentBody;
             }
