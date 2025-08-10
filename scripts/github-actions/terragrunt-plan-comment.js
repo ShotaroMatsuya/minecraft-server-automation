@@ -73,19 +73,21 @@ function createTerragruntPlanComment(inputs) {
   let formatErrorLog = readFileFromPath(inputs.formatErrorLogPath, inputs.formatErrorLog);
   let validateErrorLog = readFileFromPath(inputs.validateErrorLogPath, inputs.validateErrorLog);
   
-  // Enhanced file discovery for keeping environment (fallback mechanism)
-  if (environment === 'keeping' && inputs.artifactBasePath && (!planErrorLog || planErrorLog.trim() === '')) {
-    console.log('DEBUG: Attempting dynamic file discovery for keeping environment');
+  // Enhanced file discovery for both environments (fallback mechanism)
+  if (inputs.artifactBasePath && (!planErrorLog || planErrorLog.trim() === '')) {
+    console.log(`DEBUG: Attempting dynamic file discovery for ${environment} environment`);
     
     const allPlanFiles = findPlanFiles(inputs.artifactBasePath, environment);
     console.log('DEBUG: Found plan files:', allPlanFiles);
     
-    // Try different possible paths for plan_output.txt
+    // Try different possible paths for plan_output.txt based on actual artifact structure
+    // With merge-multiple: false, artifacts are downloaded as separate directories
     const possiblePlanPaths = [
-      inputs.planFilePath,
-      `${inputs.artifactBasePath}/terragrunt/environments/keeping/plan_output.txt`,
-      `${inputs.artifactBasePath}/plan_output.txt`,
-      `${inputs.artifactBasePath}/keeping/plan_output.txt`,
+      inputs.planFilePath, // Primary path: plan-results/terragrunt-plan-{env}/plan_output.txt
+      `${inputs.artifactBasePath}/terragrunt-plan-${environment}/plan_output.txt`,
+      `${inputs.artifactBasePath}/terragrunt/environments/${environment}/plan_output.txt`, // Legacy path
+      `${inputs.artifactBasePath}/plan_output.txt`, // Fallback for merged artifacts
+      `${inputs.artifactBasePath}/${environment}/plan_output.txt`,
       ...allPlanFiles.filter(f => f.includes('plan_output'))
     ];
     
@@ -106,9 +108,10 @@ function createTerragruntPlanComment(inputs) {
     // If no plan_output.txt found, try plan_errors.txt
     if (!planErrorLog || planErrorLog.trim() === '') {
       const possibleErrorPaths = [
-        `${inputs.artifactBasePath}/terragrunt/environments/keeping/plan_errors.txt`,
-        `${inputs.artifactBasePath}/plan_errors.txt`,
-        `${inputs.artifactBasePath}/keeping/plan_errors.txt`,
+        `${inputs.artifactBasePath}/terragrunt-plan-${environment}/plan_errors.txt`,
+        `${inputs.artifactBasePath}/terragrunt/environments/${environment}/plan_errors.txt`, // Legacy path
+        `${inputs.artifactBasePath}/plan_errors.txt`, // Fallback for merged artifacts
+        `${inputs.artifactBasePath}/${environment}/plan_errors.txt`,
         ...allPlanFiles.filter(f => f.includes('plan_errors'))
       ];
       
@@ -126,9 +129,10 @@ function createTerragruntPlanComment(inputs) {
     // Try to read other log files with fallback paths
     if (!initErrorLog) {
       const initPaths = [
-        `${inputs.artifactBasePath}/terragrunt/environments/keeping/init_output.txt`,
-        `${inputs.artifactBasePath}/init_output.txt`,
-        `${inputs.artifactBasePath}/keeping/init_output.txt`
+        `${inputs.artifactBasePath}/terragrunt-plan-${environment}/init_output.txt`,
+        `${inputs.artifactBasePath}/terragrunt/environments/${environment}/init_output.txt`, // Legacy path
+        `${inputs.artifactBasePath}/init_output.txt`, // Fallback for merged artifacts
+        `${inputs.artifactBasePath}/${environment}/init_output.txt`
       ];
       for (const initPath of initPaths) {
         initErrorLog = readFileFromPath(initPath);
@@ -138,9 +142,10 @@ function createTerragruntPlanComment(inputs) {
     
     if (!formatErrorLog) {
       const formatPaths = [
-        `${inputs.artifactBasePath}/terragrunt/environments/keeping/format_errors.txt`,
-        `${inputs.artifactBasePath}/format_errors.txt`,
-        `${inputs.artifactBasePath}/keeping/format_errors.txt`
+        `${inputs.artifactBasePath}/terragrunt-plan-${environment}/format_errors.txt`,
+        `${inputs.artifactBasePath}/terragrunt/environments/${environment}/format_errors.txt`, // Legacy path
+        `${inputs.artifactBasePath}/format_errors.txt`, // Fallback for merged artifacts
+        `${inputs.artifactBasePath}/${environment}/format_errors.txt`
       ];
       for (const formatPath of formatPaths) {
         formatErrorLog = readFileFromPath(formatPath);
@@ -150,9 +155,10 @@ function createTerragruntPlanComment(inputs) {
     
     if (!validateErrorLog) {
       const validatePaths = [
-        `${inputs.artifactBasePath}/terragrunt/environments/keeping/validate_errors.txt`,
-        `${inputs.artifactBasePath}/validate_errors.txt`,
-        `${inputs.artifactBasePath}/keeping/validate_errors.txt`
+        `${inputs.artifactBasePath}/terragrunt-plan-${environment}/validate_errors.txt`,
+        `${inputs.artifactBasePath}/terragrunt/environments/${environment}/validate_errors.txt`, // Legacy path
+        `${inputs.artifactBasePath}/validate_errors.txt`, // Fallback for merged artifacts
+        `${inputs.artifactBasePath}/${environment}/validate_errors.txt`
       ];
       for (const validatePath of validatePaths) {
         validateErrorLog = readFileFromPath(validatePath);

@@ -479,7 +479,7 @@ jobs:
         with:
           pattern: terragrunt-plan-*
           path: plan-results/
-          merge-multiple: true
+          merge-multiple: false
         continue-on-error: true
 
       - name: Debug Downloaded Artifacts
@@ -516,11 +516,11 @@ jobs:
                 commentType: 'terragrunt-plan',
                 environment: env.name,
                 status: env.status || 'unknown',
-                planFilePath: `plan-results/terragrunt/environments/${env.name}/plan_output.txt`,
-                initErrorLogPath: `plan-results/terragrunt/environments/${env.name}/init_output.txt`,
-                planErrorLogPath: `plan-results/terragrunt/environments/${env.name}/plan_errors.txt`,
-                formatErrorLogPath: `plan-results/terragrunt/environments/${env.name}/format_errors.txt`,
-                validateErrorLogPath: `plan-results/terragrunt/environments/${env.name}/validate_errors.txt`,
+                planFilePath: `plan-results/terragrunt-plan-${env.name}/plan_output.txt`,
+                initErrorLogPath: `plan-results/terragrunt-plan-${env.name}/init_output.txt`,
+                planErrorLogPath: `plan-results/terragrunt-plan-${env.name}/plan_errors.txt`,
+                formatErrorLogPath: `plan-results/terragrunt-plan-${env.name}/format_errors.txt`,
+                validateErrorLogPath: `plan-results/terragrunt-plan-${env.name}/validate_errors.txt`,
                 artifactBasePath: 'plan-results'
               };
               
