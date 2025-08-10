@@ -47,20 +47,33 @@ jobs:
           echo "$COMMIT_MSG"
           
           # Extract PR number from merge commit message
-          PR_NUMBER="$(echo "$COMMIT_MSG" | grep 'Merge pull request #' | sed 's/.*#\([0-9]*\).*/\1/' | head -1)"
+          PR_NUMBER="$(echo "$COMMIT_MSG" | grep -o 'Merge pull request #[0-9]\+' | grep -o '[0-9]\+' | head -1)"
           
-          if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "$COMMIT_MSG" ]; then
+          if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "" ]; then
             echo "✅ Found PR number: $PR_NUMBER"
             echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
           else
             echo "⚠️ No PR number found in commit message"
             echo "Commit message: $COMMIT_MSG"
             
-            # Alternative: try to find PR from commit SHA
-            echo "Trying alternative method with commit SHA..."
-            git log --oneline -5
+            # Alternative: try to find PR from commit SHA using GitHub API
+            echo "Trying alternative method with GitHub API..."
+            COMMIT_SHA="${{ github.sha }}"
+            echo "Current commit SHA: $COMMIT_SHA"
             
-            echo "pr_number=" >> "$GITHUB_OUTPUT"
+            # Try to get PR from commit SHA
+            if API_PR_NUMBER=$(gh api "repos/${{ github.repository }}/commits/$COMMIT_SHA/pulls" --jq '.[0].number' 2>/dev/null); then
+              if [ -n "$API_PR_NUMBER" ] && [ "$API_PR_NUMBER" != "null" ]; then
+                echo "✅ Found PR number via API: $API_PR_NUMBER"
+                echo "pr_number=$API_PR_NUMBER" >> "$GITHUB_OUTPUT"
+              else
+                echo "⚠️ No PR found via API"
+                echo "pr_number=" >> "$GITHUB_OUTPUT"
+              fi
+            else
+              echo "❌ Failed to query GitHub API"
+              echo "pr_number=" >> "$GITHUB_OUTPUT"
+            fi
           fi
           
       - name: Get PR labels
@@ -213,9 +226,13 @@ jobs:
 
       - name: Setup Terragrunt
         run: |
-          curl -Lo terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64
-          chmod +x terragrunt
-          sudo mv terragrunt /usr/local/bin/
+          # Remove any existing terragrunt directory
+          rm -rf terragrunt
+          
+          # Download terragrunt binary
+          curl -Lo terragrunt_binary https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64
+          chmod +x terragrunt_binary
+          sudo mv terragrunt_binary /usr/local/bin/terragrunt
 
       - name: Check if keeping environment exists
         id: check-env
@@ -366,9 +383,13 @@ jobs:
 
       - name: Setup Terragrunt
         run: |
-          curl -Lo terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64
-          chmod +x terragrunt
-          sudo mv terragrunt /usr/local/bin/
+          # Remove any existing terragrunt directory
+          rm -rf terragrunt
+          
+          # Download terragrunt binary
+          curl -Lo terragrunt_binary https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64
+          chmod +x terragrunt_binary
+          sudo mv terragrunt_binary /usr/local/bin/terragrunt
 
       - name: Create Mapping Yaml for scheduling
         working-directory: terraform/scheduling
@@ -501,7 +522,7 @@ jobs:
     name: Comment Apply Results
     runs-on: ubuntu-latest
     needs: [check-changes, apply-keeping, apply-scheduling]
-    if: always() && needs.check-changes.outputs.pr_number != '' && (needs.apply-keeping.result == 'success' || needs.apply-scheduling.result == 'success' || needs.apply-keeping.result == 'failure' || needs.apply-scheduling.result == 'failure')
+    if: always() && needs.check-changes.outputs.pr_number != '' && needs.check-changes.outputs.pr_number != null && (needs.apply-keeping.result == 'success' || needs.apply-scheduling.result == 'success' || needs.apply-keeping.result == 'failure' || needs.apply-scheduling.result == 'failure')
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -543,8 +564,14 @@ jobs:
             
             // Set context issue number from PR number
             const prNumber = '${{ needs.check-changes.outputs.pr_number }}';
-            if (prNumber) {
+            console.log('PR Number from previous step:', prNumber);
+            
+            if (prNumber && prNumber !== '' && prNumber !== 'null') {
               context.issue.number = parseInt(prNumber);
+              console.log('✅ Set context.issue.number to:', context.issue.number);
+            } else {
+              console.log('❌ No valid PR number found, skipping comment operations');
+              return;
             }
             
             for (const env of environments) {
