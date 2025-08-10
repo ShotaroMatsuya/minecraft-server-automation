@@ -674,9 +674,17 @@ jobs:
             // Set context issue number from PR number
             const prNumber = '${{ needs.check-changes.outputs.pr_number }}';
             console.log('PR Number from previous step:', prNumber);
+            console.log('Type of PR number:', typeof prNumber);
+            console.log('PR number length:', prNumber ? prNumber.length : 'undefined');
+            console.log('PR number trimmed:', prNumber ? prNumber.trim() : 'undefined');
             
-            if (prNumber && prNumber !== '' && prNumber !== 'null' && !isNaN(parseInt(prNumber))) {
-              context.issue.number = parseInt(prNumber);
+            // Convert to number with validation
+            const prNumberInt = parseInt(prNumber ? prNumber.trim() : '', 10);
+            console.log('Parsed PR number (parseInt result):', prNumberInt);
+            console.log('Is parsed number valid:', !isNaN(prNumberInt) && prNumberInt > 0);
+            
+            if (prNumber && prNumber.trim() !== '' && prNumber !== 'null' && !isNaN(prNumberInt) && prNumberInt > 0) {
+              context.issue.number = prNumberInt;
               console.log('✅ Set context.issue.number to:', context.issue.number);
               
               for (const env of environments) {
@@ -710,6 +718,7 @@ jobs:
               console.log('❌ No valid PR number found, skipping comment operations');
               console.log('Available PR number value:', prNumber);
               console.log('Type of PR number:', typeof prNumber);
-              console.log('Is valid number:', !isNaN(parseInt(prNumber)));
+              console.log('Parsed number result:', prNumberInt);
+              console.log('Is valid number check result:', !isNaN(prNumberInt) && prNumberInt > 0);
               return;
             }
