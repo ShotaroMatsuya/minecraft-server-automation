@@ -251,30 +251,36 @@ jobs:
         include:
           - environment: keeping
             path: terragrunt/environments/keeping
-            should_run: ${{ needs.check-targets.outputs.should_run_keeping }}
           - environment: scheduling
             path: terragrunt/environments/scheduling
-            should_run: ${{ needs.check-targets.outputs.should_run_scheduling }}
     outputs:
-      plan_status_keeping: ${{ steps.plan-keeping.outputs.status }}
-      plan_status_scheduling: ${{ steps.plan-scheduling.outputs.status }}
+      plan_status_keeping: ${{ steps.set-keeping-output.outputs.status }}
+      plan_status_scheduling: ${{ steps.set-scheduling-output.outputs.status }}
     steps:
       - name: Check if this environment should run
         id: should-run
         run: |
+          # Get target labels from the check-targets job outputs
+          keeping_target="${{ needs.check-targets.outputs.should_run_keeping }}"
+          scheduling_target="${{ needs.check-targets.outputs.should_run_scheduling }}"
+          
+          # Determine if current matrix environment should run
           if [ "${{ matrix.environment }}" = "keeping" ]; then
-            should_run="${{ needs.check-targets.outputs.should_run_keeping }}"
+            should_run="$keeping_target"
           elif [ "${{ matrix.environment }}" = "scheduling" ]; then
-            should_run="${{ needs.check-targets.outputs.should_run_scheduling }}"
+            should_run="$scheduling_target"
           else
             should_run="false"
           fi
           
           echo "should_run=$should_run" >> "$GITHUB_OUTPUT"
-          echo "Environment ${{ matrix.environment }} should run: $should_run"
+          echo "🎯 Environment: ${{ matrix.environment }}"
+          echo "🎯 Should run: $should_run"
           
           if [ "$should_run" != "true" ]; then
             echo "⏭️ Skipping ${{ matrix.environment }} environment - not targeted by labels"
+          else
+            echo "🚀 Running ${{ matrix.environment }} environment"
           fi
 
       - name: Checkout
@@ -403,9 +409,6 @@ jobs:
           fi
           
           # Determine status based on terraform plan -detailed-exitcode behavior
-          # 0: No changes, 1: Error, 2: Changes detected
-          # However, if we have valid plan output, prioritize that over exit codes
-          
           plan_status="unknown"
           
           if [ -f "plan_output.txt" ] && grep -q "Plan:" plan_output.txt; then
@@ -447,8 +450,8 @@ jobs:
           echo "Plan errors size: $(wc -c < plan_errors.txt 2>/dev/null || echo 0) bytes"
         continue-on-error: true
 
-      - name: Set environment-specific output
-        id: plan-keeping
+      - name: Set keeping-specific output
+        id: set-keeping-output
         if: matrix.environment == 'keeping'
         run: |
           if [ "${{ steps.should-run.outputs.should_run }}" = "true" ]; then
@@ -457,8 +460,8 @@ jobs:
             echo "status=skipped" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Set environment-specific output
-        id: plan-scheduling
+      - name: Set scheduling-specific output
+        id: set-scheduling-output
         if: matrix.environment == 'scheduling'
         run: |
           if [ "${{ steps.should-run.outputs.should_run }}" = "true" ]; then
@@ -574,6 +577,12 @@ jobs:
             ];
             
             for (const env of environments) {
+              // Skip if the status is 'skipped' (environment was not targeted)
+              if (env.status === 'skipped') {
+                console.log(`⏭️ Skipping ${env.name} environment - not targeted by labels`);
+                continue;
+              }
+              
               console.log(`Processing ${env.name} environment...`);
               
               const inputs = {
