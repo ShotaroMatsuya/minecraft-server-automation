@@ -201,7 +201,7 @@ jobs:
       if: always()
       run: |
         cd terragrunt/environments/scheduling
-        if [ -f "plan_output.txt" ]; then
+        if [ -f "plan_output.txt" ] && [ -s "plan_output.txt" ]; then
           echo "📋 Creating Plan Output Summary..."
           
           # Check file size to handle large outputs appropriately
@@ -236,14 +236,14 @@ jobs:
             echo ""
           } >> "$GITHUB_STEP_SUMMARY"
         else
-          echo "⚠️ Plan output file not found" >> "$GITHUB_STEP_SUMMARY"
+          echo "⚠️ Plan output file not found or is empty" >> "$GITHUB_STEP_SUMMARY"
         fi
         
     - name: Display Terragrunt Apply Output  
       if: always() && env.TF_PLAN_EXIT_CODE == '2'
       run: |
         cd terragrunt/environments/scheduling
-        if [ -f "apply_output.txt" ]; then
+        if [ -f "apply_output.txt" ] && [ -s "apply_output.txt" ]; then
           echo "🚀 Creating Apply Output Summary..."
           
           # Check file size to handle large outputs appropriately
@@ -278,7 +278,7 @@ jobs:
             echo ""
           } >> "$GITHUB_STEP_SUMMARY"
         else
-          echo "⚠️ Apply output file not found" >> "$GITHUB_STEP_SUMMARY"
+          echo "⚠️ Apply output file not found or is empty" >> "$GITHUB_STEP_SUMMARY"
         fi
 
     - name: Update ECS Service

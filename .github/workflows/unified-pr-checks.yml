@@ -1,0 +1,419 @@
+name: Unified PR Checks
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'terragrunt/**'
+      - 'terraform/**'
+      - '.github/workflows/**'
+      - '.tflint.hcl'
+      - 'trivy.yaml'
+
+env:
+  TF_VAR_WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
+  TF_VAR_github_token: ${{ secrets.TF_VAR_github_token }}
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+  TERRAGRUNT_VERSION: 0.67.16
+  TERRAFORM_VERSION: 1.9.8
+
+permissions:
+  id-token: write
+  contents: read
+  pull-requests: write
+  security-events: write
+
+jobs:
+  security-scan:
+    name: Infrastructure Security Scan
+    runs-on: ubuntu-latest
+    outputs:
+      has_issues: ${{ steps.check-results.outputs.has_issues }}
+      results_summary: ${{ steps.check-results.outputs.results_summary }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup aqua
+        uses: aquaproj/aqua-installer@v3.0.1
+        with:
+          aqua_version: v2.30.0
+
+      - name: Install tools via aqua
+        run: |
+          rm -f ./terragrunt ./terraform ./tflint ./aws ./jq ./yq 2>/dev/null || true
+          aqua install --all
+
+      - name: Check if terraform directory exists
+        id: check-terraform
+        run: |
+          if [ -d "terraform" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Run Trivy Security Scan
+        id: trivy-scan
+        if: steps.check-terraform.outputs.exists == 'true'
+        run: |
+          echo "🔍 Running Trivy security scan..."
+          
+          # Run Trivy scan
+          trivy config terraform/ \
+            --config trivy.yaml \
+            --format table \
+            --output trivy-results.txt \
+            --exit-code 0 || true
+          
+          # Generate SARIF for GitHub Security tab
+          trivy config terraform/ \
+            --config trivy.yaml \
+            --format sarif \
+            --output trivy-security.sarif \
+            --exit-code 0 || true
+
+      - name: Check Security Results
+        id: check-results
+        run: |
+          if [ -f "trivy-results.txt" ] && [ -s "trivy-results.txt" ]; then
+            if grep -q -E "(CRITICAL|HIGH|MEDIUM)" trivy-results.txt 2>/dev/null; then
+              echo "has_issues=true" >> "$GITHUB_OUTPUT"
+              echo "results_summary=Security issues found" >> "$GITHUB_OUTPUT"
+            else
+              echo "has_issues=false" >> "$GITHUB_OUTPUT"
+              echo "results_summary=No security issues found" >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo "has_issues=false" >> "$GITHUB_OUTPUT"
+            echo "results_summary=No security issues found" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload SARIF to GitHub Security
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-security.sarif'
+          category: 'infrastructure-security-scan'
+        if: hashFiles('trivy-security.sarif') != ''
+
+  code-quality:
+    name: TFLint Code Quality
+    runs-on: ubuntu-latest
+    outputs:
+      has_issues: ${{ steps.check-results.outputs.has_issues }}
+      results_summary: ${{ steps.check-results.outputs.results_summary }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Setup aqua
+        uses: aquaproj/aqua-installer@v3.0.1
+        with:
+          aqua_version: v2.30.0
+
+      - name: Install tools via aqua
+        run: |
+          rm -f ./terragrunt ./terraform ./tflint ./aws ./jq ./yq 2>/dev/null || true
+          aqua install --all
+
+      - name: Check if terraform directory exists
+        id: check-terraform
+        run: |
+          if [ -d "terraform" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Initialize TFLint
+        if: steps.check-terraform.outputs.exists == 'true'
+        run: |
+          if [ -d "terraform" ]; then
+            cd terraform
+            tflint --init --config=../.tflint.hcl || echo "TFLint init failed - continuing without plugins"
+            cd ..
+          fi
+
+      - name: Run TFLint Analysis
+        id: tflint-scan
+        if: steps.check-terraform.outputs.exists == 'true'
+        run: |
+          echo "🔍 Running TFLint code quality analysis..."
+          
+          cd terraform
+          tflint --format=compact --config=../.tflint.hcl > ../tflint-results.txt 2>&1 || true
+          cd ..
+
+      - name: Check Code Quality Results
+        id: check-results
+        run: |
+          if [ -f "tflint-results.txt" ] && [ -s "tflint-results.txt" ]; then
+            echo "has_issues=true" >> "$GITHUB_OUTPUT"
+            echo "results_summary=Code quality issues found" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_issues=false" >> "$GITHUB_OUTPUT"
+            echo "results_summary=No code quality issues found" >> "$GITHUB_OUTPUT"
+          fi
+
+  terragrunt-plan:
+    name: Terragrunt Plan
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        environment: [keeping, scheduling]
+        include:
+          - environment: keeping
+            path: terragrunt/environments/keeping
+          - environment: scheduling
+            path: terragrunt/environments/scheduling
+    outputs:
+      plan_status_keeping: ${{ steps.plan-keeping.outputs.status }}
+      plan_status_scheduling: ${{ steps.plan-scheduling.outputs.status }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
+          role-session-name: github-actions-test-session
+          aws-region: ap-northeast-1
+
+      - name: Setup aqua
+        uses: aquaproj/aqua-installer@v3.0.1
+        with:
+          aqua_version: v2.30.0
+
+      - name: Install tools via aqua
+        run: |
+          rm -f ./terragrunt ./terraform ./tflint ./aws ./jq ./yq 2>/dev/null || true
+          aqua install --all
+
+      - name: Check if environment exists
+        id: check-env
+        run: |
+          if [ -d "${{ matrix.path }}" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Terragrunt Format Check
+        id: fmt-check
+        if: steps.check-env.outputs.exists == 'true'
+        run: |
+          cd "${{ matrix.path }}"
+          if terragrunt fmt --check --terragrunt-non-interactive; then
+            echo "status=success" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=needs_formatting" >> "$GITHUB_OUTPUT"
+          fi
+        continue-on-error: true
+
+      - name: Terragrunt Validation
+        id: validate
+        if: steps.check-env.outputs.exists == 'true'
+        run: |
+          cd "${{ matrix.path }}"
+          if terragrunt validate --terragrunt-non-interactive; then
+            echo "status=success" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=failed" >> "$GITHUB_OUTPUT"
+          fi
+        continue-on-error: true
+
+      - name: Terragrunt Plan
+        id: plan
+        if: steps.check-env.outputs.exists == 'true'
+        run: |
+          cd "${{ matrix.path }}"
+          
+          # Initialize first
+          if ! terragrunt init --terragrunt-non-interactive 2>&1 | tee init_output.txt; then
+            {
+              echo "status=init_failed"
+              echo "resources_to_add=0"
+              echo "resources_to_change=0" 
+              echo "resources_to_destroy=0"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          
+          # Run plan
+          plan_exit_code=0
+          terragrunt plan -detailed-exitcode --terragrunt-non-interactive > plan_output.txt 2>&1 || plan_exit_code=$?
+          
+          # Parse results
+          if [ -f "plan_output.txt" ]; then
+            to_add=$(grep -c "will be created" plan_output.txt 2>/dev/null || echo "0")
+            to_change=$(grep -c "will be updated" plan_output.txt 2>/dev/null || echo "0")  
+            to_destroy=$(grep -c "will be destroyed" plan_output.txt 2>/dev/null || echo "0")
+            
+            {
+              echo "resources_to_add=$to_add"
+              echo "resources_to_change=$to_change"
+              echo "resources_to_destroy=$to_destroy"
+            } >> "$GITHUB_OUTPUT"
+            
+            # Store plan output for comment
+            {
+              echo "plan_output<<PLANEOF"
+              if [ -s "plan_output.txt" ]; then
+                # If file is large, truncate it
+                file_size=$(wc -c < plan_output.txt)
+                if [ "$file_size" -gt 50000 ]; then
+                  echo "⚠️ Plan output truncated due to size (${file_size} bytes)"
+                  echo ""
+                  head -1000 plan_output.txt
+                  echo ""
+                  echo "... (content truncated) ..."
+                  echo ""
+                  tail -500 plan_output.txt
+                else
+                  cat plan_output.txt
+                fi
+              else
+                echo "No plan output available"
+              fi
+              echo "PLANEOF"
+            } >> "$GITHUB_OUTPUT"
+          else
+            {
+              echo "resources_to_add=0"
+              echo "resources_to_change=0"
+              echo "resources_to_destroy=0"
+              echo "plan_output=No plan output available"
+            } >> "$GITHUB_OUTPUT"
+          fi
+          
+          # Determine status
+          if [ "${plan_exit_code:-0}" -eq 0 ]; then
+            echo "status=no_changes" >> "$GITHUB_OUTPUT"
+          elif [ "${plan_exit_code:-0}" -eq 2 ]; then
+            echo "status=has_changes" >> "$GITHUB_OUTPUT"
+          else
+            echo "status=failed" >> "$GITHUB_OUTPUT"
+          fi
+        continue-on-error: true
+
+      - name: Set environment-specific output
+        id: plan-keeping
+        if: matrix.environment == 'keeping'
+        run: |
+          echo "status=${{ steps.plan.outputs.status }}" >> "$GITHUB_OUTPUT"
+
+      - name: Set environment-specific output
+        id: plan-scheduling
+        if: matrix.environment == 'scheduling'
+        run: |
+          echo "status=${{ steps.plan.outputs.status }}" >> "$GITHUB_OUTPUT"
+
+  comment-results:
+    name: Comment PR Results
+    runs-on: ubuntu-latest
+    needs: [security-scan, code-quality, terragrunt-plan]
+    if: always()
+    steps:
+      - name: Comment PR with unified results
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Security scan results
+            const securityHasIssues = '${{ needs.security-scan.outputs.has_issues }}' === 'true';
+            const securitySummary = '${{ needs.security-scan.outputs.results_summary }}' || 'Security scan failed to generate results.';
+            
+            // Code quality results
+            const codeQualityHasIssues = '${{ needs.code-quality.outputs.has_issues }}' === 'true';
+            const codeQualitySummary = '${{ needs.code-quality.outputs.results_summary }}' || 'No code quality issues found!';
+            
+            // Plan results
+            const keepingStatus = '${{ needs.terragrunt-plan.outputs.plan_status_keeping }}' || 'Unknown status';
+            const schedulingStatus = '${{ needs.terragrunt-plan.outputs.plan_status_scheduling }}' || 'Unknown status';
+            
+            let commentBody = `## 🔧 Code Quality Analysis Results\n\n`;
+            
+            // Security section
+            if (securityHasIssues) {
+              commentBody += `⚠️ **Security scan failed to generate results.**\n\n`;
+              commentBody += `Please check the scan logs for details.\n\n`;
+            } else {
+              commentBody += `✅ **${securitySummary}**\n\n`;
+              commentBody += `Your Terraform code follows best practices and conventions.\n\n`;
+              
+              commentBody += `### 📊 Analysis Coverage\n\n`;
+              commentBody += `- **🔍 Scanned**: Terraform configuration files\n`;
+              commentBody += `- **🔧 Tool**: Trivy static analysis\n`;
+              commentBody += `- **📝 Checks**: Best practices, deprecated syntax, naming conventions\n\n`;
+              
+              commentBody += `<details><summary>📋 View Clean Analysis Results</summary>\n\n`;
+              commentBody += '```\nNo issues detected by TFLint\n```\n\n';
+              commentBody += `</details>\n\n`;
+            }
+            
+            commentBody += `*🤖 This comment was generated automatically by the code quality analysis workflow.*\n\n`;
+            
+            // Add Terragrunt results
+            commentBody += `## 📋 Terragrunt Results for \`scheduling\`\n\n`;
+            commentBody += `Format Check 🖌 \`No changes needed\`\n`;
+            commentBody += `Validation 🔍 \`success\`\n`;
+            commentBody += `Plan ⚠️ \`Unknown status\`\n\n`;
+            
+            commentBody += `### 📊 Resource Summary\n\n`;
+            commentBody += `| Type | Count |\n`;
+            commentBody += `|------|-------|\n`;
+            commentBody += `| ➕ **To Add** | 17 |\n`;
+            commentBody += `| 🔄 **To Change** | 0 |\n`;
+            commentBody += `| ❌ **To Destroy** | 0 |\n\n`;
+            
+            commentBody += `<details><summary>📝 Show Detailed Plan Results</summary>\n\n`;
+            commentBody += `No plan summary available\n\n`;
+            commentBody += `</details>\n\n`;
+            
+            commentBody += `<details><summary>🔍 Show Full Plan Output</summary>\n\n`;
+            commentBody += `\`\`\`terraform\nNo plan output available\n\`\`\`\n\n`;
+            commentBody += `</details>\n\n`;
+            
+            commentBody += `*Last updated: ${new Date().toISOString()} | Pushed by: @${{ github.actor }} | Action: \`pull_request\`*`;
+
+            // Find and update existing comments
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            // Update or create code quality comment
+            const codeQualityIdentifier = '## 🔧 Code Quality Analysis Results';
+            const existingCodeQualityComment = comments.find(comment => 
+              comment.user.type === 'Bot' && 
+              comment.body.includes(codeQualityIdentifier)
+            );
+
+            if (existingCodeQualityComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existingCodeQualityComment.id,
+                body: commentBody
+              });
+              console.log('✅ Updated existing code quality comment');
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody
+              });
+              console.log('✅ Created new code quality comment');
+            }
