@@ -47,7 +47,6 @@ jobs:
 
     - name: Test Toggle Display Feature
       run: |
-        # shellcheck disable=SC2016
         echo "🧪 Testing toggle display functionality..."
         
         # Create a test output file with sample Terragrunt-like content
@@ -84,11 +83,9 @@ jobs:
           echo "<details>"
           echo "<summary>📋 Sample Terragrunt Plan Output (Click to expand) - Size: ${file_size} bytes</summary>"
           echo ""
-          # shellcheck disable=SC2016
-          printf '%s\n' '```hcl'
+          echo '```hcl'
           sed 's/```/\\`\\`\\`/g' test_output.txt
-          # shellcheck disable=SC2016
-          printf '%s\n' '```'
+          echo '```'
           echo "</details>"
           echo ""
           echo "---"
@@ -203,7 +200,6 @@ jobs:
     - name: Display Terragrunt Plan Output
       if: always()
       run: |
-        # shellcheck disable=SC2016
         cd terragrunt/environments/scheduling
         if [ -f "plan_output.txt" ] && [ -s "plan_output.txt" ]; then
           echo "📋 Creating Plan Output Summary..."
@@ -215,8 +211,7 @@ jobs:
             echo "<details>"
             echo "<summary>📋 Terragrunt Plan Output (Click to expand) - Size: ${file_size} bytes</summary>"
             echo ""
-            # shellcheck disable=SC2016
-            printf '%s\n' '```hcl'
+            echo '```hcl'
             
             # If file is too large, show truncated version
             if [ "$file_size" -gt 100000 ]; then
@@ -234,8 +229,7 @@ jobs:
               sed 's/```/\\`\\`\\`/g' plan_output.txt
             fi
             
-            # shellcheck disable=SC2016
-            printf '%s\n' '```'
+            echo '```'
             echo "</details>"
             echo ""
             echo "---"
@@ -248,7 +242,6 @@ jobs:
     - name: Display Terragrunt Apply Output  
       if: always() && env.TF_PLAN_EXIT_CODE == '2'
       run: |
-        # shellcheck disable=SC2016
         cd terragrunt/environments/scheduling
         if [ -f "apply_output.txt" ] && [ -s "apply_output.txt" ]; then
           echo "🚀 Creating Apply Output Summary..."
@@ -260,8 +253,7 @@ jobs:
             echo "<details>"
             echo "<summary>🚀 Terragrunt Apply Output (Click to expand) - Size: ${file_size} bytes</summary>"
             echo ""
-            # shellcheck disable=SC2016
-            printf '%s\n' '```hcl'
+            echo '```hcl'
             
             # If file is too large, show truncated version
             if [ "$file_size" -gt 100000 ]; then
@@ -279,8 +271,7 @@ jobs:
               sed 's/```/\\`\\`\\`/g' apply_output.txt
             fi
             
-            # shellcheck disable=SC2016
-            printf '%s\n' '```'
+            echo '```'
             echo "</details>"
             echo ""
             echo "---"
