@@ -39,9 +39,29 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          PR_NUMBER="$(git log -1 --pretty=format:%B | grep 'Merge pull request #' | cut -d '#' -f2 | cut -d ' ' -f1)"
-          echo "Associated PR number is ${PR_NUMBER}"
-          echo "pr_number=${PR_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "=== Finding PR number from merge commit ==="
+          
+          # Get the latest commit message
+          COMMIT_MSG="$(git log -1 --pretty=format:%B)"
+          echo "Latest commit message:"
+          echo "$COMMIT_MSG"
+          
+          # Extract PR number from merge commit message
+          PR_NUMBER="$(echo "$COMMIT_MSG" | grep 'Merge pull request #' | sed 's/.*#\([0-9]*\).*/\1/' | head -1)"
+          
+          if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "$COMMIT_MSG" ]; then
+            echo "✅ Found PR number: $PR_NUMBER"
+            echo "pr_number=$PR_NUMBER" >> "$GITHUB_OUTPUT"
+          else
+            echo "⚠️ No PR number found in commit message"
+            echo "Commit message: $COMMIT_MSG"
+            
+            # Alternative: try to find PR from commit SHA
+            echo "Trying alternative method with commit SHA..."
+            git log --oneline -5
+            
+            echo "pr_number=" >> "$GITHUB_OUTPUT"
+          fi
           
       - name: Get PR labels
         id: pr_labels
@@ -49,11 +69,23 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           PR_NUMBER=${{ steps.pr_search.outputs.pr_number }}
-          if [ -n "$PR_NUMBER" ]; then
-            LABELS="$(gh pr view $PR_NUMBER --json labels --jq '.labels[].name'| tr '\n' ' ')"
-            echo "Labels are ${LABELS}"
-            echo "labels=${LABELS}" >> "$GITHUB_OUTPUT"
+          echo "=== Getting labels for PR #$PR_NUMBER ==="
+          
+          if [ -n "$PR_NUMBER" ] && [ "$PR_NUMBER" != "" ]; then
+            echo "Fetching labels for PR #$PR_NUMBER..."
+            
+            # Try to get PR labels
+            if LABELS="$(gh pr view $PR_NUMBER --json labels --jq '.labels[].name' 2>/dev/null | tr '\n' ' ')"; then
+              echo "✅ Successfully retrieved labels: $LABELS"
+              echo "labels=$LABELS" >> "$GITHUB_OUTPUT"
+            else
+              echo "❌ Failed to get labels for PR #$PR_NUMBER"
+              echo "Trying to get PR info..."
+              gh pr view $PR_NUMBER --json labels,title,state || echo "PR not found or accessible"
+              echo "labels=" >> "$GITHUB_OUTPUT"
+            fi
           else
+            echo "⚠️ No PR number available, cannot fetch labels"
             echo "labels=" >> "$GITHUB_OUTPUT"
           fi
 
@@ -97,23 +129,57 @@ jobs:
         id: check_targets
         run: |
           LABELS="${{ steps.pr_labels.outputs.labels }}"
+          KEEPING_CHANGES="${{ steps.changes.outputs.keeping_changes }}"
+          SCHEDULING_CHANGES="${{ steps.changes.outputs.scheduling_changes }}"
+          
+          echo "Debug information:"
+          echo "Labels: '${LABELS}'"
+          echo "Keeping changes: '${KEEPING_CHANGES}'"
+          echo "Scheduling changes: '${SCHEDULING_CHANGES}'"
+          
+          # Check if apply-target-checker.js exists
+          if [ -f "./scripts/github-actions/apply-target-checker.js" ]; then
+            echo "✅ apply-target-checker.js file exists"
+          else
+            echo "❌ apply-target-checker.js file NOT found"
+            ls -la ./scripts/github-actions/
+          fi
           
           # Convert space-separated labels to JavaScript array
           node -e "
-          const applyTargetChecker = require('./scripts/github-actions/apply-target-checker.js');
-          const fs = require('fs');
-          
-          const labels = '$LABELS'.split(' ').filter(l => l);
-          const keepingChanges = '${{ steps.changes.outputs.keeping_changes }}' === 'true';
-          const schedulingChanges = '${{ steps.changes.outputs.scheduling_changes }}' === 'true';
-          
-          const result = applyTargetChecker(labels, keepingChanges, schedulingChanges);
-          
-          // Write outputs to GITHUB_OUTPUT
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, 
-            \`should_run_keeping=\${result.should_run_keeping}\\n\`);
-          fs.appendFileSync(process.env.GITHUB_OUTPUT, 
-            \`should_run_scheduling=\${result.should_run_scheduling}\\n\`);
+          try {
+            const applyTargetChecker = require('./scripts/github-actions/apply-target-checker.js');
+            const fs = require('fs');
+            
+            const labels = '$LABELS'.split(' ').filter(l => l);
+            const keepingChanges = '$KEEPING_CHANGES' === 'true';
+            const schedulingChanges = '$SCHEDULING_CHANGES' === 'true';
+            
+            console.log('Input to applyTargetChecker:');
+            console.log('- labels:', labels);
+            console.log('- keepingChanges:', keepingChanges);
+            console.log('- schedulingChanges:', schedulingChanges);
+            
+            const result = applyTargetChecker(labels, keepingChanges, schedulingChanges);
+            
+            console.log('Result from applyTargetChecker:');
+            console.log('- should_run_keeping:', result.should_run_keeping);
+            console.log('- should_run_scheduling:', result.should_run_scheduling);
+            
+            // Write outputs to GITHUB_OUTPUT
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 
+              \`should_run_keeping=\${result.should_run_keeping}\\n\`);
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 
+              \`should_run_scheduling=\${result.should_run_scheduling}\\n\`);
+              
+            console.log('✅ Successfully wrote outputs to GITHUB_OUTPUT');
+            console.log('Final outputs:');
+            console.log('- should_run_keeping=' + result.should_run_keeping);
+            console.log('- should_run_scheduling=' + result.should_run_scheduling);
+          } catch (error) {
+            console.error('❌ Error in Node.js script:', error);
+            process.exit(1);
+          }
           "
 
   apply-keeping:
