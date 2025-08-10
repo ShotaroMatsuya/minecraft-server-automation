@@ -292,19 +292,25 @@ jobs:
             local retry_count=0
             
             while [ "$retry_count" -lt "$max_retries" ]; do
-              echo "=== Attempt $((retry_count + 1))/$max_retries ==="
+              echo "=== Keeping Environment - Attempt $((retry_count + 1))/$max_retries ==="
               
               # Initialize first
               init_exit_code=0
               terragrunt init --terragrunt-non-interactive 2>&1 | tee init_output.txt || init_exit_code=$?
               
               if [ "$init_exit_code" -ne 0 ]; then
-                echo "❌ Init failed on attempt $((retry_count + 1))"
+                echo "❌ Keeping init failed on attempt $((retry_count + 1))"
+                echo "=== Keeping Init Error Details ==="
+                tail -20 init_output.txt
+                echo "=== End Keeping Init Error Details ==="
+                
                 if [ "$retry_count" -eq $((max_retries - 1)) ]; then
                   echo "status=init_failed" >> "$GITHUB_OUTPUT"
                   echo "resources_applied=0" >> "$GITHUB_OUTPUT"
                   echo "resources_changed=0" >> "$GITHUB_OUTPUT"
                   echo "resources_destroyed=0" >> "$GITHUB_OUTPUT"
+                  # Preserve init error details for debugging
+                  cp init_output.txt apply_errors.txt
                   return 1
                 fi
                 retry_count=$((retry_count + 1))
@@ -318,13 +324,29 @@ jobs:
               terragrunt plan --terragrunt-non-interactive -out=tfplan > plan_output.txt 2>&1 || plan_exit_code=$?
               
               if [ "$plan_exit_code" -ne 0 ]; then
-                echo "❌ Plan failed on attempt $((retry_count + 1))"
-                cat plan_output.txt
+                echo "❌ Keeping plan failed on attempt $((retry_count + 1))"
+                echo "=== Keeping Plan Error Details ==="
+                tail -30 plan_output.txt
+                echo "=== End Keeping Plan Error Details ==="
+                
+                # Check for common dependency errors
+                if grep -q "no matching.*found" plan_output.txt; then
+                  echo "🔍 Detected missing resource dependency in keeping environment"
+                fi
+                if grep -q "couldn't find resource" plan_output.txt; then
+                  echo "🔍 Detected missing AWS resource in keeping environment"
+                fi
+                
+                # Capture plan errors for better debugging
+                cp plan_output.txt plan_errors.txt
+                
                 if [ "$retry_count" -eq $((max_retries - 1)) ]; then
                   echo "status=plan_failed" >> "$GITHUB_OUTPUT"
                   echo "resources_applied=0" >> "$GITHUB_OUTPUT"
                   echo "resources_changed=0" >> "$GITHUB_OUTPUT"
                   echo "resources_destroyed=0" >> "$GITHUB_OUTPUT"
+                  # Ensure error details are preserved for debugging
+                  cp plan_output.txt apply_errors.txt
                   return 1
                 fi
                 retry_count=$((retry_count + 1))
@@ -333,7 +355,7 @@ jobs:
                 continue
               fi
               
-              echo "✅ Plan completed successfully, proceeding with apply"
+              echo "✅ Keeping plan completed successfully, proceeding with apply"
               
               # Run apply with auto-approve using the saved plan
               apply_exit_code=0
@@ -341,7 +363,7 @@ jobs:
               
               # Check if this was a lock error
               if [ "$apply_exit_code" -ne 0 ] && grep -q "Error acquiring the state lock" apply_output.txt; then
-                echo "⚠️ State lock error detected on attempt $((retry_count + 1))"
+                echo "⚠️ Keeping state lock error detected on attempt $((retry_count + 1))"
                 if [ "$retry_count" -eq $((max_retries - 1)) ]; then
                   echo "❌ Max retries reached, failing..."
                   break
@@ -406,10 +428,25 @@ jobs:
           else
             apply_status="failed"
             echo "❌ Keeping apply failed: Exit code $final_exit_code"
-            # Capture errors to apply_errors.txt
-            if [ -f "apply_output.txt" ]; then
-              tail -100 apply_output.txt > apply_errors.txt
+            
+            # Enhanced error capture for better debugging
+            echo "=== Capturing error details for debugging ==="
+            if [ -f "apply_output.txt" ] && [ -s "apply_output.txt" ]; then
+              echo "Using apply output for error details"
+              tail -50 apply_output.txt > apply_errors.txt
+            elif [ -f "plan_errors.txt" ] && [ -s "plan_errors.txt" ]; then
+              echo "Using plan errors for error details" 
+              cp plan_errors.txt apply_errors.txt
+            elif [ -f "plan_output.txt" ] && [ -s "plan_output.txt" ]; then
+              echo "Using plan output for error details"
+              tail -50 plan_output.txt > apply_errors.txt
+            elif [ -f "init_output.txt" ] && [ -s "init_output.txt" ]; then
+              echo "Using init output for error details"
+              tail -50 init_output.txt > apply_errors.txt
+            else
+              echo "No detailed error logs available" > apply_errors.txt
             fi
+            
             exit 1
           fi
           
@@ -470,6 +507,7 @@ jobs:
             terragrunt/environments/keeping/plan_output.txt
             terragrunt/environments/keeping/init_output.txt
             terragrunt/environments/keeping/apply_errors.txt
+            terragrunt/environments/keeping/plan_errors.txt
           retention-days: 30
 
       - name: Slack Notification on Success
@@ -566,19 +604,25 @@ jobs:
             local retry_count=0
             
             while [ "$retry_count" -lt "$max_retries" ]; do
-              echo "=== Attempt $((retry_count + 1))/$max_retries ==="
+              echo "=== Scheduling Environment - Attempt $((retry_count + 1))/$max_retries ==="
               
               # Initialize first
               init_exit_code=0
               terragrunt init --terragrunt-non-interactive 2>&1 | tee init_output.txt || init_exit_code=$?
               
               if [ "$init_exit_code" -ne 0 ]; then
-                echo "❌ Init failed on attempt $((retry_count + 1))"
+                echo "❌ Scheduling init failed on attempt $((retry_count + 1))"
+                echo "=== Scheduling Init Error Details ==="
+                tail -20 init_output.txt
+                echo "=== End Scheduling Init Error Details ==="
+                
                 if [ "$retry_count" -eq $((max_retries - 1)) ]; then
                   echo "status=init_failed" >> "$GITHUB_OUTPUT"
                   echo "resources_applied=0" >> "$GITHUB_OUTPUT"
                   echo "resources_changed=0" >> "$GITHUB_OUTPUT"
                   echo "resources_destroyed=0" >> "$GITHUB_OUTPUT"
+                  # Preserve init error details for debugging
+                  cp init_output.txt apply_errors.txt
                   return 1
                 fi
                 retry_count=$((retry_count + 1))
@@ -592,13 +636,32 @@ jobs:
               terragrunt plan --terragrunt-non-interactive -out=tfplan > plan_output.txt 2>&1 || plan_exit_code=$?
               
               if [ "$plan_exit_code" -ne 0 ]; then
-                echo "❌ Plan failed on attempt $((retry_count + 1))"
-                cat plan_output.txt
+                echo "❌ Scheduling plan failed on attempt $((retry_count + 1))"
+                echo "=== Scheduling Plan Error Details ==="
+                tail -50 plan_output.txt
+                echo "=== End Scheduling Plan Error Details ==="
+                
+                # Check for common dependency errors
+                if grep -q "no matching EC2 Security Group found" plan_output.txt; then
+                  echo "🔍 Detected missing Security Group dependency"
+                fi
+                if grep -q "couldn't find resource" plan_output.txt && grep -q "IAM Role" plan_output.txt; then
+                  echo "🔍 Detected missing IAM Role dependency"
+                fi
+                if grep -q "empty result" plan_output.txt && grep -q "SNS Topic" plan_output.txt; then
+                  echo "🔍 Detected missing SNS Topic dependency"
+                fi
+                
+                # Capture plan errors for better debugging
+                cp plan_output.txt plan_errors.txt
+                
                 if [ "$retry_count" -eq $((max_retries - 1)) ]; then
                   echo "status=plan_failed" >> "$GITHUB_OUTPUT"
                   echo "resources_applied=0" >> "$GITHUB_OUTPUT"
                   echo "resources_changed=0" >> "$GITHUB_OUTPUT"
                   echo "resources_destroyed=0" >> "$GITHUB_OUTPUT"
+                  # Ensure error details are preserved for debugging
+                  cp plan_output.txt apply_errors.txt
                   return 1
                 fi
                 retry_count=$((retry_count + 1))
@@ -607,7 +670,7 @@ jobs:
                 continue
               fi
               
-              echo "✅ Plan completed successfully, proceeding with apply"
+              echo "✅ Scheduling plan completed successfully, proceeding with apply"
               
               # Run apply with auto-approve using the saved plan
               apply_exit_code=0
@@ -615,7 +678,7 @@ jobs:
               
               # Check if this was a lock error
               if [ "$apply_exit_code" -ne 0 ] && grep -q "Error acquiring the state lock" apply_output.txt; then
-                echo "⚠️ State lock error detected on attempt $((retry_count + 1))"
+                echo "⚠️ Scheduling state lock error detected on attempt $((retry_count + 1))"
                 if [ "$retry_count" -eq $((max_retries - 1)) ]; then
                   echo "❌ Max retries reached, failing..."
                   break
@@ -680,9 +743,39 @@ jobs:
           else
             apply_status="failed"
             echo "❌ Scheduling apply failed: Exit code $final_exit_code"
-            # Capture errors to apply_errors.txt
-            if [ -f "apply_output.txt" ]; then
-              tail -100 apply_output.txt > apply_errors.txt
+            
+            # Enhanced error capture for better debugging
+            echo "=== Capturing Scheduling error details for debugging ==="
+            if [ -f "apply_output.txt" ] && [ -s "apply_output.txt" ]; then
+              echo "Using apply output for error details"
+              tail -50 apply_output.txt > apply_errors.txt
+            elif [ -f "plan_errors.txt" ] && [ -s "plan_errors.txt" ]; then
+              echo "Using plan errors for error details"
+              cp plan_errors.txt apply_errors.txt
+            elif [ -f "plan_output.txt" ] && [ -s "plan_output.txt" ]; then
+              echo "Using plan output for error details"
+              tail -50 plan_output.txt > apply_errors.txt
+            elif [ -f "init_output.txt" ] && [ -s "init_output.txt" ]; then
+              echo "Using init output for error details"
+              tail -50 init_output.txt > apply_errors.txt
+            else
+              echo "No detailed error logs available" > apply_errors.txt
+            fi
+            
+            # Check for dependency issues and add helpful context
+            if [ -f "apply_errors.txt" ]; then
+              if grep -q "no matching EC2 Security Group found" apply_errors.txt; then
+                echo "Dependency Issue: Security Group not found" >> apply_errors.txt
+                echo "Possible cause: apply-keeping job may not have completed successfully" >> apply_errors.txt
+              fi
+              if grep -q "couldn't find resource.*IAM Role" apply_errors.txt; then
+                echo "Dependency Issue: IAM Role not found" >> apply_errors.txt
+                echo "Possible cause: apply-keeping job may not have created required IAM resources" >> apply_errors.txt
+              fi
+              if grep -q "empty result.*SNS Topic" apply_errors.txt; then
+                echo "Dependency Issue: SNS Topic not found" >> apply_errors.txt
+                echo "Possible cause: apply-keeping job may not have created SNS resources" >> apply_errors.txt
+              fi
             fi
           fi
           
@@ -701,7 +794,53 @@ jobs:
             terragrunt/environments/scheduling/plan_output.txt
             terragrunt/environments/scheduling/init_output.txt
             terragrunt/environments/scheduling/apply_errors.txt
+            terragrunt/environments/scheduling/plan_errors.txt
           retention-days: 30
+
+      - name: Debug Scheduling Apply Results  
+        if: always() && steps.check-env.outputs.exists == 'true'
+        working-directory: terragrunt/environments/scheduling
+        run: |
+          echo "=== Debugging Apply Results for Scheduling ==="
+          echo "Checking for scheduling output files..."
+          
+          if [ -f "apply_output.txt" ]; then
+            echo "✅ apply_output.txt exists, size: $(wc -c < apply_output.txt) bytes"
+            echo "=== Full Scheduling Apply Output ==="
+            cat apply_output.txt
+            echo "=== End Full Scheduling Apply Output ==="
+          else
+            echo "❌ apply_output.txt not found"
+          fi
+          
+          if [ -f "plan_output.txt" ]; then
+            echo "✅ plan_output.txt exists, size: $(wc -c < plan_output.txt) bytes"
+            echo "=== Scheduling Plan Output ==="
+            cat plan_output.txt
+            echo "=== End Scheduling Plan Output ==="
+          else
+            echo "❌ plan_output.txt not found"
+          fi
+          
+          if [ -f "plan_errors.txt" ]; then
+            echo "✅ plan_errors.txt exists, size: $(wc -c < plan_errors.txt) bytes"
+            echo "=== Scheduling Plan Errors ==="
+            cat plan_errors.txt
+            echo "=== End Scheduling Plan Errors ==="
+          else
+            echo "❌ plan_errors.txt not found"
+          fi
+          
+          if [ -f "apply_errors.txt" ]; then
+            echo "✅ apply_errors.txt exists, size: $(wc -c < apply_errors.txt) bytes"
+            if [ -s "apply_errors.txt" ]; then
+              echo "=== Scheduling Apply Errors Content ==="
+              cat apply_errors.txt
+              echo "=== End Scheduling Apply Errors ==="
+            fi
+          else
+            echo "❌ apply_errors.txt not found"
+          fi
 
       - name: Slack Notification on Success
         if: success()
