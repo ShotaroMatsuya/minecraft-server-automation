@@ -93,6 +93,16 @@ jobs:
             echo "results_summary=No security issues found" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Upload Security Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-security-results
+          path: |
+            trivy-results.txt
+            trivy-security.sarif
+          retention-days: 30
+
       - name: Upload SARIF to GitHub Security
         uses: github/codeql-action/upload-sarif@v3
         with:
@@ -161,6 +171,14 @@ jobs:
             echo "has_issues=false" >> "$GITHUB_OUTPUT"
             echo "results_summary=No code quality issues found" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Upload Code Quality Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: tflint-quality-results
+          path: tflint-results.txt
+          retention-days: 30
 
   terragrunt-plan:
     name: Terragrunt Plan
@@ -319,101 +337,101 @@ jobs:
         run: |
           echo "status=${{ steps.plan.outputs.status }}" >> "$GITHUB_OUTPUT"
 
+      - name: Upload Plan Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: terragrunt-plan-${{ matrix.environment }}
+          path: |
+            ${{ matrix.path }}/plan_output.txt
+            ${{ matrix.path }}/init_output.txt
+          retention-days: 30
+
   comment-results:
     name: Comment PR Results
     runs-on: ubuntu-latest
     needs: [security-scan, code-quality, terragrunt-plan]
     if: always()
     steps:
-      - name: Comment PR with unified results
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Security Results
+        uses: actions/download-artifact@v4
+        with:
+          name: trivy-security-results
+          path: security-results/
+        continue-on-error: true
+
+      - name: Comment Security Scan Results
         uses: actions/github-script@v7
         with:
           script: |
-            // Security scan results
-            const securityHasIssues = '${{ needs.security-scan.outputs.has_issues }}' === 'true';
-            const securitySummary = '${{ needs.security-scan.outputs.results_summary }}' || 'Security scan failed to generate results.';
+            const commentHandler = require('./scripts/github-actions/comment-handler.js');
             
-            // Code quality results
-            const codeQualityHasIssues = '${{ needs.code-quality.outputs.has_issues }}' === 'true';
-            const codeQualitySummary = '${{ needs.code-quality.outputs.results_summary }}' || 'No code quality issues found!';
+            const inputs = {
+              commentType: 'security',
+              hasIssues: '${{ needs.security-scan.outputs.has_issues }}' === 'true',
+              resultsSummary: '${{ needs.security-scan.outputs.results_summary }}' || 'No security issues found'
+            };
             
-            // Plan results
-            const keepingStatus = '${{ needs.terragrunt-plan.outputs.plan_status_keeping }}' || 'Unknown status';
-            const schedulingStatus = '${{ needs.terragrunt-plan.outputs.plan_status_scheduling }}' || 'Unknown status';
-            
-            let commentBody = `## 🔧 Code Quality Analysis Results\n\n`;
-            
-            // Security section
-            if (securityHasIssues) {
-              commentBody += `⚠️ **Security scan failed to generate results.**\n\n`;
-              commentBody += `Please check the scan logs for details.\n\n`;
-            } else {
-              commentBody += `✅ **${securitySummary}**\n\n`;
-              commentBody += `Your Terraform code follows best practices and conventions.\n\n`;
-              
-              commentBody += `### 📊 Analysis Coverage\n\n`;
-              commentBody += `- **🔍 Scanned**: Terraform configuration files\n`;
-              commentBody += `- **🔧 Tool**: Trivy static analysis\n`;
-              commentBody += `- **📝 Checks**: Best practices, deprecated syntax, naming conventions\n\n`;
-              
-              commentBody += `<details><summary>📋 View Clean Analysis Results</summary>\n\n`;
-              commentBody += '```\nNo issues detected by TFLint\n```\n\n';
-              commentBody += `</details>\n\n`;
-            }
-            
-            commentBody += `*🤖 This comment was generated automatically by the code quality analysis workflow.*\n\n`;
-            
-            // Add Terragrunt results
-            commentBody += `## 📋 Terragrunt Results for \`scheduling\`\n\n`;
-            commentBody += `Format Check 🖌 \`No changes needed\`\n`;
-            commentBody += `Validation 🔍 \`success\`\n`;
-            commentBody += `Plan ⚠️ \`Unknown status\`\n\n`;
-            
-            commentBody += `### 📊 Resource Summary\n\n`;
-            commentBody += `| Type | Count |\n`;
-            commentBody += `|------|-------|\n`;
-            commentBody += `| ➕ **To Add** | 17 |\n`;
-            commentBody += `| 🔄 **To Change** | 0 |\n`;
-            commentBody += `| ❌ **To Destroy** | 0 |\n\n`;
-            
-            commentBody += `<details><summary>📝 Show Detailed Plan Results</summary>\n\n`;
-            commentBody += `No plan summary available\n\n`;
-            commentBody += `</details>\n\n`;
-            
-            commentBody += `<details><summary>🔍 Show Full Plan Output</summary>\n\n`;
-            commentBody += `\`\`\`terraform\nNo plan output available\n\`\`\`\n\n`;
-            commentBody += `</details>\n\n`;
-            
-            commentBody += `*Last updated: ${new Date().toISOString()} | Pushed by: @${{ github.actor }} | Action: \`pull_request\`*`;
+            await commentHandler(github, context, inputs);
 
-            // Find and update existing comments
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: context.issue.number,
-            });
+      - name: Download Code Quality Results
+        uses: actions/download-artifact@v4
+        with:
+          name: tflint-quality-results
+          path: quality-results/
+        continue-on-error: true
 
-            // Update or create code quality comment
-            const codeQualityIdentifier = '## 🔧 Code Quality Analysis Results';
-            const existingCodeQualityComment = comments.find(comment => 
-              comment.user.type === 'Bot' && 
-              comment.body.includes(codeQualityIdentifier)
-            );
+      - name: Comment Code Quality Results
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commentHandler = require('./scripts/github-actions/comment-handler.js');
+            
+            const inputs = {
+              commentType: 'code-quality',
+              hasIssues: '${{ needs.code-quality.outputs.has_issues }}' === 'true',
+              resultsSummary: '${{ needs.code-quality.outputs.results_summary }}' || 'No code quality issues found'
+            };
+            
+            await commentHandler(github, context, inputs);
 
-            if (existingCodeQualityComment) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existingCodeQualityComment.id,
-                body: commentBody
-              });
-              console.log('✅ Updated existing code quality comment');
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: context.issue.number,
-                body: commentBody
-              });
-              console.log('✅ Created new code quality comment');
-            }
+      - name: Download Terragrunt Plan Results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: terragrunt-plan-*
+          path: plan-results/
+          merge-multiple: true
+        continue-on-error: true
+
+      - name: Comment Terragrunt Plan Results (Keeping)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commentHandler = require('./scripts/github-actions/comment-handler.js');
+            
+            const inputs = {
+              commentType: 'terragrunt-plan',
+              environment: 'keeping',
+              status: '${{ needs.terragrunt-plan.outputs.plan_status_keeping }}' || 'unknown',
+              planFilePath: 'plan-results/terragrunt/environments/keeping/plan_output.txt'
+            };
+            
+            await commentHandler(github, context, inputs);
+
+      - name: Comment Terragrunt Plan Results (Scheduling)
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commentHandler = require('./scripts/github-actions/comment-handler.js');
+            
+            const inputs = {
+              commentType: 'terragrunt-plan',
+              environment: 'scheduling',
+              status: '${{ needs.terragrunt-plan.outputs.plan_status_scheduling }}' || 'unknown',
+              planFilePath: 'plan-results/terragrunt/environments/scheduling/plan_output.txt'
+            };
+            
+            await commentHandler(github, context, inputs);
