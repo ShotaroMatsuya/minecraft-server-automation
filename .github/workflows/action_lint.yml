@@ -17,5 +17,13 @@ jobs:
         shell: bash
 
       - name: Check workflow files
-        run: ${{ steps.get_actionlint.outputs.executable }} -color -ignore 'SC2001:style:3:17'
+        run: |
+          # Run actionlint with ignored rules:
+          # - SC2001: Use ${var//search/replace} instead of sed for simple substitutions
+          # - SC2016: Expressions don't expand in single quotes (needed for markdown code blocks in shell output)
+          # - SC2129: Consider using { cmd1; cmd2; } >> file instead of individual redirects (prefer readability)
+          ${{ steps.get_actionlint.outputs.executable }} -color \
+            -ignore 'SC2001:style:3:17' \
+            -ignore 'SC2016:.*' \
+            -ignore 'SC2129:.*'
         shell: bash

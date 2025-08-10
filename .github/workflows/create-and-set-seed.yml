@@ -44,6 +44,56 @@ jobs:
 
     - name: Install tools via aqua
       run: aqua install --all
+
+    - name: Test Toggle Display Feature
+      run: |
+        echo "🧪 Testing toggle display functionality..."
+        
+        # Create a test output file with sample Terragrunt-like content
+        cat << 'TEST_EOF' > test_output.txt
+        Terragrunt will perform the following actions:
+
+          # aws_instance.example will be created
+          + resource "aws_instance" "example" {
+              + ami                          = "ami-12345678"
+              + instance_type               = "t3.micro"
+              + key_name                    = "my-key"
+              + vpc_security_group_ids      = (known after apply)
+            }
+
+          # aws_s3_bucket.test will be created  
+          + resource "aws_s3_bucket" "test" {
+              + bucket        = "my-test-bucket"
+              + force_destroy = false
+            }
+
+        Plan: 2 to add, 0 to change, 0 to destroy.
+
+        Changes to Outputs:
+          + instance_id = (known after apply)
+          + bucket_name = "my-test-bucket"
+        TEST_EOF
+        
+        # Test the toggle display functionality
+        file_size=$(wc -c < test_output.txt)
+        
+        {
+          echo "## 🧪 Test: Terragrunt Toggle Display Feature"
+          echo ""
+          echo "<details>"
+          echo "<summary>📋 Sample Terragrunt Plan Output (Click to expand) - Size: ${file_size} bytes</summary>"
+          echo ""
+          echo '```hcl'
+          sed 's/```/\\`\\`\\`/g' test_output.txt
+          echo '```'
+          echo "</details>"
+          echo ""
+          echo "---"
+          echo ""
+        } >> "$GITHUB_STEP_SUMMARY"
+        
+        echo "✅ Toggle display test completed - check GitHub Actions Summary tab"
+        
     - name: Create Mapping Yaml
       working-directory: terragrunt/environments/scheduling
       run: |
@@ -74,23 +124,162 @@ jobs:
       working-directory: terragrunt/environments/scheduling
       shell: /usr/bin/bash {0} # workaround ref:https://qiita.com/mkiken/items/3d2999217832704fcf01
       run: |
+        echo "📋 Running Terragrunt Plan..."
+        
+        # Execute terragrunt plan and capture output
+        set +e  # Don't exit on error to capture exit code
         terragrunt plan --terragrunt-non-interactive -detailed-exitcode \
           -var="seed_value=${{ env.TF_VAR_seed_value }}" \
           -var="set_recovery_point=false" \
-          -var="set_seed_value=true"
+          -var="set_seed_value=true" \
+          > plan_output.txt 2>&1
         TF_PLAN_EXIT_CODE=$?
-        echo "exit code is ${TF_PLAN_EXIT_CODE}"
+        set -e  # Re-enable exit on error
+        
+        echo "📊 Plan completed with exit code: ${TF_PLAN_EXIT_CODE}"
         echo "TF_PLAN_EXIT_CODE=${TF_PLAN_EXIT_CODE}" >> "$GITHUB_ENV"
+        
+        # Interpret exit codes
+        case $TF_PLAN_EXIT_CODE in
+          0) echo "✅ No changes detected" ;;
+          1) echo "❌ Terraform plan failed" && exit 1 ;;
+          2) echo "📝 Changes detected - apply will be triggered" ;;
+          *) echo "⚠️ Unexpected exit code: $TF_PLAN_EXIT_CODE" ;;
+        esac
+        
+        # Display plan output summary
+        if [ -f "plan_output.txt" ]; then
+          plan_file_size=$(wc -c < plan_output.txt)
+          echo "📄 Plan output file size: $plan_file_size bytes"
+          echo "📄 First 20 lines of plan output:"
+          head -20 plan_output.txt
+          echo "📄 Last 20 lines of plan output:"
+          tail -20 plan_output.txt
+        else
+          echo "❌ Plan output file not found!"
+        fi
 
     - name: Apply Terragrunt
       if: ${{ env.TF_PLAN_EXIT_CODE == 2 }}
       working-directory: terragrunt/environments/scheduling
       run: |
+        echo "🚀 Running Terragrunt Apply..."
+        
+        # Execute terragrunt apply and capture output
+        set +e  # Don't exit on error to capture exit code
         terragrunt apply --terragrunt-non-interactive \
           -var="seed_value=${{ env.TF_VAR_seed_value }}" \
           -var="set_recovery_point=false" \
           -var="set_seed_value=true" \
-          -auto-approve
+          -auto-approve > apply_output.txt 2>&1
+        TF_APPLY_EXIT_CODE=$?
+        set -e  # Re-enable exit on error
+        
+        echo "📊 Apply completed with exit code: ${TF_APPLY_EXIT_CODE}"
+        
+        # Check apply result
+        if [ $TF_APPLY_EXIT_CODE -eq 0 ]; then
+          echo "✅ Apply successful"
+        else
+          echo "❌ Apply failed with exit code: $TF_APPLY_EXIT_CODE"
+          exit $TF_APPLY_EXIT_CODE
+        fi
+        
+        # Display apply output summary
+        if [ -f "apply_output.txt" ]; then
+          apply_file_size=$(wc -c < apply_output.txt)
+          echo "📄 Apply output file size: $apply_file_size bytes"
+          echo "📄 First 20 lines of apply output:"
+          head -20 apply_output.txt
+          echo "📄 Last 20 lines of apply output:"
+          tail -20 apply_output.txt
+        else
+          echo "❌ Apply output file not found!"
+        fi
+
+    - name: Display Terragrunt Plan Output
+      if: always()
+      run: |
+        cd terragrunt/environments/scheduling
+        if [ -f "plan_output.txt" ] && [ -s "plan_output.txt" ]; then
+          echo "📋 Creating Plan Output Summary..."
+          
+          # Check file size to handle large outputs appropriately
+          file_size=$(wc -c < plan_output.txt)
+          
+          {
+            echo "<details>"
+            echo "<summary>📋 Terragrunt Plan Output (Click to expand) - Size: ${file_size} bytes</summary>"
+            echo ""
+            echo '```hcl'
+            
+            # If file is too large, show truncated version
+            if [ "$file_size" -gt 100000 ]; then
+              echo "⚠️ Output truncated due to large size (${file_size} bytes)"
+              echo ""
+              echo "=== First 2000 lines ==="
+              head -2000 plan_output.txt | sed 's/```/\\`\\`\\`/g'
+              echo ""
+              echo "=== ... (content truncated) ==="
+              echo ""
+              echo "=== Last 1000 lines ==="
+              tail -1000 plan_output.txt | sed 's/```/\\`\\`\\`/g'
+            else
+              # Show full output if manageable size
+              sed 's/```/\\`\\`\\`/g' plan_output.txt
+            fi
+            
+            echo '```'
+            echo "</details>"
+            echo ""
+            echo "---"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+        else
+          echo "⚠️ Plan output file not found or is empty" >> "$GITHUB_STEP_SUMMARY"
+        fi
+        
+    - name: Display Terragrunt Apply Output  
+      if: always() && env.TF_PLAN_EXIT_CODE == '2'
+      run: |
+        cd terragrunt/environments/scheduling
+        if [ -f "apply_output.txt" ] && [ -s "apply_output.txt" ]; then
+          echo "🚀 Creating Apply Output Summary..."
+          
+          # Check file size to handle large outputs appropriately
+          file_size=$(wc -c < apply_output.txt)
+          
+          {
+            echo "<details>"
+            echo "<summary>🚀 Terragrunt Apply Output (Click to expand) - Size: ${file_size} bytes</summary>"
+            echo ""
+            echo '```hcl'
+            
+            # If file is too large, show truncated version
+            if [ "$file_size" -gt 100000 ]; then
+              echo "⚠️ Output truncated due to large size (${file_size} bytes)"
+              echo ""
+              echo "=== First 2000 lines ==="
+              head -2000 apply_output.txt | sed 's/```/\\`\\`\\`/g'
+              echo ""
+              echo "=== ... (content truncated) ==="
+              echo ""
+              echo "=== Last 1000 lines ==="
+              tail -1000 apply_output.txt | sed 's/```/\\`\\`\\`/g'
+            else
+              # Show full output if manageable size
+              sed 's/```/\\`\\`\\`/g' apply_output.txt
+            fi
+            
+            echo '```'
+            echo "</details>"
+            echo ""
+            echo "---"
+            echo ""
+          } >> "$GITHUB_STEP_SUMMARY"
+        else
+          echo "⚠️ Apply output file not found or is empty" >> "$GITHUB_STEP_SUMMARY"
+        fi
 
     - name: Update ECS Service
       working-directory: terragrunt/environments/scheduling

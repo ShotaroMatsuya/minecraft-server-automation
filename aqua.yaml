@@ -18,3 +18,5 @@ packages:
   - name: jqlang/jq@jq-1.7.1
   # yq - YAML processor
   - name: mikefarah/yq@v4.44.3
+  # actionlint - GitHub Actions linter
+  - name: rhysd/actionlint@v1.7.1

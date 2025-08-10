@@ -14,20 +14,18 @@ env:
 permissions:
   id-token: write
   contents: read
+  pull-requests: write
 
 jobs:
-  apply:
-    name: Terragrunt Apply
+  check-changes:
+    name: Check for Changes
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        environment: [keeping, scheduling]
-        include:
-          - environment: keeping
-            path: terragrunt/environments/keeping
-          - environment: scheduling
-            path: terragrunt/environments/scheduling
-
+    outputs:
+      changes: ${{ steps.changes.outputs.changes }}
+      keeping_changes: ${{ steps.changes.outputs.keeping_changes }}
+      scheduling_changes: ${{ steps.changes.outputs.scheduling_changes }}
+      pr_number: ${{ steps.pr_search.outputs.pr_number }}
+      labels: ${{ steps.pr_labels.outputs.labels }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -49,15 +47,223 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           PR_NUMBER=${{ steps.pr_search.outputs.pr_number }}
-          LABELS="$(gh pr view $PR_NUMBER --json labels --jq '.labels[].name'| tr '\n' ' ')"
-          echo "Labels are ${LABELS}"
-          echo "labels=${LABELS}" >> "$GITHUB_OUTPUT"
+          if [ -n "$PR_NUMBER" ]; then
+            LABELS="$(gh pr view $PR_NUMBER --json labels --jq '.labels[].name'| tr '\n' ' ')"
+            echo "Labels are ${LABELS}"
+            echo "labels=${LABELS}" >> "$GITHUB_OUTPUT"
+          else
+            echo "labels=" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check for relevant changes
+        id: changes
+        run: |
+          # Check for general changes
+          DIFF=$(git diff --name-only HEAD^ terragrunt/ terraform/modules terraform/keeping terraform/scheduling)
+          
+          # Check for keeping-specific changes
+          KEEPING_DIFF=$(git diff --name-only HEAD^ terragrunt/environments/keeping/ terraform/keeping/ terraform/modules/)
+          
+          # Check for scheduling-specific changes
+          SCHEDULING_DIFF=$(git diff --name-only HEAD^ terragrunt/environments/scheduling/ terraform/scheduling/ terraform/modules/)
+          
+          if [[ -n "${DIFF}" ]]; then
+            echo "changes=true" >> "$GITHUB_OUTPUT"
+            echo "Changed files: ${DIFF}"
+          else
+            echo "changes=false" >> "$GITHUB_OUTPUT"
+            echo "No relevant changes detected"
+          fi
+          
+          if [[ -n "${KEEPING_DIFF}" ]]; then
+            echo "keeping_changes=true" >> "$GITHUB_OUTPUT"
+            echo "Keeping changes: ${KEEPING_DIFF}"
+          else
+            echo "keeping_changes=false" >> "$GITHUB_OUTPUT"
+            echo "No keeping-specific changes detected"
+          fi
+          
+          if [[ -n "${SCHEDULING_DIFF}" ]]; then
+            echo "scheduling_changes=true" >> "$GITHUB_OUTPUT"
+            echo "Scheduling changes: ${SCHEDULING_DIFF}"
+          else
+            echo "scheduling_changes=false" >> "$GITHUB_OUTPUT"
+            echo "No scheduling-specific changes detected"
+          fi
+
+  apply-keeping:
+    name: Terragrunt Apply - Keeping
+    runs-on: ubuntu-latest
+    needs: [check-changes]
+    if: needs.check-changes.outputs.keeping_changes == 'true' && !contains(needs.check-changes.outputs.labels, 'no-apply')
+    outputs:
+      apply_status: ${{ steps.apply.outputs.status }}
+      resources_applied: ${{ steps.apply.outputs.resources_applied }}
+      resources_changed: ${{ steps.apply.outputs.resources_changed }}
+      resources_destroyed: ${{ steps.apply.outputs.resources_destroyed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
-          role-session-name: github-actions-terragrunt-session
+          role-session-name: github-actions-apply-keeping-session
+          aws-region: ap-northeast-1
+
+      - name: Setup aqua
+        uses: aquaproj/aqua-installer@v4.0.2
+        with:
+          aqua_version: v2.30.0
+
+      - name: Install tools via aqua
+        run: aqua install --all
+
+      - name: Setup Terragrunt
+        run: |
+          curl -Lo terragrunt https://github.com/gruntwork-io/terragrunt/releases/download/v${{ env.TERRAGRUNT_VERSION }}/terragrunt_linux_amd64
+          chmod +x terragrunt
+          sudo mv terragrunt /usr/local/bin/
+
+      - name: Check if keeping environment exists
+        id: check-env
+        run: |
+          if [ -d "terragrunt/environments/keeping" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Terragrunt Apply - Keeping
+        id: apply
+        if: steps.check-env.outputs.exists == 'true'
+        working-directory: terragrunt/environments/keeping
+        run: |
+          # Initialize first
+          init_exit_code=0
+          terragrunt init --terragrunt-non-interactive 2>&1 | tee init_output.txt || init_exit_code=$?
+          
+          if [ $init_exit_code -ne 0 ]; then
+            echo "status=init_failed" >> "$GITHUB_OUTPUT"
+            echo "resources_applied=0" >> "$GITHUB_OUTPUT"
+            echo "resources_changed=0" >> "$GITHUB_OUTPUT"
+            echo "resources_destroyed=0" >> "$GITHUB_OUTPUT"
+            exit 1
+          fi
+          
+          # Run apply with auto-approve
+          apply_exit_code=0
+          terragrunt apply --terragrunt-non-interactive -auto-approve > apply_output.txt 2>&1 || apply_exit_code=$?
+          
+          # Create empty error file for consistency
+          touch apply_errors.txt
+          
+          # Parse results and set resource counts
+          if [ -f "apply_output.txt" ]; then
+            # Count different types of operations from apply output
+            created=$(grep -c "Creation complete after" apply_output.txt 2>/dev/null) || created=0
+            modified=$(grep -c "Modifications complete after" apply_output.txt 2>/dev/null) || modified=0
+            destroyed=$(grep -c "Destruction complete after" apply_output.txt 2>/dev/null) || destroyed=0
+            
+            # Also try to parse from apply summary if available
+            apply_add=$(grep -o "[0-9]\+ added" apply_output.txt | grep -o "[0-9]\+" | head -1) || apply_add=0
+            apply_changed=$(grep -o "[0-9]\+ changed" apply_output.txt | grep -o "[0-9]\+" | head -1) || apply_changed=0
+            apply_destroyed=$(grep -o "[0-9]\+ destroyed" apply_output.txt | grep -o "[0-9]\+" | head -1) || apply_destroyed=0
+            
+            # Use whichever count is higher
+            resources_applied=$((created > apply_add ? created : apply_add))
+            resources_changed=$((modified > apply_changed ? modified : apply_changed))
+            resources_destroyed=$((destroyed > apply_destroyed ? destroyed : apply_destroyed))
+            
+            echo "resources_applied=$resources_applied" >> "$GITHUB_OUTPUT"
+            echo "resources_changed=$resources_changed" >> "$GITHUB_OUTPUT"
+            echo "resources_destroyed=$resources_destroyed" >> "$GITHUB_OUTPUT"
+          else
+            echo "resources_applied=0" >> "$GITHUB_OUTPUT"
+            echo "resources_changed=0" >> "$GITHUB_OUTPUT"
+            echo "resources_destroyed=0" >> "$GITHUB_OUTPUT"
+          fi
+          
+          # Determine status based on apply result
+          apply_status="unknown"
+          
+          if [ $apply_exit_code -eq 0 ]; then
+            if [ -f "apply_output.txt" ] && (grep -q "Apply complete!" apply_output.txt || grep -q "No changes" apply_output.txt); then
+              apply_status="success"
+              echo "✅ Keeping apply completed successfully"
+            else
+              apply_status="completed_with_warnings"
+              echo "⚠️ Keeping apply completed but with potential warnings"
+            fi
+          else
+            apply_status="failed"
+            echo "❌ Keeping apply failed: Exit code $apply_exit_code"
+            # Capture errors to apply_errors.txt
+            if [ -f "apply_output.txt" ]; then
+              tail -100 apply_output.txt > apply_errors.txt
+            fi
+            exit 1
+          fi
+          
+          # Set the status output
+          echo "status=$apply_status" >> "$GITHUB_OUTPUT"
+        env:
+          TF_VAR_aws_account_id: ${{ env.AWS_ACCOUNT_ID }}
+
+      - name: Upload Keeping Apply Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: terragrunt-apply-keeping
+          path: |
+            terragrunt/environments/keeping/apply_output.txt
+            terragrunt/environments/keeping/init_output.txt
+            terragrunt/environments/keeping/apply_errors.txt
+          retention-days: 30
+
+      - name: Slack Notification on Success
+        if: success()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: https://hooks.slack.com/services/${{ secrets.WEBHOOK_PATH }}
+          SLACK_USERNAME: TerragruntBot
+          SLACK_TITLE: "Terragrunt Apply Success - keeping"
+          SLACK_COLOR: good
+          SLACK_MESSAGE: "keeping environment applied successfully 🚀"
+
+      - name: Slack Notification on Failure
+        if: failure()
+        uses: rtCamp/action-slack-notify@v2
+        env:
+          SLACK_WEBHOOK: https://hooks.slack.com/services/${{ secrets.WEBHOOK_PATH }}
+          SLACK_USERNAME: TerragruntBot
+          SLACK_TITLE: "Terragrunt Apply Failed - keeping"
+          SLACK_COLOR: danger
+          SLACK_MESSAGE: "keeping environment apply failed 😢"
+
+  apply-scheduling:
+    name: Terragrunt Apply - Scheduling
+    runs-on: ubuntu-latest
+    needs: [check-changes, apply-keeping]
+    if: |
+      needs.check-changes.outputs.scheduling_changes == 'true' && 
+      !contains(needs.check-changes.outputs.labels, 'no-apply') && 
+      (needs.apply-keeping.outputs.apply_status == 'success' || needs.apply-keeping.result == 'skipped')
+    outputs:
+      apply_status: ${{ steps.apply.outputs.status }}
+      resources_applied: ${{ steps.apply.outputs.resources_applied }}
+      resources_changed: ${{ steps.apply.outputs.resources_changed }}
+      resources_destroyed: ${{ steps.apply.outputs.resources_destroyed }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
+          role-session-name: github-actions-apply-scheduling-session
           aws-region: ap-northeast-1
 
       - name: Setup aqua
@@ -75,7 +281,6 @@ jobs:
           sudo mv terragrunt /usr/local/bin/
 
       - name: Create Mapping Yaml for scheduling
-        if: ${{ matrix.environment == 'scheduling' && !contains(steps.pr_labels.outputs.labels, 'no-apply') }}
         working-directory: terraform/scheduling
         run: |
           cat << EOF > secrets.yaml
@@ -87,43 +292,195 @@ jobs:
           FILTERING_STRINGS: ${{ secrets.FILTERING_STRINGS }}
           EOF
 
-      - name: Check for relevant changes
-        id: changes
+      - name: Check if scheduling environment exists
+        id: check-env
         run: |
-          DIFF=$(git diff --name-only HEAD^ terragrunt/ terraform/modules terraform/keeping terraform/scheduling)
-          if [[ -n "${DIFF}" ]]; then
-            echo "changes=true" >> "$GITHUB_OUTPUT"
-            echo "Changed files: ${DIFF}"
+          if [ -d "terragrunt/environments/scheduling" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
           else
-            echo "changes=false" >> "$GITHUB_OUTPUT"
-            echo "No relevant changes detected"
+            echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Terragrunt Apply
-        if: ${{ steps.changes.outputs.changes == 'true' && !contains(steps.pr_labels.outputs.labels, 'no-apply') }}
-        working-directory: ${{ matrix.path }}
+      - name: Terragrunt Apply - Scheduling
+        id: apply
+        if: steps.check-env.outputs.exists == 'true'
+        working-directory: terragrunt/environments/scheduling
         run: |
-          echo "Applying ${{ matrix.environment }} environment..."
-          terragrunt apply --terragrunt-non-interactive -auto-approve
+          # Initialize first
+          init_exit_code=0
+          terragrunt init --terragrunt-non-interactive 2>&1 | tee init_output.txt || init_exit_code=$?
+          
+          if [ $init_exit_code -ne 0 ]; then
+            echo "status=init_failed" >> "$GITHUB_OUTPUT"
+            echo "resources_applied=0" >> "$GITHUB_OUTPUT"
+            echo "resources_changed=0" >> "$GITHUB_OUTPUT"
+            echo "resources_destroyed=0" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          
+          # Run apply with auto-approve
+          apply_exit_code=0
+          terragrunt apply --terragrunt-non-interactive -auto-approve > apply_output.txt 2>&1 || apply_exit_code=$?
+          
+          # Create empty error file for consistency
+          touch apply_errors.txt
+          
+          # Parse results and set resource counts
+          if [ -f "apply_output.txt" ]; then
+            # Count different types of operations from apply output
+            created=$(grep -c "Creation complete after" apply_output.txt 2>/dev/null) || created=0
+            modified=$(grep -c "Modifications complete after" apply_output.txt 2>/dev/null) || modified=0
+            destroyed=$(grep -c "Destruction complete after" apply_output.txt 2>/dev/null) || destroyed=0
+            
+            # Also try to parse from apply summary if available
+            apply_add=$(grep -o "[0-9]\+ added" apply_output.txt | grep -o "[0-9]\+" | head -1) || apply_add=0
+            apply_changed=$(grep -o "[0-9]\+ changed" apply_output.txt | grep -o "[0-9]\+" | head -1) || apply_changed=0
+            apply_destroyed=$(grep -o "[0-9]\+ destroyed" apply_output.txt | grep -o "[0-9]\+" | head -1) || apply_destroyed=0
+            
+            # Use whichever count is higher
+            resources_applied=$((created > apply_add ? created : apply_add))
+            resources_changed=$((modified > apply_changed ? modified : apply_changed))
+            resources_destroyed=$((destroyed > apply_destroyed ? destroyed : apply_destroyed))
+            
+            echo "resources_applied=$resources_applied" >> "$GITHUB_OUTPUT"
+            echo "resources_changed=$resources_changed" >> "$GITHUB_OUTPUT"
+            echo "resources_destroyed=$resources_destroyed" >> "$GITHUB_OUTPUT"
+          else
+            echo "resources_applied=0" >> "$GITHUB_OUTPUT"
+            echo "resources_changed=0" >> "$GITHUB_OUTPUT"
+            echo "resources_destroyed=0" >> "$GITHUB_OUTPUT"
+          fi
+          
+          # Determine status based on apply result
+          apply_status="unknown"
+          
+          if [ $apply_exit_code -eq 0 ]; then
+            if [ -f "apply_output.txt" ] && (grep -q "Apply complete!" apply_output.txt || grep -q "No changes" apply_output.txt); then
+              apply_status="success"
+              echo "✅ Scheduling apply completed successfully"
+            else
+              apply_status="completed_with_warnings"
+              echo "⚠️ Scheduling apply completed but with potential warnings"
+            fi
+          else
+            apply_status="failed"
+            echo "❌ Scheduling apply failed: Exit code $apply_exit_code"
+            # Capture errors to apply_errors.txt
+            if [ -f "apply_output.txt" ]; then
+              tail -100 apply_output.txt > apply_errors.txt
+            fi
+          fi
+          
+          # Set the status output
+          echo "status=$apply_status" >> "$GITHUB_OUTPUT"
         env:
           TF_VAR_aws_account_id: ${{ env.AWS_ACCOUNT_ID }}
 
+      - name: Upload Scheduling Apply Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: terragrunt-apply-scheduling
+          path: |
+            terragrunt/environments/scheduling/apply_output.txt
+            terragrunt/environments/scheduling/init_output.txt
+            terragrunt/environments/scheduling/apply_errors.txt
+          retention-days: 30
+
       - name: Slack Notification on Success
-        if: ${{ success() && steps.changes.outputs.changes == 'true' }}
+        if: success()
         uses: rtCamp/action-slack-notify@v2
         env:
           SLACK_WEBHOOK: https://hooks.slack.com/services/${{ secrets.WEBHOOK_PATH }}
           SLACK_USERNAME: TerragruntBot
-          SLACK_TITLE: "Terragrunt Apply Success - ${{ matrix.environment }}"
+          SLACK_TITLE: "Terragrunt Apply Success - scheduling"
           SLACK_COLOR: good
-          SLACK_MESSAGE: "${{ matrix.environment }} environment applied successfully 🚀"
+          SLACK_MESSAGE: "scheduling environment applied successfully 🚀"
 
       - name: Slack Notification on Failure
-        if: ${{ failure() && steps.changes.outputs.changes == 'true' }}
+        if: failure()
         uses: rtCamp/action-slack-notify@v2
         env:
           SLACK_WEBHOOK: https://hooks.slack.com/services/${{ secrets.WEBHOOK_PATH }}
           SLACK_USERNAME: TerragruntBot
-          SLACK_TITLE: "Terragrunt Apply Failed - ${{ matrix.environment }}"
+          SLACK_TITLE: "Terragrunt Apply Failed - scheduling"
           SLACK_COLOR: danger
-          SLACK_MESSAGE: "${{ matrix.environment }} environment apply failed 😢"
+          SLACK_MESSAGE: "scheduling environment apply failed 😢"
+
+  comment-apply-results:
+    name: Comment Apply Results
+    runs-on: ubuntu-latest
+    needs: [check-changes, apply-keeping, apply-scheduling]
+    if: always() && needs.check-changes.outputs.pr_number != ''
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Apply Results
+        uses: actions/download-artifact@v4
+        with:
+          pattern: terragrunt-apply-*
+          path: apply-results/
+          merge-multiple: false
+        continue-on-error: true
+
+      - name: Debug Downloaded Apply Artifacts
+        run: |
+          echo "=== Debug: Downloaded apply artifact structure ==="
+          find apply-results/ -type f -name "*.txt" -exec ls -la {} \; 2>/dev/null || echo "No apply artifacts found"
+          echo "=== Debug: Full apply directory tree ==="
+          find apply-results/ -type f 2>/dev/null | head -20 || echo "No apply results directory"
+
+      - name: Comment Apply Results
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const commentHandler = require('./scripts/github-actions/comment-handler.js');
+            
+            // Process both environments in sequence
+            const environments = [
+              {
+                name: 'keeping',
+                status: '${{ needs.apply-keeping.outputs.apply_status }}',
+                wasExecuted: '${{ needs.apply-keeping.result }}' !== 'skipped'
+              },
+              {
+                name: 'scheduling', 
+                status: '${{ needs.apply-scheduling.outputs.apply_status }}',
+                wasExecuted: '${{ needs.apply-scheduling.result }}' !== 'skipped'
+              }
+            ];
+            
+            // Set context issue number from PR number
+            const prNumber = '${{ needs.check-changes.outputs.pr_number }}';
+            if (prNumber) {
+              context.issue.number = parseInt(prNumber);
+            }
+            
+            for (const env of environments) {
+              // Skip if the job was skipped (e.g., keeping failed so scheduling was skipped)
+              if (!env.wasExecuted) {
+                console.log(`⏭️ Skipping ${env.name} environment - job was not executed`);
+                continue;
+              }
+              
+              console.log(`Processing ${env.name} environment apply results...`);
+              
+              const inputs = {
+                commentType: 'terragrunt-apply',
+                environment: env.name,
+                status: env.status || 'unknown',
+                applyFilePath: `apply-results/terragrunt-apply-${env.name}/apply_output.txt`,
+                initErrorLogPath: `apply-results/terragrunt-apply-${env.name}/init_output.txt`,
+                applyErrorLogPath: `apply-results/terragrunt-apply-${env.name}/apply_errors.txt`,
+                artifactBasePath: 'apply-results'
+              };
+              
+              try {
+                await commentHandler(github, context, inputs);
+                console.log(`✅ Successfully processed ${env.name} environment apply results`);
+              } catch (error) {
+                console.error(`❌ Error processing ${env.name} environment apply results:`, error);
+                // Continue processing other environments even if one fails
+              }
+            }

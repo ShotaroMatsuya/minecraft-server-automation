@@ -1,0 +1,98 @@
+# Trivy configuration for Infrastructure as Code scanning
+# https://aquasecurity.github.io/trivy/latest/docs/references/configuration/config-file/
+
+format: table
+exit-code: 0
+severity:
+  - UNKNOWN
+  - LOW
+  - MEDIUM  
+  - HIGH
+  - CRITICAL
+
+scan:
+  # Security scanning for Infrastructure as Code
+  security-checks:
+    - vuln
+    - config
+    - secret
+
+  # Skip files and directories
+  skip-files:
+    - "**/.terraform/**"
+    - "**/node_modules/**"
+    - "**/.git/**"
+    - "**/vendor/**"
+    - "**/.terraform.lock.hcl"
+
+  # Skip directories completely
+  skip-dirs:
+    - .terraform
+    - node_modules
+    - .git
+    - vendor
+    - builds
+
+# IaC specific configuration
+iac:
+  # Terraform-specific settings
+  terraform:
+    # Required provider versions
+    required-version: ">= 1.0"
+    
+  # Policy as Code
+  policy:
+    # Custom policy bundles can be specified here
+    # policy-bundle: "path/to/policy/bundle"
+    
+# Misconfiguration settings
+misconfig:
+  # Include Terraform files
+  include-non-failures: false
+  
+  # Helm chart scanning (if applicable)
+  helm-values-file: []
+  
+  # Include deprecated checks
+  include-deprecated-checks: false
+
+# Output settings
+output:
+  # Clean output format
+  clean: false
+  
+  # Progress bar
+  progress: true
+
+# Cache settings
+cache:
+  # Cache backend (memory, fs)
+  backend: fs
+  
+  # Cache directory
+  dir: .trivycache
+
+# Database settings
+db:
+  # Skip database update
+  skip-update: false
+  
+  # Database repository
+  repository: "ghcr.io/aquasecurity/trivy-db"
+
+# Log settings
+log:
+  level: info
+  format: text
+
+# Registry settings (for private registries if needed)
+registry:
+  # Mirror for Docker Hub
+  # mirror: "your-mirror-registry.com"
+  
+  # Insecure registries
+  insecure: false
+
+# Report settings (Fixed: removed invalid report format section)
+# Note: Report format is controlled via command line --format flag
+# Valid formats: table, json, sarif, template, cyclonedx, spdx, github
