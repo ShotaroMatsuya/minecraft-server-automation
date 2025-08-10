@@ -537,9 +537,16 @@ jobs:
             }
             
             try {
-              planErrorLog = fs.readFileSync('plan-results/terragrunt/environments/keeping/plan_errors.txt', 'utf8');
+              planErrorLog = fs.readFileSync('plan-results/terragrunt/environments/keeping/plan_output.txt', 'utf8');
+              console.log('DEBUG: Successfully read plan_output.txt for keeping environment');
             } catch (error) {
-              // Error file doesn't exist or is empty
+              // Fallback to plan_errors.txt if plan_output.txt doesn't exist
+              try {
+                planErrorLog = fs.readFileSync('plan-results/terragrunt/environments/keeping/plan_errors.txt', 'utf8');
+                console.log('DEBUG: Using plan_errors.txt fallback for keeping environment');
+              } catch (fallbackError) {
+                console.log('DEBUG: Neither plan_output.txt nor plan_errors.txt found for keeping environment');
+              }
             }
             
             try {
@@ -589,9 +596,16 @@ jobs:
             }
             
             try {
-              planErrorLog = fs.readFileSync('plan-results/terragrunt/environments/scheduling/plan_errors.txt', 'utf8');
+              planErrorLog = fs.readFileSync('plan-results/terragrunt/environments/scheduling/plan_output.txt', 'utf8');
+              console.log('DEBUG: Successfully read plan_output.txt for scheduling environment');
             } catch (error) {
-              // Error file doesn't exist or is empty
+              // Fallback to plan_errors.txt if plan_output.txt doesn't exist
+              try {
+                planErrorLog = fs.readFileSync('plan-results/terragrunt/environments/scheduling/plan_errors.txt', 'utf8');
+                console.log('DEBUG: Using plan_errors.txt fallback for scheduling environment');
+              } catch (fallbackError) {
+                console.log('DEBUG: Neither plan_output.txt nor plan_errors.txt found for scheduling environment');
+              }
             }
             
             try {

@@ -83,8 +83,11 @@ function createTerragruntPlanComment(inputs) {
   let planContentForCheck = '';
   try {
     planContentForCheck = fs.readFileSync(planFilePath, 'utf8');
+    console.log(`DEBUG: Successfully read planFilePath: ${planFilePath}, size: ${planContentForCheck.length} bytes`);
   } catch (error) {
+    console.log(`DEBUG: Failed to read planFilePath: ${planFilePath}, error: ${error.message}`);
     planContentForCheck = planErrorLog || '';
+    console.log(`DEBUG: Using planErrorLog fallback, size: ${planContentForCheck.length} bytes`);
   }
   
   // Check if we have a valid plan result (most important indicator)
@@ -257,11 +260,17 @@ function createTerragruntPlanComment(inputs) {
     let planOutput = '';
     try {
       planOutput = fs.readFileSync(planFilePath, 'utf8');
+      console.log(`DEBUG: Successfully read planOutput from ${planFilePath}, size: ${planOutput.length} bytes`);
+      if (planOutput.length > 0) {
+        console.log(`DEBUG: Plan output preview: ${planOutput.substring(0, 200)}...`);
+      }
     } catch (planReadError) {
+      console.log(`DEBUG: Failed to read planOutput from ${planFilePath}, error: ${planReadError.message}`);
       // If plan_output.txt doesn't exist or is empty, try plan_errors.txt
       // Sometimes Terragrunt outputs plan to stderr
       if (planErrorLog && planErrorLog.trim() !== '') {
         planOutput = planErrorLog;
+        console.log(`DEBUG: Using planErrorLog fallback, size: ${planOutput.length} bytes`);
       }
     }
     
@@ -301,6 +310,11 @@ function createTerragruntPlanComment(inputs) {
     const toAdd = addMatches ? parseInt(addMatches[1]) : 0;
     const toChange = changeMatches ? parseInt(changeMatches[1]) : 0;
     const toDestroy = destroyMatches ? parseInt(destroyMatches[1]) : 0;
+    
+    console.log(`DEBUG: Plan parsing results - toAdd: ${toAdd}, toChange: ${toChange}, toDestroy: ${toDestroy}`);
+    console.log(`DEBUG: addMatches:`, addMatches);
+    console.log(`DEBUG: changeMatches:`, changeMatches);
+    console.log(`DEBUG: destroyMatches:`, destroyMatches);
     
     // Show summary message based on status and plan content
     if (status === 'has_changes' || toAdd > 0 || toChange > 0) {
