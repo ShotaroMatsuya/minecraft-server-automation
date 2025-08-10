@@ -17,3 +17,8 @@ secrets.yaml
 **/provider.tf
 
 node_modules
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
