@@ -1,3 +1,6 @@
+# Prioritize aqua PATH for consistent tool versions
+export PATH="$(aqua root-dir)/bin:$PATH"
+
 export WEBHOOK_PATH=""
 export S3_BUCKET_NAME=""
 export S3_PREFIX_NAME=""
