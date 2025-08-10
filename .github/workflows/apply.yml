@@ -772,8 +772,10 @@ jobs:
             console.log('Is parsed number valid:', !isNaN(prNumberInt) && prNumberInt > 0);
             
             if (prNumber && prNumber.trim() !== '' && prNumber !== 'null' && !isNaN(prNumberInt) && prNumberInt > 0) {
-              context.issue.number = prNumberInt;
-              console.log('✅ Set context.issue.number to:', context.issue.number);
+              // Set the issue number correctly
+              console.log('✅ Setting context.issue.number to:', prNumberInt);
+              context.issue = { ...context.issue, number: prNumberInt };
+              console.log('✅ Final context.issue:', context.issue);
               
               for (const env of environments) {
                 // Skip if the job was skipped (e.g., keeping failed so scheduling was skipped)
