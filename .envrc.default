@@ -1,3 +1,6 @@
+# Prioritize aqua tools
+export PATH="$HOME/.local/share/aquaproj-aqua/bin:$PATH"
+
 export WEBHOOK_PATH=""
 export S3_BUCKET_NAME=""
 export S3_PREFIX_NAME=""
