@@ -84,8 +84,10 @@ jobs:
           echo "<details>"
           echo "<summary>📋 Sample Terragrunt Plan Output (Click to expand) - Size: ${file_size} bytes</summary>"
           echo ""
+          # shellcheck disable=SC2016
           printf '%s\n' '```hcl'
           sed 's/```/\\`\\`\\`/g' test_output.txt
+          # shellcheck disable=SC2016
           printf '%s\n' '```'
           echo "</details>"
           echo ""
@@ -213,6 +215,7 @@ jobs:
             echo "<details>"
             echo "<summary>📋 Terragrunt Plan Output (Click to expand) - Size: ${file_size} bytes</summary>"
             echo ""
+            # shellcheck disable=SC2016
             printf '%s\n' '```hcl'
             
             # If file is too large, show truncated version
@@ -231,6 +234,7 @@ jobs:
               sed 's/```/\\`\\`\\`/g' plan_output.txt
             fi
             
+            # shellcheck disable=SC2016
             printf '%s\n' '```'
             echo "</details>"
             echo ""
@@ -256,6 +260,7 @@ jobs:
             echo "<details>"
             echo "<summary>🚀 Terragrunt Apply Output (Click to expand) - Size: ${file_size} bytes</summary>"
             echo ""
+            # shellcheck disable=SC2016
             printf '%s\n' '```hcl'
             
             # If file is too large, show truncated version
@@ -274,6 +279,7 @@ jobs:
               sed 's/```/\\`\\`\\`/g' apply_output.txt
             fi
             
+            # shellcheck disable=SC2016
             printf '%s\n' '```'
             echo "</details>"
             echo ""
