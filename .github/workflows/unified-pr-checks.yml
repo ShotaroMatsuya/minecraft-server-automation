@@ -274,6 +274,10 @@ jobs:
           else
             echo "status=needs_formatting" >> "$GITHUB_OUTPUT"
           fi
+          
+          # Debug output
+          echo "Format check exit code: $format_exit_code"
+          echo "Format errors file size: $(wc -c < format_errors.txt 2>/dev/null || echo '0') bytes"
         continue-on-error: true
 
       - name: Terragrunt Validation
@@ -289,6 +293,10 @@ jobs:
           else
             echo "status=failed" >> "$GITHUB_OUTPUT"
           fi
+          
+          # Debug output
+          echo "Validation exit code: $validate_exit_code"
+          echo "Validation errors file size: $(wc -c < validate_errors.txt 2>/dev/null || echo '0') bytes"
         continue-on-error: true
 
       - name: Terragrunt Plan
@@ -299,14 +307,12 @@ jobs:
           
           # Initialize first
           if ! terragrunt init --terragrunt-non-interactive 2>&1 | tee init_output.txt; then
-            {
-              echo "status=init_failed"
-              echo "resources_to_add=0"
-              echo "resources_to_change=0" 
-              echo "resources_to_destroy=0"
-              echo "fmt_status=${{ steps.fmt-check.outputs.status }}"
-              echo "validate_status=${{ steps.validate.outputs.status }}"
-            } >> "$GITHUB_OUTPUT"
+            echo "status=init_failed" >> "$GITHUB_OUTPUT"
+            echo "resources_to_add=0" >> "$GITHUB_OUTPUT"
+            echo "resources_to_change=0" >> "$GITHUB_OUTPUT"
+            echo "resources_to_destroy=0" >> "$GITHUB_OUTPUT"
+            echo "fmt_status=${{ steps.fmt-check.outputs.status || 'unknown' }}" >> "$GITHUB_OUTPUT"
+            echo "validate_status=${{ steps.validate.outputs.status || 'unknown' }}" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           
@@ -314,51 +320,23 @@ jobs:
           plan_exit_code=0
           terragrunt plan -detailed-exitcode --terragrunt-non-interactive > plan_output.txt 2> plan_errors.txt || plan_exit_code=$?
           
-          # Parse results
+          # Set basic outputs first
+          echo "fmt_status=${{ steps.fmt-check.outputs.status || 'unknown' }}" >> "$GITHUB_OUTPUT"
+          echo "validate_status=${{ steps.validate.outputs.status || 'unknown' }}" >> "$GITHUB_OUTPUT"
+          
+          # Parse results and set resource counts
           if [ -f "plan_output.txt" ]; then
             to_add=$(grep -c "will be created" plan_output.txt 2>/dev/null || echo "0")
             to_change=$(grep -c "will be updated" plan_output.txt 2>/dev/null || echo "0")  
             to_destroy=$(grep -c "will be destroyed" plan_output.txt 2>/dev/null || echo "0")
             
-            {
-              echo "resources_to_add=$to_add"
-              echo "resources_to_change=$to_change"
-              echo "resources_to_destroy=$to_destroy"
-              echo "fmt_status=${{ steps.fmt-check.outputs.status }}"
-              echo "validate_status=${{ steps.validate.outputs.status }}"
-            } >> "$GITHUB_OUTPUT"
-            
-            # Store plan output for comment
-            {
-              echo "plan_output<<PLANEOF"
-              if [ -s "plan_output.txt" ]; then
-                # If file is large, truncate it
-                file_size=$(wc -c < plan_output.txt)
-                if [ "$file_size" -gt 50000 ]; then
-                  echo "⚠️ Plan output truncated due to size (${file_size} bytes)"
-                  echo ""
-                  head -1000 plan_output.txt
-                  echo ""
-                  echo "... (content truncated) ..."
-                  echo ""
-                  tail -500 plan_output.txt
-                else
-                  cat plan_output.txt
-                fi
-              else
-                echo "No plan output available"
-              fi
-              echo "PLANEOF"
-            } >> "$GITHUB_OUTPUT"
+            echo "resources_to_add=$to_add" >> "$GITHUB_OUTPUT"
+            echo "resources_to_change=$to_change" >> "$GITHUB_OUTPUT"
+            echo "resources_to_destroy=$to_destroy" >> "$GITHUB_OUTPUT"
           else
-            {
-              echo "resources_to_add=0"
-              echo "resources_to_change=0"
-              echo "resources_to_destroy=0"
-              echo "plan_output=No plan output available"
-              echo "fmt_status=${{ steps.fmt-check.outputs.status }}"
-              echo "validate_status=${{ steps.validate.outputs.status }}"
-            } >> "$GITHUB_OUTPUT"
+            echo "resources_to_add=0" >> "$GITHUB_OUTPUT"
+            echo "resources_to_change=0" >> "$GITHUB_OUTPUT"
+            echo "resources_to_destroy=0" >> "$GITHUB_OUTPUT"
           fi
           
           # Determine status
@@ -369,6 +347,13 @@ jobs:
           else
             echo "status=failed" >> "$GITHUB_OUTPUT"
           fi
+          
+          # Debug output
+          echo "Plan exit code: ${plan_exit_code:-0}"
+          echo "Plan output file exists: $(test -f plan_output.txt && echo 'yes' || echo 'no')"
+          echo "Plan output size: $(wc -c < plan_output.txt 2>/dev/null || echo '0') bytes"
+          echo "Plan errors file exists: $(test -f plan_errors.txt && echo 'yes' || echo 'no')"
+          echo "Plan errors size: $(wc -c < plan_errors.txt 2>/dev/null || echo '0') bytes"
         continue-on-error: true
 
       - name: Set environment-specific output

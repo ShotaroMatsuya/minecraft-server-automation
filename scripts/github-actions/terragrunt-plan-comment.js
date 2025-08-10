@@ -176,9 +176,13 @@ function createTerragruntPlanComment(inputs) {
     
     commentBody += `<details><summary>${summaryTitle}</summary>\n\n`;
     commentBody += `\`\`\`terraform\n`;
-    commentBody += planOutput.slice(0, 5000);
-    if (planOutput.length > 5000) {
-      commentBody += `\n... (content truncated)\n`;
+    // Truncate very long outputs
+    if (planOutput.length > 8000) {
+      commentBody += planOutput.slice(0, 4000);
+      commentBody += `\n\n... (content truncated due to length) ...\n\n`;
+      commentBody += planOutput.slice(-3000);
+    } else {
+      commentBody += planOutput;
     }
     commentBody += `\`\`\`\n\n`;
     commentBody += `</details>\n\n`;
@@ -210,7 +214,15 @@ function createTerragruntPlanComment(inputs) {
       }
     } else {
       commentBody += `⚠️ **Plan execution status**: ${status}\n\n`;
-      commentBody += `Unable to retrieve detailed plan output.\n\n`;
+      commentBody += `Unable to retrieve detailed plan output. File may not exist or be accessible.\n\n`;
+      
+      // If plan failed but we have error logs, this should have been caught above
+      if (planErrorLog && planErrorLog.trim() !== '') {
+        commentBody += `### 🚨 Plan Error Details\n\n`;
+        commentBody += `<details><summary>📋 View Plan Error Log (Click to expand)</summary>\n\n`;
+        commentBody += `\`\`\`\n${planErrorLog.slice(0, 3000)}\`\`\`\n\n`;
+        commentBody += `</details>\n\n`;
+      }
     }
   }
   
