@@ -22,8 +22,8 @@ function createTerragruntPlanComment(inputs) {
   
   // Environment-specific titles
   const titles = {
-    keeping: '## 📋 Plan Result (keeping/security-test)',
-    scheduling: '## 📋 Plan Result (scheduling/infrastructure)'
+    keeping: '## 📋 Plan Result (keeping)',
+    scheduling: '## 📋 Plan Result (scheduling)'
   };
   
   let commentBody = `${titles[environment] || `## 📋 Plan Result (${environment})`}\n\n`;
@@ -32,7 +32,8 @@ function createTerragruntPlanComment(inputs) {
   const hasFormatError = formatErrorLog && formatErrorLog.trim() !== '';
   const hasValidateError = validateErrorLog && validateErrorLog.trim() !== '';
   const hasInitError = status === 'init_failed' || (initErrorLog && initErrorLog.trim() !== '');
-  const hasPlanError = status === 'failed' || (planErrorLog && planErrorLog.trim() !== '');
+  // Plan error check: exit code 1 usually means plan failed, or if we have substantial error content
+  const hasPlanError = status === 'failed' || (planErrorLog && planErrorLog.trim() !== '' && planErrorLog.length > 100);
   
   // Show step-by-step status
   commentBody += `### 🔄 Execution Steps\n\n`;
@@ -137,6 +138,24 @@ function createTerragruntPlanComment(inputs) {
   try {
     // Try to read the actual plan output
     const planOutput = fs.readFileSync(planFilePath, 'utf8');
+    
+    // If plan output is empty but we have error logs, treat as error
+    if (planOutput.trim() === '' && planErrorLog && planErrorLog.trim() !== '') {
+      commentBody += `### 🚨 Plan Execution Error\n\n`;
+      commentBody += `Plan execution failed with no output generated.\n\n`;
+      commentBody += `<details><summary>📋 View Plan Error Log (Click to expand)</summary>\n\n`;
+      commentBody += `\`\`\`\n${planErrorLog.slice(0, 5000)}${planErrorLog.length > 5000 ? '\n... (truncated)' : ''}\`\`\`\n\n`;
+      commentBody += `</details>\n\n`;
+      
+      commentBody += `### 🔧 Troubleshooting\n`;
+      commentBody += `- Check AWS credentials and permissions\n`;
+      commentBody += `- Verify Terraform configuration syntax\n`;
+      commentBody += `- Check for resource conflicts or dependencies\n`;
+      commentBody += `- Review the error log above for specific issues\n\n`;
+      
+      commentBody += `*❌ Plan failed at ${new Date().toISOString()} | Environment: ${environment}*`;
+      return commentBody;
+    }
     
     // Parse plan summary
     const addMatches = planOutput.match(/(\d+)\s+to\s+add/);

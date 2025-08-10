@@ -306,23 +306,20 @@ jobs:
           cd "${{ matrix.path }}"
           
           # Initialize first
-          if ! terragrunt init --terragrunt-non-interactive 2>&1 | tee init_output.txt; then
+          init_exit_code=0
+          terragrunt init --terragrunt-non-interactive 2>&1 | tee init_output.txt || init_exit_code=$?
+          
+          if [ $init_exit_code -ne 0 ]; then
             echo "status=init_failed" >> "$GITHUB_OUTPUT"
             echo "resources_to_add=0" >> "$GITHUB_OUTPUT"
             echo "resources_to_change=0" >> "$GITHUB_OUTPUT"
             echo "resources_to_destroy=0" >> "$GITHUB_OUTPUT"
-            echo "fmt_status=${{ steps.fmt-check.outputs.status || 'unknown' }}" >> "$GITHUB_OUTPUT"
-            echo "validate_status=${{ steps.validate.outputs.status || 'unknown' }}" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           
           # Run plan
           plan_exit_code=0
           terragrunt plan -detailed-exitcode --terragrunt-non-interactive > plan_output.txt 2> plan_errors.txt || plan_exit_code=$?
-          
-          # Set basic outputs first
-          echo "fmt_status=${{ steps.fmt-check.outputs.status || 'unknown' }}" >> "$GITHUB_OUTPUT"
-          echo "validate_status=${{ steps.validate.outputs.status || 'unknown' }}" >> "$GITHUB_OUTPUT"
           
           # Parse results and set resource counts
           if [ -f "plan_output.txt" ]; then
