@@ -182,7 +182,26 @@ function createTerragruntPlanComment(inputs) {
   // If no errors, proceed with normal plan output
   try {
     // Try to read the actual plan output
-    const planOutput = fs.readFileSync(planFilePath, 'utf8');
+    let planOutput = '';
+    try {
+      planOutput = fs.readFileSync(planFilePath, 'utf8');
+    } catch (planReadError) {
+      // If plan_output.txt doesn't exist or is empty, try plan_errors.txt
+      // Sometimes Terragrunt outputs plan to stderr
+      if (planErrorLog && planErrorLog.trim() !== '') {
+        planOutput = planErrorLog;
+      }
+    }
+    
+    // If plan_output.txt is empty but plan_errors.txt has content that looks like a plan
+    if (planOutput.trim() === '' && planErrorLog && planErrorLog.trim() !== '') {
+      // Check if planErrorLog contains plan output (not actual errors)
+      if (planErrorLog.includes('Plan:') || planErrorLog.includes('will be created') || 
+          planErrorLog.includes('will be updated') || planErrorLog.includes('will be destroyed') ||
+          planErrorLog.includes('No changes') || planErrorLog.includes('Terraform used the selected providers')) {
+        planOutput = planErrorLog;
+      }
+    }
     
     // If plan output is empty but we have actual error logs, treat as error
     if (planOutput.trim() === '' && hasActualErrors(planErrorLog)) {

@@ -327,9 +327,22 @@ jobs:
             exit 0
           fi
           
-          # Run plan
+          # Run plan - capture all output as Terragrunt outputs plan to stderr
           plan_exit_code=0
-          terragrunt plan -detailed-exitcode --terragrunt-non-interactive > plan_output.txt 2> plan_errors.txt || plan_exit_code=$?
+          if terragrunt plan -detailed-exitcode --terragrunt-non-interactive 2>&1 | tee plan_output.txt; then
+            plan_exit_code=0
+          else
+            plan_exit_code=$?
+          fi
+          
+          # Create empty error file for failed plans only
+          if [ $plan_exit_code -ne 0 ] && [ $plan_exit_code -ne 2 ]; then
+            # Run again to capture actual errors
+            terragrunt plan -detailed-exitcode --terragrunt-non-interactive > /dev/null 2> plan_errors.txt || true
+          else
+            # Success or has changes - no error file needed
+            touch plan_errors.txt
+          fi
           
           # Parse results and set resource counts
           if [ -f "plan_output.txt" ]; then
