@@ -124,16 +124,16 @@ function createSecurityComment(inputs) {
         }
         commentBody += `\n`;
         
-        // Add collapsible section for detailed JSON results
-        commentBody += `<details><summary>📋 View Full Security Report (Click to expand)</summary>\n\n`;
-        commentBody += `\`\`\`json\n${JSON.stringify(trivyData, null, 2).slice(0, 5000)}\`\`\`\n\n`;
-        commentBody += `</details>\n\n`;
-        
         // Add Scan Coverage section for security issues found
         commentBody += `### 📊 Scan Coverage\n`;
         commentBody += `- **🔍 Files Scanned**: Terraform configuration files\n`;
         commentBody += `- **🛡️ Tool**: Trivy v0.58.1\n`;
         commentBody += `- **📋 Checks**: AWS, Security, Best Practices\n\n`;
+        
+        // Add collapsible section for detailed JSON results
+        commentBody += `<details><summary>📋 View Full Security Report (Click to expand)</summary>\n\n`;
+        commentBody += `\`\`\`json\n${JSON.stringify(trivyData, null, 2).slice(0, 5000)}\`\`\`\n\n`;
+        commentBody += `</details>\n\n`;
       } else {
         commentBody += `✅ **No security issues found**\n\n`;
         commentBody += `**Findings by Severity:**\n`;
@@ -201,15 +201,15 @@ function createSecurityComment(inputs) {
           commentBody += `\n`;
         }
         
-        commentBody += `<details><summary>📋 View Full Security Report (Click to expand)</summary>\n\n`;
-        commentBody += `\`\`\`\n${trivyResults.slice(0, 5000)}\`\`\`\n\n`;
-        commentBody += `</details>\n\n`;
-        
-        // Add Scan Coverage section for security issues found
+        // Add Scan Coverage section for security issues found (table format)
         commentBody += `### 📊 Scan Coverage\n`;
         commentBody += `- **🔍 Files Scanned**: Terraform configuration files\n`;
         commentBody += `- **🛡️ Tool**: Trivy v0.58.1\n`;
         commentBody += `- **📋 Checks**: AWS, Security, Best Practices\n\n`;
+        
+        commentBody += `<details><summary>📋 View Full Security Report (Click to expand)</summary>\n\n`;
+        commentBody += `\`\`\`\n${trivyResults.slice(0, 5000)}\`\`\`\n\n`;
+        commentBody += `</details>\n\n`;
       } else {
         commentBody += `✅ **No security issues found**\n\n`;
         commentBody += `**Findings by Severity:**\n`;

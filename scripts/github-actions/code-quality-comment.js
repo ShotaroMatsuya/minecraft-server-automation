@@ -113,6 +113,12 @@ function createCodeQualityComment(inputs) {
         commentBody += `\n`;
       }
       
+      // Add Scan Coverage section for code quality issues found
+      commentBody += `### 📊 Scan Coverage\n`;
+      commentBody += `- **🔍 Files Scanned**: Terraform configuration files\n`;
+      commentBody += `- **🛠️ Tool**: TFLint v0.50.3\n`;
+      commentBody += `- **📋 Checks**: AWS, Terraform best practices\n\n`;
+      
       commentBody += `<details><summary>📋 View Full Code Quality Report (Click to expand)</summary>\n\n`;
       commentBody += `\`\`\`\n${tflintResults.slice(0, 5000)}\`\`\`\n\n`;
       commentBody += `</details>\n\n`;
