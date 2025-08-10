@@ -4,7 +4,9 @@
 [![Start and Stop Workflow](https://github.com/ShotaroMatsuya/minecraft-server-automation/actions/workflows/schedule_job.yml/badge.svg)](https://github.com/ShotaroMatsuya/minecraft-server-automation/actions/workflows/schedule_job.yml)
 [![Terragrunt PR Check](https://github.com/ShotaroMatsuya/minecraft-server-automation/actions/workflows/terragrunt-pr-check.yml/badge.svg)](https://github.com/ShotaroMatsuya/minecraft-server-automation/actions/workflows/terragrunt-pr-check.yml)
 
-# 🎮 Minecraft Server Infrastructure on AWS
+# Minecraft Server Automation with CI/CD
+
+<!-- Test: To verify label-based environment targeting, deploy the infrastructure using Terragrunt with the appropriate environment label (e.g., 'keeping' or 'scheduling'). Confirm that resources are provisioned according to the label, and that outputs (such as resource ARNs or endpoints) are returned as strings matching the expected environment. For example, running 'terragrunt apply --env scheduling' should create only the cost-optimized resources and output their identifiers as strings. -->
 
 Cost-optimized Minecraft server infrastructure using **Terragrunt** for multi-environment management and automated CI/CD.
 
