@@ -746,21 +746,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download Apply Results
-        uses: actions/download-artifact@v4
-        with:
-          pattern: terragrunt-apply-*
-          path: apply-results/
-          merge-multiple: false
-        continue-on-error: true
-
-      - name: Debug Downloaded Apply Artifacts
-        run: |
-          echo "=== Debug: Downloaded apply artifact structure ==="
-          find apply-results/ -type f -name "*.txt" -exec ls -la {} \; 2>/dev/null || echo "No apply artifacts found"
-          echo "=== Debug: Full apply directory tree ==="
-          find apply-results/ -type f 2>/dev/null | head -20 || echo "No apply results directory"
-
       - name: Comment Apply Results
         uses: actions/github-script@v7
         with:
@@ -772,12 +757,18 @@ jobs:
               {
                 name: 'keeping',
                 status: '${{ needs.apply-keeping.outputs.apply_status }}',
-                wasExecuted: '${{ needs.apply-keeping.result }}' !== 'skipped'
+                wasExecuted: '${{ needs.apply-keeping.result }}' !== 'skipped',
+                resourcesApplied: '${{ needs.apply-keeping.outputs.resources_applied }}' || '0',
+                resourcesChanged: '${{ needs.apply-keeping.outputs.resources_changed }}' || '0',
+                resourcesDestroyed: '${{ needs.apply-keeping.outputs.resources_destroyed }}' || '0'
               },
               {
                 name: 'scheduling', 
                 status: '${{ needs.apply-scheduling.outputs.apply_status }}',
-                wasExecuted: '${{ needs.apply-scheduling.result }}' !== 'skipped'
+                wasExecuted: '${{ needs.apply-scheduling.result }}' !== 'skipped',
+                resourcesApplied: '${{ needs.apply-scheduling.outputs.resources_applied }}' || '0',
+                resourcesChanged: '${{ needs.apply-scheduling.outputs.resources_changed }}' || '0',
+                resourcesDestroyed: '${{ needs.apply-scheduling.outputs.resources_destroyed }}' || '0'
               }
             ];
             
@@ -812,10 +803,12 @@ jobs:
                   commentType: 'terragrunt-apply',
                   environment: env.name,
                   status: env.status || 'unknown',
-                  applyFilePath: `apply-results/terragrunt-apply-${env.name}/apply_output.txt`,
-                  initErrorLogPath: `apply-results/terragrunt-apply-${env.name}/init_output.txt`,
-                  applyErrorLogPath: `apply-results/terragrunt-apply-${env.name}/apply_errors.txt`,
-                  artifactBasePath: 'apply-results'
+                  // Use apply results from job outputs instead of artifacts
+                  resourcesApplied: env.resourcesApplied,
+                  resourcesChanged: env.resourcesChanged,
+                  resourcesDestroyed: env.resourcesDestroyed,
+                  // Flag to indicate this is from apply workflow
+                  isApplyWorkflow: true
                 };
                 
                 try {
