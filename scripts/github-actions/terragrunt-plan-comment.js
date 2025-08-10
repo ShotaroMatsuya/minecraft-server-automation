@@ -77,8 +77,24 @@ function createTerragruntPlanComment(inputs) {
   const hasFormatError = hasActualErrors(formatErrorLog);
   const hasValidateError = hasActualErrors(validateErrorLog);
   const hasInitError = status === 'init_failed' || hasActualErrors(initErrorLog);
-  // Plan error check: status failed, or substantial error content that looks like actual errors
-  const hasPlanError = status === 'failed' || hasActualErrors(planErrorLog);
+  
+  // Enhanced plan error detection - check plan content for errors even if status suggests success
+  let planContentForCheck = '';
+  try {
+    planContentForCheck = fs.readFileSync(planFilePath, 'utf8');
+  } catch (error) {
+    planContentForCheck = planErrorLog || '';
+  }
+  
+  // Check for definitive plan errors in the content regardless of status
+  const hasDefinitivePlanErrors = planContentForCheck && (
+    planContentForCheck.includes('Error: External Program Execution Failed') ||
+    planContentForCheck.includes('RuntimeError: Python interpreter') ||
+    planContentForCheck.includes('terraform invocation failed') ||
+    /╷[\s\S]*Error:[\s\S]*╵/.test(planContentForCheck)
+  );
+  
+  const hasPlanError = status === 'failed' || hasDefinitivePlanErrors || hasActualErrors(planErrorLog);
   
   // Show step-by-step status
   commentBody += `### 🔄 Execution Steps\n\n`;
@@ -118,10 +134,30 @@ function createTerragruntPlanComment(inputs) {
     }
     
     if (hasPlanError) {
-      commentBody += `#### � Plan Execution Errors\n`;
-      commentBody += `Terragrunt plan execution failed. Unable to generate infrastructure plan.\n\n`;
+      commentBody += `#### 📋 Plan Execution Errors\n`;
+      commentBody += `Terragrunt plan execution encountered errors during infrastructure planning.\n\n`;
+      
+      // Check if plan content has both plan results and errors
+      if (planContentForCheck && (planContentForCheck.includes('Plan:') || planContentForCheck.includes('will be created'))) {
+        // Extract plan summary even when there are errors
+        const addMatches = planContentForCheck.match(/(\d+)\s+to\s+add/);
+        const changeMatches = planContentForCheck.match(/(\d+)\s+to\s+change/);
+        const destroyMatches = planContentForCheck.match(/(\d+)\s+to\s+destroy/);
+        
+        const toAdd = addMatches ? parseInt(addMatches[1]) : 0;
+        const toChange = changeMatches ? parseInt(changeMatches[1]) : 0;
+        const toDestroy = destroyMatches ? parseInt(destroyMatches[1]) : 0;
+        
+        if (toAdd > 0 || toChange > 0 || toDestroy > 0) {
+          commentBody += `**Planned Changes (before error occurred):**\n`;
+          commentBody += `\`\`\`\n`;
+          commentBody += `Plan: ${toAdd} to add, ${toChange} to change, ${toDestroy} to destroy.\n`;
+          commentBody += `\`\`\`\n\n`;
+        }
+      }
+      
       commentBody += `<details><summary>📋 View Plan Error Log (Click to expand)</summary>\n\n`;
-      commentBody += `\`\`\`\n${planErrorLog.slice(0, 3000)}\`\`\`\n\n`;
+      commentBody += `\`\`\`\n${(planContentForCheck || planErrorLog).slice(0, 5000)}${(planContentForCheck || planErrorLog).length > 5000 ? '\n... (truncated)' : ''}\`\`\`\n\n`;
       commentBody += `</details>\n\n`;
     }
     
@@ -156,7 +192,9 @@ function createTerragruntPlanComment(inputs) {
       commentBody += `- Check Terraform configuration syntax\n`;
       commentBody += `- Verify resource dependencies and references\n`;
       commentBody += `- Check AWS provider credentials and permissions\n`;
-      commentBody += `- Ensure all required variables are defined\n\n`;
+      commentBody += `- Ensure all required variables are defined\n`;
+      commentBody += `- **Python 3.9 Runtime Issue**: Install Python 3.9 if Lambda packaging fails\n`;
+      commentBody += `- Check external data source dependencies\n\n`;
     }
     
     commentBody += `**General Troubleshooting:**\n`;

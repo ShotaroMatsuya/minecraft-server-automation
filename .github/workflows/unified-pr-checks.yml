@@ -329,20 +329,20 @@ jobs:
           
           # Run plan - capture all output as Terragrunt outputs plan to stderr
           plan_exit_code=0
-          if terragrunt plan -detailed-exitcode --terragrunt-non-interactive 2>&1 | tee plan_output.txt; then
-            plan_exit_code=0
-          else
-            plan_exit_code=$?
+          terragrunt plan -detailed-exitcode --terragrunt-non-interactive 2>&1 | tee plan_output.txt
+          plan_exit_code=${PIPESTATUS[0]}
+          
+          # Check if plan output contains errors even if exit code is 0
+          has_plan_errors=false
+          if [ -f "plan_output.txt" ]; then
+            if grep -q -E "(Error:|Failed|RuntimeError|Exception)" plan_output.txt; then
+              has_plan_errors=true
+              echo "Plan contains errors despite exit code: $plan_exit_code"
+            fi
           fi
           
-          # Create empty error file for failed plans only
-          if [ $plan_exit_code -ne 0 ] && [ $plan_exit_code -ne 2 ]; then
-            # Run again to capture actual errors
-            terragrunt plan -detailed-exitcode --terragrunt-non-interactive > /dev/null 2> plan_errors.txt || true
-          else
-            # Success or has changes - no error file needed
-            touch plan_errors.txt
-          fi
+          # Create empty error file for consistency
+          touch plan_errors.txt
           
           # Parse results and set resource counts
           if [ -f "plan_output.txt" ]; then
@@ -359,11 +359,19 @@ jobs:
             echo "resources_to_destroy=0" >> "$GITHUB_OUTPUT"
           fi
           
-          # Determine status
+          # Determine status - check for errors in content even if exit code is 0
           if [ "${plan_exit_code:-0}" -eq 0 ]; then
-            echo "status=no_changes" >> "$GITHUB_OUTPUT"
+            if [ "$has_plan_errors" = true ]; then
+              echo "status=failed" >> "$GITHUB_OUTPUT"
+            else
+              echo "status=no_changes" >> "$GITHUB_OUTPUT"
+            fi
           elif [ "${plan_exit_code:-0}" -eq 2 ]; then
-            echo "status=has_changes" >> "$GITHUB_OUTPUT"
+            if [ "$has_plan_errors" = true ]; then
+              echo "status=failed" >> "$GITHUB_OUTPUT"
+            else
+              echo "status=has_changes" >> "$GITHUB_OUTPUT"
+            fi
           else
             echo "status=failed" >> "$GITHUB_OUTPUT"
           fi
