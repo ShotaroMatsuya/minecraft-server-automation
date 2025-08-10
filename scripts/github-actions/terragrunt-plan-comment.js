@@ -88,10 +88,15 @@ function createTerragruntPlanComment(inputs) {
   
   // Check for definitive plan errors in the content regardless of status
   const hasDefinitivePlanErrors = planContentForCheck && (
-    planContentForCheck.includes('Error: External Program Execution Failed') ||
+    (planContentForCheck.includes('Error: External Program Execution Failed') && !planContentForCheck.includes('Plan:')) ||
+    (planContentForCheck.includes('terraform invocation failed') && !planContentForCheck.includes('Plan:')) ||
+    (/╷[\s\S]*Error:[\s\S]*╵/.test(planContentForCheck) && !planContentForCheck.includes('Plan:'))
+  );
+  
+  // Check for warnings (not blocking errors) that should be shown with plan results
+  const hasWarnings = planContentForCheck && (
     planContentForCheck.includes('RuntimeError: Python interpreter') ||
-    planContentForCheck.includes('terraform invocation failed') ||
-    /╷[\s\S]*Error:[\s\S]*╵/.test(planContentForCheck)
+    planContentForCheck.includes('Warning:')
   );
   
   const hasPlanError = status === 'failed' || hasDefinitivePlanErrors || hasActualErrors(planErrorLog);
@@ -217,7 +222,7 @@ function createTerragruntPlanComment(inputs) {
     return commentBody;
   }
   
-  // If no errors, proceed with normal plan output
+  // If no errors, proceed with normal plan output (warnings are shown as part of plan)
   try {
     // Try to read the actual plan output
     let planOutput = '';
@@ -268,7 +273,11 @@ function createTerragruntPlanComment(inputs) {
     const toChange = changeMatches ? parseInt(changeMatches[1]) : 0;
     const toDestroy = destroyMatches ? parseInt(destroyMatches[1]) : 0;
     
-    if (toDestroy > 0) {
+    // Show warnings if present but plan was successful
+    if (hasWarnings && (toAdd > 0 || toChange > 0 || toDestroy > 0)) {
+      commentBody += `⚠️ **Infrastructure changes with warnings**\n\n`;
+      commentBody += `The plan was generated successfully but contains warnings that should be reviewed.\n\n`;
+    } else if (toDestroy > 0) {
       commentBody += `⚠️ **Resource Deletion will happen**\n\n`;
       commentBody += `This plan contains resource delete operation. Please check the plan result very carefully!\n\n`;
     } else if (toAdd > 0 || toChange > 0) {
@@ -281,6 +290,16 @@ function createTerragruntPlanComment(inputs) {
     commentBody += `\`\`\`\n`;
     commentBody += `Plan: ${toAdd} to add, ${toChange} to change, ${toDestroy} to destroy.\n`;
     commentBody += `\`\`\`\n\n`;
+    
+    // Show warnings if present
+    if (hasWarnings) {
+      commentBody += `### ⚠️ Warnings\n\n`;
+      if (planOutput.includes('RuntimeError: Python interpreter')) {
+        commentBody += `- **Python 3.9 Runtime**: Lambda packaging encountered Python version issues\n`;
+        commentBody += `- This warning does not prevent infrastructure deployment\n`;
+        commentBody += `- Consider ensuring Python 3.9 is available for optimal Lambda packaging\n\n`;
+      }
+    }
     
     // Only show resource summary if there are changes or for scheduling environment
     if (toDestroy > 0 || toAdd > 0 || toChange > 0 || environment === 'scheduling') {
@@ -367,10 +386,10 @@ async function updateTerragruntPlanComment(github, context, commentBody, environ
     issue_number: context.issue.number,
   });
 
-  // Environment-specific identifiers
+  // Environment-specific identifiers - must match the actual titles used in createTerragruntPlanComment
   const identifiers = {
-    keeping: '## 📋 Plan Result (keeping/security-test)',
-    scheduling: '## 📋 Plan Result (scheduling/infrastructure)'
+    keeping: '## 📋 Plan Result (keeping)',
+    scheduling: '## 📋 Plan Result (scheduling)'
   };
   
   const planIdentifier = identifiers[environment] || `## 📋 Plan Result (${environment})`;

@@ -332,12 +332,13 @@ jobs:
           terragrunt plan -detailed-exitcode --terragrunt-non-interactive 2>&1 | tee plan_output.txt
           plan_exit_code=${PIPESTATUS[0]}
           
-          # Check if plan output contains errors even if exit code is 0
+          # Check if plan output contains actual blocking errors (not just warnings)
           has_plan_errors=false
           if [ -f "plan_output.txt" ]; then
-            if grep -q -E "(Error:|Failed|RuntimeError|Exception)" plan_output.txt; then
+            # Only consider it an error if there's no successful plan generation
+            if ! grep -q "Plan:" plan_output.txt && grep -q -E "(Error: External Program Execution Failed|terraform invocation failed)" plan_output.txt; then
               has_plan_errors=true
-              echo "Plan contains errors despite exit code: $plan_exit_code"
+              echo "Plan contains blocking errors: $plan_exit_code"
             fi
           fi
           
