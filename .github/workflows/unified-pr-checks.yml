@@ -282,7 +282,7 @@ jobs:
           
           # Debug output
           echo "Format check exit code: $format_exit_code"
-          echo "Format errors file size: $(wc -c < format_errors.txt 2>/dev/null || echo '0') bytes"
+          echo "Format errors file size: $(wc -c < format_errors.txt 2>/dev/null || echo 0) bytes"
         continue-on-error: true
 
       - name: Terragrunt Validation
@@ -306,7 +306,7 @@ jobs:
           
           # Debug output
           echo "Validation exit code: $validate_exit_code"
-          echo "Validation errors file size: $(wc -c < validate_errors.txt 2>/dev/null || echo '0') bytes"
+          echo "Validation errors file size: $(wc -c < validate_errors.txt 2>/dev/null || echo 0) bytes"
         continue-on-error: true
 
       - name: Terragrunt Plan
@@ -329,8 +329,7 @@ jobs:
           
           # Run plan - capture all output as Terragrunt outputs plan to stderr
           plan_exit_code=0
-          terragrunt plan -detailed-exitcode --terragrunt-non-interactive 2>&1 | tee plan_output.txt
-          plan_exit_code=${PIPESTATUS[0]}
+          terragrunt plan -detailed-exitcode --terragrunt-non-interactive > plan_output.txt 2>&1 || plan_exit_code=$?
           
           # Check if plan output contains actual blocking errors (not just warnings)
           has_plan_errors=false
@@ -347,9 +346,9 @@ jobs:
           
           # Parse results and set resource counts
           if [ -f "plan_output.txt" ]; then
-            to_add=$(grep -c "will be created" plan_output.txt 2>/dev/null || echo 0)
-            to_change=$(grep -c "will be updated" plan_output.txt 2>/dev/null || echo 0)  
-            to_destroy=$(grep -c "will be destroyed" plan_output.txt 2>/dev/null || echo 0)
+            to_add=$(grep -c "will be created" plan_output.txt 2>/dev/null) || to_add=0
+            to_change=$(grep -c "will be updated" plan_output.txt 2>/dev/null) || to_change=0
+            to_destroy=$(grep -c "will be destroyed" plan_output.txt 2>/dev/null) || to_destroy=0
             
             echo "resources_to_add=$to_add" >> "$GITHUB_OUTPUT"
             echo "resources_to_change=$to_change" >> "$GITHUB_OUTPUT"
@@ -364,40 +363,45 @@ jobs:
           # 0: No changes, 1: Error, 2: Changes detected
           # However, if we have valid plan output, prioritize that over exit codes
           
+          plan_status="unknown"
+          
           if [ -f "plan_output.txt" ] && grep -q "Plan:" plan_output.txt; then
             # We have a valid plan summary - extract resource counts
-            to_add_check=$(grep -o "[0-9]\+ to add" plan_output.txt | grep -o "[0-9]\+" | head -1 || echo 0)
-            to_change_check=$(grep -o "[0-9]\+ to change" plan_output.txt | grep -o "[0-9]\+" | head -1 || echo 0)
-            to_destroy_check=$(grep -o "[0-9]\+ to destroy" plan_output.txt | grep -o "[0-9]\+" | head -1 || echo 0)
+            to_add_check=$(grep -o "[0-9]\+ to add" plan_output.txt | grep -o "[0-9]\+" | head -1) || to_add_check=0
+            to_change_check=$(grep -o "[0-9]\+ to change" plan_output.txt | grep -o "[0-9]\+" | head -1) || to_change_check=0
+            to_destroy_check=$(grep -o "[0-9]\+ to destroy" plan_output.txt | grep -o "[0-9]\+" | head -1) || to_destroy_check=0
             
             # If we have a valid plan, determine status based on resource changes
             if [ "$to_add_check" -gt 0 ] || [ "$to_change_check" -gt 0 ] || [ "$to_destroy_check" -gt 0 ]; then
-              echo "status=has_changes" >> "$GITHUB_OUTPUT"
+              plan_status="has_changes"
               echo "✅ Plan successful: $to_add_check to add, $to_change_check to change, $to_destroy_check to destroy"
             else
-              echo "status=no_changes" >> "$GITHUB_OUTPUT"
+              plan_status="no_changes"
               echo "✅ Plan successful: No changes detected"
             fi
           elif [ "${plan_exit_code:-0}" -eq 0 ]; then
             # Exit code 0: No changes (standard terraform behavior)
-            echo "status=no_changes" >> "$GITHUB_OUTPUT"
+            plan_status="no_changes"
             echo "✅ Plan completed: No changes"
           elif [ "${plan_exit_code:-0}" -eq 2 ]; then
             # Exit code 2: Changes detected (standard terraform behavior)
-            echo "status=has_changes" >> "$GITHUB_OUTPUT"
+            plan_status="has_changes"
             echo "✅ Plan completed: Changes detected"
           else
             # Exit code 1 or other: Error occurred and no valid plan found
-            echo "status=failed" >> "$GITHUB_OUTPUT"
+            plan_status="failed"
             echo "❌ Plan failed: Exit code ${plan_exit_code:-0}, no valid plan output"
           fi
+          
+          # Set the status output
+          echo "status=$plan_status" >> "$GITHUB_OUTPUT"
           
           # Debug output
           echo "Plan exit code: ${plan_exit_code:-0}"
           echo "Plan output file exists: $(test -f plan_output.txt && echo 'yes' || echo 'no')"
-          echo "Plan output size: $(wc -c < plan_output.txt 2>/dev/null || echo '0') bytes"
+          echo "Plan output size: $(wc -c < plan_output.txt 2>/dev/null || echo 0) bytes"
           echo "Plan errors file exists: $(test -f plan_errors.txt && echo 'yes' || echo 'no')"
-          echo "Plan errors size: $(wc -c < plan_errors.txt 2>/dev/null || echo '0') bytes"
+          echo "Plan errors size: $(wc -c < plan_errors.txt 2>/dev/null || echo 0) bytes"
         continue-on-error: true
 
       - name: Set environment-specific output
