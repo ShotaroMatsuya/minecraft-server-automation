@@ -211,6 +211,21 @@ jobs:
       resources_changed: ${{ steps.apply.outputs.resources_changed }}
       resources_destroyed: ${{ steps.apply.outputs.resources_destroyed }}
     steps:
+      - name: Debug Job Conditions
+        run: |
+          echo "=== Debugging apply-keeping job conditions ==="
+          echo "should_run_keeping output: '${{ needs.check-changes.outputs.should_run_keeping }}'"
+          echo "Type check: '${{ needs.check-changes.outputs.should_run_keeping }}' == 'true'"
+          echo "Condition result: ${{ needs.check-changes.outputs.should_run_keeping == 'true' }}"
+          echo "All check-changes outputs:"
+          echo "  changes: '${{ needs.check-changes.outputs.changes }}'"
+          echo "  keeping_changes: '${{ needs.check-changes.outputs.keeping_changes }}'"
+          echo "  scheduling_changes: '${{ needs.check-changes.outputs.scheduling_changes }}'"
+          echo "  pr_number: '${{ needs.check-changes.outputs.pr_number }}'"
+          echo "  labels: '${{ needs.check-changes.outputs.labels }}'"
+          echo "  should_run_keeping: '${{ needs.check-changes.outputs.should_run_keeping }}'"
+          echo "  should_run_scheduling: '${{ needs.check-changes.outputs.should_run_scheduling }}'"
+          
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -242,9 +257,26 @@ jobs:
       - name: Check if keeping environment exists
         id: check-env
         run: |
+          echo "=== Debugging keeping environment check ==="
+          echo "Current working directory: $(pwd)"
+          echo "Listing current directory:"
+          ls -la
+          echo ""
+          echo "Looking for terragrunt directory:"
+          ls -la terragrunt/ || echo "terragrunt directory not found"
+          echo ""
+          echo "Looking for terragrunt/environments:"
+          ls -la terragrunt/environments/ || echo "terragrunt/environments directory not found"
+          echo ""
+          echo "Looking for terragrunt/environments/keeping:"
+          ls -la terragrunt/environments/keeping/ || echo "terragrunt/environments/keeping directory not found"
+          echo ""
+          
           if [ -d "terragrunt/environments/keeping" ]; then
+            echo "✅ terragrunt/environments/keeping exists"
             echo "exists=true" >> "$GITHUB_OUTPUT"
           else
+            echo "❌ terragrunt/environments/keeping does not exist"
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
 
@@ -649,38 +681,41 @@ jobs:
             const prNumber = '${{ needs.check-changes.outputs.pr_number }}';
             console.log('PR Number from previous step:', prNumber);
             
-            if (prNumber && prNumber !== '' && prNumber !== 'null') {
+            if (prNumber && prNumber !== '' && prNumber !== 'null' && !isNaN(parseInt(prNumber))) {
               context.issue.number = parseInt(prNumber);
               console.log('✅ Set context.issue.number to:', context.issue.number);
+              
+              for (const env of environments) {
+                // Skip if the job was skipped (e.g., keeping failed so scheduling was skipped)
+                if (!env.wasExecuted) {
+                  console.log(`⏭️ Skipping ${env.name} environment - job was not executed`);
+                  continue;
+                }
+                
+                console.log(`Processing ${env.name} environment apply results...`);
+                
+                const inputs = {
+                  commentType: 'terragrunt-apply',
+                  environment: env.name,
+                  status: env.status || 'unknown',
+                  applyFilePath: `apply-results/terragrunt-apply-${env.name}/apply_output.txt`,
+                  initErrorLogPath: `apply-results/terragrunt-apply-${env.name}/init_output.txt`,
+                  applyErrorLogPath: `apply-results/terragrunt-apply-${env.name}/apply_errors.txt`,
+                  artifactBasePath: 'apply-results'
+                };
+                
+                try {
+                  await commentHandler(github, context, inputs);
+                  console.log(`✅ Successfully processed ${env.name} environment apply results`);
+                } catch (error) {
+                  console.error(`❌ Error processing ${env.name} environment apply results:`, error);
+                  // Continue processing other environments even if one fails
+                }
+              }
             } else {
               console.log('❌ No valid PR number found, skipping comment operations');
+              console.log('Available PR number value:', prNumber);
+              console.log('Type of PR number:', typeof prNumber);
+              console.log('Is valid number:', !isNaN(parseInt(prNumber)));
               return;
-            }
-            
-            for (const env of environments) {
-              // Skip if the job was skipped (e.g., keeping failed so scheduling was skipped)
-              if (!env.wasExecuted) {
-                console.log(`⏭️ Skipping ${env.name} environment - job was not executed`);
-                continue;
-              }
-              
-              console.log(`Processing ${env.name} environment apply results...`);
-              
-              const inputs = {
-                commentType: 'terragrunt-apply',
-                environment: env.name,
-                status: env.status || 'unknown',
-                applyFilePath: `apply-results/terragrunt-apply-${env.name}/apply_output.txt`,
-                initErrorLogPath: `apply-results/terragrunt-apply-${env.name}/init_output.txt`,
-                applyErrorLogPath: `apply-results/terragrunt-apply-${env.name}/apply_errors.txt`,
-                artifactBasePath: 'apply-results'
-              };
-              
-              try {
-                await commentHandler(github, context, inputs);
-                console.log(`✅ Successfully processed ${env.name} environment apply results`);
-              } catch (error) {
-                console.error(`❌ Error processing ${env.name} environment apply results:`, error);
-                // Continue processing other environments even if one fails
-              }
             }
