@@ -393,7 +393,7 @@ function createTerragruntPlanComment(inputs) {
       commentBody += `#### 🎨 Format Check Errors\n`;
       commentBody += `Code formatting issues were detected.\n\n`;
       commentBody += `<details><summary>📋 View Format Error Log (Click to expand)</summary>\n\n`;
-      commentBody += `\`\`\`\n${formatTerraformOutput(formatErrorLog).slice(0, 2000)}\`\`\`\n\n`;
+      commentBody += `\`\`\`\n${formatTerraformOutput(formatErrorLog).slice(0, 2000)}\n\`\`\`\n\n`;
       commentBody += `</details>\n\n`;
     }
     
@@ -401,7 +401,7 @@ function createTerragruntPlanComment(inputs) {
       commentBody += `#### ✅ Validation Errors\n`;
       commentBody += `Configuration validation failed.\n\n`;
       commentBody += `<details><summary>📋 View Validation Error Log (Click to expand)</summary>\n\n`;
-      commentBody += `\`\`\`\n${formatTerraformOutput(validateErrorLog).slice(0, 2000)}\`\`\`\n\n`;
+      commentBody += `\`\`\`\n${formatTerraformOutput(validateErrorLog).slice(0, 2000)}\n\`\`\`\n\n`;
       commentBody += `</details>\n\n`;
     }
     
@@ -409,7 +409,7 @@ function createTerragruntPlanComment(inputs) {
       commentBody += `#### 🚀 Initialization Errors\n`;
       commentBody += `Terragrunt initialization failed. Unable to initialize the working directory.\n\n`;
       commentBody += `<details><summary>📋 View Init Error Log (Click to expand)</summary>\n\n`;
-      commentBody += `\`\`\`\n${formatTerraformOutput(initErrorLog).slice(0, 3000)}\`\`\`\n\n`;
+      commentBody += `\`\`\`\n${formatTerraformOutput(initErrorLog).slice(0, 3000)}\n\`\`\`\n\n`;
       commentBody += `</details>\n\n`;
     }
     
@@ -437,7 +437,7 @@ function createTerragruntPlanComment(inputs) {
       }
       
       commentBody += `<details><summary>📋 View Plan Error Log (Click to expand)</summary>\n\n`;
-      commentBody += `\`\`\`\n${formatTerraformOutput(planContentForCheck || planErrorLog).slice(0, 5000)}${(planContentForCheck || planErrorLog).length > 5000 ? '\n... (truncated)' : ''}\`\`\`\n\n`;
+      commentBody += `\`\`\`\n${formatTerraformOutput(planContentForCheck || planErrorLog).slice(0, 5000)}${(planContentForCheck || planErrorLog).length > 5000 ? '\n... (truncated)' : ''}\n\`\`\`\n\n`;
       commentBody += `</details>\n\n`;
     }
     
@@ -555,7 +555,7 @@ function createTerragruntPlanComment(inputs) {
       commentBody += `### 🚨 Plan Execution Error\n\n`;
       commentBody += `Plan execution failed with no output generated.\n\n`;
       commentBody += `<details><summary>📋 View Plan Error Log (Click to expand)</summary>\n\n`;
-      commentBody += `\`\`\`\n${formatTerraformOutput(planErrorLog).slice(0, 5000)}${planErrorLog.length > 5000 ? '\n... (truncated)' : ''}\`\`\`\n\n`;
+      commentBody += `\`\`\`\n${formatTerraformOutput(planErrorLog).slice(0, 5000)}${planErrorLog.length > 5000 ? '\n... (truncated)' : ''}\n\`\`\`\n\n`;
       commentBody += `</details>\n\n`;
       
       commentBody += `### 🔧 Troubleshooting\n`;
@@ -643,7 +643,7 @@ function createTerragruntPlanComment(inputs) {
     } else {
       commentBody += formattedPlanOutput;
     }
-    commentBody += `\`\`\`\n\n`;
+    commentBody += `\n\`\`\`\n\n`;
     commentBody += `</details>\n\n`;
     
   } catch (error) {
@@ -679,7 +679,7 @@ function createTerragruntPlanComment(inputs) {
       if (planErrorLog && planErrorLog.trim() !== '') {
         commentBody += `### 🚨 Plan Error Details\n\n`;
         commentBody += `<details><summary>📋 View Plan Error Log (Click to expand)</summary>\n\n`;
-        commentBody += `\`\`\`\n${formatTerraformOutput(planErrorLog).slice(0, 3000)}\`\`\`\n\n`;
+        commentBody += `\`\`\`\n${formatTerraformOutput(planErrorLog).slice(0, 3000)}\n\`\`\`\n\n`;
         commentBody += `</details>\n\n`;
         
         // Add CI/CD links section for fallback errors
