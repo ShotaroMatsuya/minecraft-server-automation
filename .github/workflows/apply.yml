@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+
+concurrency:
+  group: terragrunt-apply-${{ github.ref }}
+  cancel-in-progress: false
+
 env:
   TF_VAR_WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
   TF_VAR_github_token: ${{ secrets.TF_VAR_github_token }}
@@ -248,21 +253,60 @@ jobs:
         if: steps.check-env.outputs.exists == 'true'
         working-directory: terragrunt/environments/keeping
         run: |
-          # Initialize first
-          init_exit_code=0
-          terragrunt init --terragrunt-non-interactive 2>&1 | tee init_output.txt || init_exit_code=$?
+          # Function to handle state lock issues
+          handle_state_lock() {
+            local max_retries=3
+            local retry_count=0
+            
+            while [ $retry_count -lt $max_retries ]; do
+              echo "=== Attempt $((retry_count + 1))/$max_retries ==="
+              
+              # Initialize first
+              init_exit_code=0
+              terragrunt init --terragrunt-non-interactive 2>&1 | tee init_output.txt || init_exit_code=$?
+              
+              if [ $init_exit_code -ne 0 ]; then
+                echo "❌ Init failed on attempt $((retry_count + 1))"
+                if [ $retry_count -eq $((max_retries - 1)) ]; then
+                  echo "status=init_failed" >> "$GITHUB_OUTPUT"
+                  echo "resources_applied=0" >> "$GITHUB_OUTPUT"
+                  echo "resources_changed=0" >> "$GITHUB_OUTPUT"
+                  echo "resources_destroyed=0" >> "$GITHUB_OUTPUT"
+                  return 1
+                fi
+                retry_count=$((retry_count + 1))
+                echo "⏳ Waiting 30 seconds before retry..."
+                sleep 30
+                continue
+              fi
+              
+              # Run apply with auto-approve
+              apply_exit_code=0
+              terragrunt apply --terragrunt-non-interactive -auto-approve > apply_output.txt 2>&1 || apply_exit_code=$?
+              
+              # Check if this was a lock error
+              if [ $apply_exit_code -ne 0 ] && grep -q "Error acquiring the state lock" apply_output.txt; then
+                echo "⚠️ State lock error detected on attempt $((retry_count + 1))"
+                if [ $retry_count -eq $((max_retries - 1)) ]; then
+                  echo "❌ Max retries reached, failing..."
+                  break
+                fi
+                retry_count=$((retry_count + 1))
+                echo "⏳ Waiting 60 seconds for lock to be released..."
+                sleep 60
+                continue
+              else
+                # Either success or non-lock error, break the loop
+                break
+              fi
+            done
+            
+            return $apply_exit_code
+          }
           
-          if [ $init_exit_code -ne 0 ]; then
-            echo "status=init_failed" >> "$GITHUB_OUTPUT"
-            echo "resources_applied=0" >> "$GITHUB_OUTPUT"
-            echo "resources_changed=0" >> "$GITHUB_OUTPUT"
-            echo "resources_destroyed=0" >> "$GITHUB_OUTPUT"
-            exit 1
-          fi
-          
-          # Run apply with auto-approve
-          apply_exit_code=0
-          terragrunt apply --terragrunt-non-interactive -auto-approve > apply_output.txt 2>&1 || apply_exit_code=$?
+          # Execute with retry logic
+          handle_state_lock
+          final_exit_code=$?
           
           # Create empty error file for consistency
           touch apply_errors.txt
@@ -296,7 +340,7 @@ jobs:
           # Determine status based on apply result
           apply_status="unknown"
           
-          if [ $apply_exit_code -eq 0 ]; then
+          if [ $final_exit_code -eq 0 ]; then
             if [ -f "apply_output.txt" ] && (grep -q "Apply complete!" apply_output.txt || grep -q "No changes" apply_output.txt); then
               apply_status="success"
               echo "✅ Keeping apply completed successfully"
@@ -306,7 +350,7 @@ jobs:
             fi
           else
             apply_status="failed"
-            echo "❌ Keeping apply failed: Exit code $apply_exit_code"
+            echo "❌ Keeping apply failed: Exit code $final_exit_code"
             # Capture errors to apply_errors.txt
             if [ -f "apply_output.txt" ]; then
               tail -100 apply_output.txt > apply_errors.txt
@@ -417,21 +461,60 @@ jobs:
         if: steps.check-env.outputs.exists == 'true'
         working-directory: terragrunt/environments/scheduling
         run: |
-          # Initialize first
-          init_exit_code=0
-          terragrunt init --terragrunt-non-interactive 2>&1 | tee init_output.txt || init_exit_code=$?
+          # Function to handle state lock issues
+          handle_state_lock() {
+            local max_retries=3
+            local retry_count=0
+            
+            while [ $retry_count -lt $max_retries ]; do
+              echo "=== Attempt $((retry_count + 1))/$max_retries ==="
+              
+              # Initialize first
+              init_exit_code=0
+              terragrunt init --terragrunt-non-interactive 2>&1 | tee init_output.txt || init_exit_code=$?
+              
+              if [ $init_exit_code -ne 0 ]; then
+                echo "❌ Init failed on attempt $((retry_count + 1))"
+                if [ $retry_count -eq $((max_retries - 1)) ]; then
+                  echo "status=init_failed" >> "$GITHUB_OUTPUT"
+                  echo "resources_applied=0" >> "$GITHUB_OUTPUT"
+                  echo "resources_changed=0" >> "$GITHUB_OUTPUT"
+                  echo "resources_destroyed=0" >> "$GITHUB_OUTPUT"
+                  return 1
+                fi
+                retry_count=$((retry_count + 1))
+                echo "⏳ Waiting 30 seconds before retry..."
+                sleep 30
+                continue
+              fi
+              
+              # Run apply with auto-approve
+              apply_exit_code=0
+              terragrunt apply --terragrunt-non-interactive -auto-approve > apply_output.txt 2>&1 || apply_exit_code=$?
+              
+              # Check if this was a lock error
+              if [ $apply_exit_code -ne 0 ] && grep -q "Error acquiring the state lock" apply_output.txt; then
+                echo "⚠️ State lock error detected on attempt $((retry_count + 1))"
+                if [ $retry_count -eq $((max_retries - 1)) ]; then
+                  echo "❌ Max retries reached, failing..."
+                  break
+                fi
+                retry_count=$((retry_count + 1))
+                echo "⏳ Waiting 60 seconds for lock to be released..."
+                sleep 60
+                continue
+              else
+                # Either success or non-lock error, break the loop
+                break
+              fi
+            done
+            
+            return $apply_exit_code
+          }
           
-          if [ $init_exit_code -ne 0 ]; then
-            echo "status=init_failed" >> "$GITHUB_OUTPUT"
-            echo "resources_applied=0" >> "$GITHUB_OUTPUT"
-            echo "resources_changed=0" >> "$GITHUB_OUTPUT"
-            echo "resources_destroyed=0" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-          
-          # Run apply with auto-approve
-          apply_exit_code=0
-          terragrunt apply --terragrunt-non-interactive -auto-approve > apply_output.txt 2>&1 || apply_exit_code=$?
+          # Execute with retry logic
+          handle_state_lock
+          final_exit_code=$?
           
           # Create empty error file for consistency
           touch apply_errors.txt
@@ -465,7 +548,7 @@ jobs:
           # Determine status based on apply result
           apply_status="unknown"
           
-          if [ $apply_exit_code -eq 0 ]; then
+          if [ $final_exit_code -eq 0 ]; then
             if [ -f "apply_output.txt" ] && (grep -q "Apply complete!" apply_output.txt || grep -q "No changes" apply_output.txt); then
               apply_status="success"
               echo "✅ Scheduling apply completed successfully"
@@ -475,7 +558,7 @@ jobs:
             fi
           else
             apply_status="failed"
-            echo "❌ Scheduling apply failed: Exit code $apply_exit_code"
+            echo "❌ Scheduling apply failed: Exit code $final_exit_code"
             # Capture errors to apply_errors.txt
             if [ -f "apply_output.txt" ]; then
               tail -100 apply_output.txt > apply_errors.txt
