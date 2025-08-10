@@ -6,13 +6,226 @@ on:
       - reopened
       - synchronize
       - ready_for_review
+  issue_comment:
+    types:
+      - created
+
 jobs:
-  approve:
+  # Existing job: Auto-approve PRs created by repository owner
+  auto-approve:
     if: |
-      github.event.pull_request.user.login == github.repository_owner
+      github.event_name == 'pull_request'
+      && github.event.pull_request.user.login == github.repository_owner
       && ! github.event.pull_request.draft
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
     steps:
-      - uses: hmarr/auto-approve-action@v3
+      - name: Auto approve PR from repository owner
+        uses: hmarr/auto-approve-action@v3
+
+  # New job: Manual approve via /approve command
+  manual-approve:
+    if: |
+      github.event_name == 'issue_comment'
+      && github.event.issue.pull_request
+      && github.event.issue.state == 'open'
+      && contains(github.event.comment.body, '/approve')
+      && github.event.comment.user.login == github.repository_owner
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Check comment format
+        id: check-command
+        run: |
+          COMMENT_BODY="${{ github.event.comment.body }}"
+          echo "Original comment: $COMMENT_BODY"
+          
+          # Check if comment starts with /approve (allowing for whitespace)
+          if echo "$COMMENT_BODY" | grep -qE '^\s*/approve(\s|$)'; then
+            echo "✅ Valid /approve command detected"
+            echo "valid=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "❌ Comment contains /approve but doesn't start with it"
+            echo "valid=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: React to comment
+        if: steps.check-command.outputs.valid == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            // Add reaction to the comment
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: ${{ github.event.comment.id }},
+              content: '+1'
+            });
+
+      - name: Get PR details
+        if: steps.check-command.outputs.valid == 'true'
+        id: pr-details
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: pr } = await github.rest.pulls.get({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: ${{ github.event.issue.number }}
+            });
+            
+            console.log('PR Details:');
+            console.log('- Number:', pr.number);
+            console.log('- Title:', pr.title);
+            console.log('- State:', pr.state);
+            console.log('- Draft:', pr.draft);
+            console.log('- Author:', pr.user.login);
+            
+            return {
+              state: pr.state,
+              draft: pr.draft,
+              title: pr.title,
+              author: pr.user.login
+            };
+
+      - name: Check existing reviews
+        if: steps.check-command.outputs.valid == 'true'
+        id: check-reviews
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { data: reviews } = await github.rest.pulls.listReviews({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              pull_number: ${{ github.event.issue.number }}
+            });
+            
+            // Check if github-actions[bot] has already approved
+            const botApproval = reviews.find(review => 
+              review.user.login === 'github-actions[bot]' && 
+              review.state === 'APPROVED'
+            );
+            
+            console.log('Existing reviews:', reviews.length);
+            console.log('Bot already approved:', !!botApproval);
+            
+            if (botApproval) {
+              console.log('Bot approval found:', {
+                id: botApproval.id,
+                submitted_at: botApproval.submitted_at,
+                body: botApproval.body
+              });
+            }
+            
+            return {
+              alreadyApproved: !!botApproval,
+              totalReviews: reviews.length
+            };
+
+      - name: Approve PR
+        if: |
+          steps.check-command.outputs.valid == 'true' &&
+          fromJson(steps.check-reviews.outputs.result).alreadyApproved == false
+        uses: actions/github-script@v7
+        with:
+          script: |
+            try {
+              const result = await github.rest.pulls.createReview({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: ${{ github.event.issue.number }},
+                event: 'APPROVE',
+                body: '✅ Approved by repository owner via `/approve` command.\n\n_Automated approval by github-actions[bot]_'
+              });
+              
+              console.log('✅ PR approved successfully');
+              console.log('Review ID:', result.data.id);
+              
+              // Add success reaction
+              await github.rest.reactions.createForIssueComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: ${{ github.event.comment.id }},
+                content: 'hooray'
+              });
+              
+              // Post success comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: ${{ github.event.issue.number }},
+                body: '🎉 **PR Approved Successfully!**\n\nThis pull request has been approved by the repository owner via the `/approve` command.\n\n_Automated by github-actions[bot]_'
+              });
+              
+            } catch (error) {
+              console.error('❌ Failed to approve PR:', error);
+              
+              // Add error reaction
+              await github.rest.reactions.createForIssueComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: ${{ github.event.comment.id }},
+                content: 'confused'
+              });
+              
+              // Post error comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: ${{ github.event.issue.number }},
+                body: '❌ **Failed to approve PR**\n\nAn error occurred while trying to approve this pull request:\n\n```\n' + error.message + '\n```\n\n_Automated by github-actions[bot]_'
+              });
+              
+              throw error;
+            }
+
+      - name: Handle already approved
+        if: |
+          steps.check-command.outputs.valid == 'true' &&
+          fromJson(steps.check-reviews.outputs.result).alreadyApproved == true
+        uses: actions/github-script@v7
+        with:
+          script: |
+            console.log('ℹ️ PR is already approved by github-actions[bot]');
+            
+            // Add info reaction
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: ${{ github.event.comment.id }},
+              content: 'eyes'
+            });
+            
+            // Post info comment
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ github.event.issue.number }},
+              body: 'ℹ️ **PR Already Approved**\n\nThis pull request has already been approved by github-actions[bot].\n\n_Automated by github-actions[bot]_'
+            });
+
+      - name: Handle invalid command
+        if: steps.check-command.outputs.valid == 'false'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            console.log('⚠️ Invalid /approve command format');
+            
+            // Add warning reaction
+            await github.rest.reactions.createForIssueComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: ${{ github.event.comment.id }},
+              content: '-1'
+            });
+            
+            // Post help comment
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: ${{ github.event.issue.number }},
+              body: '⚠️ **Invalid Command Format**\n\nTo approve this PR, please use one of these formats:\n- `/approve`\n- `/approve [optional message]`\n\nThe command must be at the beginning of your comment.\n\n_Automated by github-actions[bot]_'
+            });
