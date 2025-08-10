@@ -44,6 +44,56 @@ jobs:
 
     - name: Install tools via aqua
       run: aqua install --all
+
+    - name: Test Toggle Display Feature
+      run: |
+        echo "🧪 Testing toggle display functionality..."
+        
+        # Create a test output file with sample Terragrunt-like content
+        cat << 'TEST_EOF' > test_output.txt
+        Terragrunt will perform the following actions:
+
+          # aws_instance.example will be created
+          + resource "aws_instance" "example" {
+              + ami                          = "ami-12345678"
+              + instance_type               = "t3.micro"
+              + key_name                    = "my-key"
+              + vpc_security_group_ids      = (known after apply)
+            }
+
+          # aws_s3_bucket.test will be created  
+          + resource "aws_s3_bucket" "test" {
+              + bucket        = "my-test-bucket"
+              + force_destroy = false
+            }
+
+        Plan: 2 to add, 0 to change, 0 to destroy.
+
+        Changes to Outputs:
+          + instance_id = (known after apply)
+          + bucket_name = "my-test-bucket"
+        TEST_EOF
+        
+        # Test the toggle display functionality
+        file_size=$(wc -c < test_output.txt)
+        
+        {
+          echo "## 🧪 Test: Terragrunt Toggle Display Feature"
+          echo ""
+          echo "<details>"
+          echo "<summary>📋 Sample Terragrunt Plan Output (Click to expand) - Size: ${file_size} bytes</summary>"
+          echo ""
+          echo '```hcl'
+          sed 's/```/\\`\\`\\`/g' test_output.txt
+          echo '```'
+          echo "</details>"
+          echo ""
+          echo "---"
+          echo ""
+        } >> "$GITHUB_STEP_SUMMARY"
+        
+        echo "✅ Toggle display test completed - check GitHub Actions Summary tab"
+        
     - name: Create Mapping Yaml
       working-directory: terragrunt/environments/scheduling
       run: |
