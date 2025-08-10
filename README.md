@@ -4,7 +4,9 @@
 [![Start and Stop Workflow](https://github.com/ShotaroMatsuya/minecraft-server-automation/actions/workflows/schedule_job.yml/badge.svg)](https://github.com/ShotaroMatsuya/minecraft-server-automation/actions/workflows/schedule_job.yml)
 [![Terragrunt PR Check](https://github.com/ShotaroMatsuya/minecraft-server-automation/actions/workflows/terragrunt-pr-check.yml/badge.svg)](https://github.com/ShotaroMatsuya/minecraft-server-automation/actions/workflows/terragrunt-pr-check.yml)
 
-# 🎮 Minecraft Server Infrastructure on AWS
+# Minecraft Server Automation with CI/CD
+
+<!-- Test: Verify label-based environment targeting works with string outputs -->
 
 Cost-optimized Minecraft server infrastructure using **Terragrunt** for multi-environment management and automated CI/CD.
 
