@@ -10,10 +10,33 @@ const fs = require('fs');
  * @param {Object} inputs - Input parameters from GitHub Actions
  * @param {boolean} inputs.hasIssues - Whether security issues were found
  * @param {string} inputs.resultsSummary - Summary of scan results
+ * @param {string} inputs.scanStatus - Status of the scan (success, failed, error)
+ * @param {string} inputs.errorLog - Error log if scan failed
  * @returns {string} Formatted comment body
  */
 function createSecurityComment(inputs) {
   let commentBody = `## 🔐 Security Scan Results (Trivy)\n\n`;
+  
+  // Check if scan failed
+  if (inputs.scanStatus === 'failed' || inputs.scanStatus === 'error') {
+    commentBody += `❌ **Security scan failed**\n\n`;
+    commentBody += `The Trivy security scan encountered an error and could not complete successfully.\n\n`;
+    
+    if (inputs.errorLog) {
+      commentBody += `### 🚨 Error Details\n\n`;
+      commentBody += `<details><summary>📋 View Error Log (Click to expand)</summary>\n\n`;
+      commentBody += `\`\`\`\n${inputs.errorLog.slice(0, 3000)}\`\`\`\n\n`;
+      commentBody += `</details>\n\n`;
+    }
+    
+    commentBody += `### 🔧 Troubleshooting\n`;
+    commentBody += `- Check if Terraform files are valid\n`;
+    commentBody += `- Verify Trivy configuration in \`trivy.yaml\`\n`;
+    commentBody += `- Check workflow logs for detailed error information\n\n`;
+    
+    commentBody += `*❌ Security scan failed at ${new Date().toISOString()}*`;
+    return commentBody;
+  }
   
   try {
     // Try to read the actual trivy results

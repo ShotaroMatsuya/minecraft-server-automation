@@ -11,10 +11,11 @@ const fs = require('fs');
  * @param {string} inputs.environment - Environment name (keeping/scheduling)
  * @param {string} inputs.status - Plan execution status
  * @param {string} inputs.planFilePath - Path to plan output file
+ * @param {string} inputs.errorLog - Error log if plan failed
  * @returns {string} Formatted comment body
  */
 function createTerragruntPlanComment(inputs) {
-  const { environment, status, planFilePath } = inputs;
+  const { environment, status, planFilePath, errorLog } = inputs;
   
   // Environment-specific titles
   const titles = {
@@ -23,6 +24,44 @@ function createTerragruntPlanComment(inputs) {
   };
   
   let commentBody = `${titles[environment] || `## 📋 Plan Result (${environment})`}\n\n`;
+  
+  // Check if plan failed
+  if (status === 'failed' || status === 'init_failed' || status === 'error') {
+    commentBody += `❌ **Terragrunt plan failed**\n\n`;
+    
+    let errorMessage = '';
+    if (status === 'init_failed') {
+      errorMessage = 'Terragrunt initialization failed. Unable to initialize the working directory.';
+    } else {
+      errorMessage = 'Terragrunt plan execution failed. Unable to generate infrastructure plan.';
+    }
+    
+    commentBody += `${errorMessage}\n\n`;
+    
+    if (errorLog) {
+      commentBody += `### 🚨 Error Details\n\n`;
+      commentBody += `<details><summary>📋 View Error Log (Click to expand)</summary>\n\n`;
+      commentBody += `\`\`\`\n${errorLog.slice(0, 3000)}\`\`\`\n\n`;
+      commentBody += `</details>\n\n`;
+    }
+    
+    // Add troubleshooting information
+    commentBody += `### 🔧 Troubleshooting\n`;
+    if (status === 'init_failed') {
+      commentBody += `- Check AWS credentials and permissions\n`;
+      commentBody += `- Verify S3 bucket and DynamoDB table for Terraform state\n`;
+      commentBody += `- Ensure required providers are accessible\n`;
+    } else {
+      commentBody += `- Check Terraform configuration syntax\n`;
+      commentBody += `- Verify resource dependencies and references\n`;
+      commentBody += `- Check AWS provider credentials and permissions\n`;
+    }
+    commentBody += `- Review workflow logs for detailed error information\n`;
+    commentBody += `- Validate \`terragrunt.hcl\` configuration\n\n`;
+    
+    commentBody += `*❌ Plan failed at ${new Date().toISOString()} | Environment: ${environment}*`;
+    return commentBody;
+  }
   
   try {
     // Try to read the actual plan output

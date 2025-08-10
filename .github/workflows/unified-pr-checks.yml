@@ -31,6 +31,7 @@ jobs:
     outputs:
       has_issues: ${{ steps.check-results.outputs.has_issues }}
       results_summary: ${{ steps.check-results.outputs.results_summary }}
+      scan_status: ${{ steps.check-results.outputs.scan_status }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -63,12 +64,13 @@ jobs:
         run: |
           echo "🔍 Running Trivy security scan..."
           
-          # Run Trivy scan
+          # Run Trivy scan and capture errors
+          scan_exit_code=0
           trivy config terraform/ \
             --config trivy.yaml \
             --format table \
             --output trivy-results.txt \
-            --exit-code 0 || true
+            --exit-code 0 2> trivy-errors.txt || scan_exit_code=$?
           
           # Generate SARIF for GitHub Security tab
           trivy config terraform/ \
@@ -76,21 +78,35 @@ jobs:
             --format sarif \
             --output trivy-security.sarif \
             --exit-code 0 || true
+          
+          # Set scan status
+          if [ $scan_exit_code -eq 0 ]; then
+            echo "scan_status=success" >> "$GITHUB_OUTPUT"
+          else
+            echo "scan_status=failed" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Check Security Results
         id: check-results
         run: |
-          if [ -f "trivy-results.txt" ] && [ -s "trivy-results.txt" ]; then
+          if [ "${{ steps.trivy-scan.outputs.scan_status }}" = "failed" ]; then
+            echo "has_issues=false" >> "$GITHUB_OUTPUT"
+            echo "results_summary=Security scan failed" >> "$GITHUB_OUTPUT"
+            echo "scan_status=failed" >> "$GITHUB_OUTPUT"
+          elif [ -f "trivy-results.txt" ] && [ -s "trivy-results.txt" ]; then
             if grep -q -E "(CRITICAL|HIGH|MEDIUM)" trivy-results.txt 2>/dev/null; then
               echo "has_issues=true" >> "$GITHUB_OUTPUT"
               echo "results_summary=Security issues found" >> "$GITHUB_OUTPUT"
+              echo "scan_status=success" >> "$GITHUB_OUTPUT"
             else
               echo "has_issues=false" >> "$GITHUB_OUTPUT"
               echo "results_summary=No security issues found" >> "$GITHUB_OUTPUT"
+              echo "scan_status=success" >> "$GITHUB_OUTPUT"
             fi
           else
             echo "has_issues=false" >> "$GITHUB_OUTPUT"
             echo "results_summary=No security issues found" >> "$GITHUB_OUTPUT"
+            echo "scan_status=success" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Upload Security Results
@@ -101,6 +117,7 @@ jobs:
           path: |
             trivy-results.txt
             trivy-security.sarif
+            trivy-errors.txt
           retention-days: 30
 
       - name: Upload SARIF to GitHub Security
@@ -116,6 +133,7 @@ jobs:
     outputs:
       has_issues: ${{ steps.check-results.outputs.has_issues }}
       results_summary: ${{ steps.check-results.outputs.results_summary }}
+      scan_status: ${{ steps.check-results.outputs.scan_status }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -157,19 +175,33 @@ jobs:
         run: |
           echo "🔍 Running TFLint code quality analysis..."
           
+          scan_exit_code=0
           cd terraform
-          tflint --format=compact --config=../.tflint.hcl > ../tflint-results.txt 2>&1 || true
+          tflint --format=compact --config=../.tflint.hcl > ../tflint-results.txt 2> ../tflint-errors.txt || scan_exit_code=$?
           cd ..
+          
+          # Set scan status
+          if [ $scan_exit_code -eq 0 ] || [ $scan_exit_code -eq 2 ]; then
+            echo "scan_status=success" >> "$GITHUB_OUTPUT"
+          else
+            echo "scan_status=failed" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Check Code Quality Results
         id: check-results
         run: |
-          if [ -f "tflint-results.txt" ] && [ -s "tflint-results.txt" ]; then
+          if [ "${{ steps.tflint-scan.outputs.scan_status }}" = "failed" ]; then
+            echo "has_issues=false" >> "$GITHUB_OUTPUT"
+            echo "results_summary=Code quality scan failed" >> "$GITHUB_OUTPUT"
+            echo "scan_status=failed" >> "$GITHUB_OUTPUT"
+          elif [ -f "tflint-results.txt" ] && [ -s "tflint-results.txt" ]; then
             echo "has_issues=true" >> "$GITHUB_OUTPUT"
             echo "results_summary=Code quality issues found" >> "$GITHUB_OUTPUT"
+            echo "scan_status=success" >> "$GITHUB_OUTPUT"
           else
             echo "has_issues=false" >> "$GITHUB_OUTPUT"
             echo "results_summary=No code quality issues found" >> "$GITHUB_OUTPUT"
+            echo "scan_status=success" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Upload Code Quality Results
@@ -177,7 +209,9 @@ jobs:
         if: always()
         with:
           name: tflint-quality-results
-          path: tflint-results.txt
+          path: |
+            tflint-results.txt
+            tflint-errors.txt
           retention-days: 30
 
   terragrunt-plan:
@@ -367,12 +401,23 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const fs = require('fs');
             const commentHandler = require('./scripts/github-actions/comment-handler.js');
+            
+            // Read error log if it exists
+            let errorLog = '';
+            try {
+              errorLog = fs.readFileSync('security-results/trivy-errors.txt', 'utf8');
+            } catch (error) {
+              // Error file doesn't exist or is empty
+            }
             
             const inputs = {
               commentType: 'security',
               hasIssues: '${{ needs.security-scan.outputs.has_issues }}' === 'true',
-              resultsSummary: '${{ needs.security-scan.outputs.results_summary }}' || 'No security issues found'
+              resultsSummary: '${{ needs.security-scan.outputs.results_summary }}' || 'No security issues found',
+              scanStatus: '${{ needs.security-scan.outputs.scan_status }}' || 'success',
+              errorLog: errorLog
             };
             
             await commentHandler(github, context, inputs);
@@ -388,12 +433,23 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const fs = require('fs');
             const commentHandler = require('./scripts/github-actions/comment-handler.js');
+            
+            // Read error log if it exists
+            let errorLog = '';
+            try {
+              errorLog = fs.readFileSync('quality-results/tflint-errors.txt', 'utf8');
+            } catch (error) {
+              // Error file doesn't exist or is empty
+            }
             
             const inputs = {
               commentType: 'code-quality',
               hasIssues: '${{ needs.code-quality.outputs.has_issues }}' === 'true',
-              resultsSummary: '${{ needs.code-quality.outputs.results_summary }}' || 'No code quality issues found'
+              resultsSummary: '${{ needs.code-quality.outputs.results_summary }}' || 'No code quality issues found',
+              scanStatus: '${{ needs.code-quality.outputs.scan_status }}' || 'success',
+              errorLog: errorLog
             };
             
             await commentHandler(github, context, inputs);
@@ -410,13 +466,23 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const fs = require('fs');
             const commentHandler = require('./scripts/github-actions/comment-handler.js');
+            
+            // Read error log if it exists
+            let errorLog = '';
+            try {
+              errorLog = fs.readFileSync('plan-results/terragrunt/environments/keeping/init_output.txt', 'utf8');
+            } catch (error) {
+              // Error file doesn't exist or is empty
+            }
             
             const inputs = {
               commentType: 'terragrunt-plan',
               environment: 'keeping',
               status: '${{ needs.terragrunt-plan.outputs.plan_status_keeping }}' || 'unknown',
-              planFilePath: 'plan-results/terragrunt/environments/keeping/plan_output.txt'
+              planFilePath: 'plan-results/terragrunt/environments/keeping/plan_output.txt',
+              errorLog: errorLog
             };
             
             await commentHandler(github, context, inputs);
@@ -425,13 +491,23 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const fs = require('fs');
             const commentHandler = require('./scripts/github-actions/comment-handler.js');
+            
+            // Read error log if it exists
+            let errorLog = '';
+            try {
+              errorLog = fs.readFileSync('plan-results/terragrunt/environments/scheduling/init_output.txt', 'utf8');
+            } catch (error) {
+              // Error file doesn't exist or is empty
+            }
             
             const inputs = {
               commentType: 'terragrunt-plan',
               environment: 'scheduling',
               status: '${{ needs.terragrunt-plan.outputs.plan_status_scheduling }}' || 'unknown',
-              planFilePath: 'plan-results/terragrunt/environments/scheduling/plan_output.txt'
+              planFilePath: 'plan-results/terragrunt/environments/scheduling/plan_output.txt',
+              errorLog: errorLog
             };
             
             await commentHandler(github, context, inputs);
