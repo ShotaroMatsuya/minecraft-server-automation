@@ -310,12 +310,18 @@ jobs:
           rm -f ./terragrunt ./terraform ./tflint ./aws ./jq ./yq 2>/dev/null || true
           aqua install --all
 
+      - name: Setup Python 3.13
+        if: steps.should-run.outputs.should_run == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+
       - name: Verify Python Installation
         if: steps.should-run.outputs.should_run == 'true'
         run: |
           echo "Python version: $(python3 --version)"
           echo "Python executable path: $(which python3)"
-          echo "Lambda packaging will use this Python interpreter (managed by aqua)"
+          echo "Lambda packaging will use this Python interpreter"
 
       - name: Check if environment exists
         if: steps.should-run.outputs.should_run == 'true'

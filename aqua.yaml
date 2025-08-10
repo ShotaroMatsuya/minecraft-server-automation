@@ -20,7 +20,3 @@ packages:
   - name: mikefarah/yq@v4.44.3
   # actionlint - GitHub Actions linter
   - name: rhysd/actionlint@v1.7.1
-  # Python - For Lambda packaging
-  - name: indygreg/python-build-standalone@20240726
-    vars:
-      python_version: 3.13.0
