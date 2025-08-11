@@ -303,17 +303,33 @@ function createTerragruntApplyComment(inputs) {
  * @param {Object} context - GitHub Actions context
  * @param {string} commentBody - Comment body content
  * @param {string} environment - Environment name
+ * @param {number} issueNumber - Issue/PR number (optional, defaults to context.issue.number)
  */
-async function updateTerragruntApplyComment(github, context, commentBody, environment) {
+async function updateTerragruntApplyComment(github, context, commentBody, environment, issueNumber = null) {
   const commentIdentifier = `<!-- terragrunt-apply-${environment} -->`;
   const fullCommentBody = `${commentIdentifier}\n${commentBody}`;
   
+  // Use provided issueNumber or fall back to context.issue.number
+  const targetIssueNumber = issueNumber || context.issue.number;
+  
+  console.log(`Updating apply comment for ${environment} on issue/PR #${targetIssueNumber}`);
+  console.log(`Context repo: ${context.repo ? `${context.repo.owner}/${context.repo.repo}` : 'undefined'}`);
+  
   try {
+    // Validate required context properties
+    if (!context.repo || !context.repo.owner || !context.repo.repo) {
+      throw new Error('Invalid context: missing repo information');
+    }
+    
+    if (!targetIssueNumber) {
+      throw new Error('No issue number provided');
+    }
+    
     // Get existing comments
     const { data: comments } = await github.rest.issues.listComments({
       owner: context.repo.owner,
       repo: context.repo.repo,
-      issue_number: context.issue.number,
+      issue_number: targetIssueNumber,
     });
     
     // Find existing apply comment for this environment
@@ -335,7 +351,7 @@ async function updateTerragruntApplyComment(github, context, commentBody, enviro
       await github.rest.issues.createComment({
         owner: context.repo.owner,
         repo: context.repo.repo,
-        issue_number: context.issue.number,
+        issue_number: targetIssueNumber,
         body: fullCommentBody,
       });
       console.log(`Created new apply comment for ${environment} environment`);
