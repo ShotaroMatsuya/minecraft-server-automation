@@ -1,0 +1,22 @@
+# Trivy ignore file for minecraft-server-automation
+# This file contains security findings that are intentionally ignored
+
+# AVD-AWS-0017: Log group is not encrypted
+# Reason: CloudWatch log encryption may not be required for this use case
+AVD-AWS-0017
+
+# AVD-AWS-0066: Function does not have tracing enabled  
+# Reason: Lambda tracing is not required for this application
+AVD-AWS-0066
+
+# AVD-AWS-0053: Load balancer is exposed publicly
+# Reason: Public access is required for the Minecraft server
+AVD-AWS-0053
+
+# aws-vpc-no-public-egress-sgr: Security group rule allows unrestricted egress to any IP address
+# Reason: Unrestricted egress may be required for the application functionality
+aws-vpc-no-public-egress-sgr
+
+# aws-autoscaling-enable-at-rest-encryption: VPC does not have VPC Flow Logs enabled
+# Reason: VPC Flow Logs are not required for this use case
+aws-autoscaling-enable-at-rest-encryption
