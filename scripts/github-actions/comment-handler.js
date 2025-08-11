@@ -99,8 +99,9 @@ async function main(github, context, inputs) {
         // Use prNumber from inputs if provided (from apply workflow)
         const issueNumber = inputs.prNumber || context.issue.number;
         console.log(`Using issue number: ${issueNumber} (from ${inputs.prNumber ? 'inputs.prNumber' : 'context.issue.number'})`);
+        console.log(`Context validation - repo: ${context.repo ? `${context.repo.owner}/${context.repo.repo}` : 'undefined'}`);
         
-        await updateTerragruntApplyComment(github, { ...context, issue: { number: issueNumber } }, commentBody, inputs.environment);
+        await updateTerragruntApplyComment(github, context, commentBody, inputs.environment, issueNumber);
         break;
         
       default:
