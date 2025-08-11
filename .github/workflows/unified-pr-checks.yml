@@ -274,9 +274,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.13'
-                  # Extract error summary using terragrunt-error-helper.sh
-                  bash scripts/github-actions/terragrunt-error-helper.sh tflint-errors.txt > tflint-error-summary.txt || true
-
       - name: Create Mapping Yaml for scheduling
         if: steps.should-run.outputs.should_run == 'true' && matrix.environment == 'scheduling'
         working-directory: terraform/scheduling
