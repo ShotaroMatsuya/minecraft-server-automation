@@ -96,13 +96,6 @@ jobs:
             --output trivy-results.txt \
             --exit-code 0 2> trivy-errors.txt || scan_exit_code=$?
           
-          # Generate JSON output for comment processing
-          trivy config terraform/ \
-            --config trivy.yaml \
-            --format json \
-            --output trivy-results.json \
-            --exit-code 0 || true
-          
           # Generate SARIF for GitHub Security tab
           trivy config terraform/ \
             --config trivy.yaml \
@@ -147,7 +140,6 @@ jobs:
           name: trivy-security-results
           path: |
             trivy-results.txt
-            trivy-results.json
             trivy-security.sarif
             trivy-errors.txt
           retention-days: 30
@@ -340,6 +332,19 @@ jobs:
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Create Mapping Yaml for scheduling
+        if: steps.should-run.outputs.should_run == 'true' && matrix.environment == 'scheduling'
+        working-directory: terraform/scheduling
+        run: |
+          cat << EOF > secrets.yaml
+          OPS: ${{ secrets.WHITELIST_PLAYERS }}
+          WHITELIST: ${{ secrets.WHITELIST_PLAYERS }}
+          WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
+          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+          S3_PREFIX_NAME: ${{ secrets.S3_PREFIX_NAME }}
+          FILTERING_STRINGS: ${{ secrets.FILTERING_STRINGS }}
+          EOF
 
       - name: Terragrunt Format Check
         id: fmt-check
