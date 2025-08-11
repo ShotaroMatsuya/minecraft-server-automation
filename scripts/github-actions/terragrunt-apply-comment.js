@@ -161,19 +161,56 @@ function getApplyStatusInfo(status) {
  * @returns {string} Comment body markdown
  */
 function createTerragruntApplyComment(inputs) {
-  const { environment, status, applyFilePath, initErrorLogPath, applyErrorLogPath, artifactBasePath } = inputs;
+  const { 
+    environment, 
+    status, 
+    applyFilePath, 
+    initErrorLogPath, 
+    applyErrorLogPath, 
+    artifactBasePath,
+    resourcesApplied,
+    resourcesChanged, 
+    resourcesDestroyed
+  } = inputs;
   
   console.log(`Creating apply comment for ${environment} environment with status: ${status}`);
   
-  // Read apply output
-  const applyOutput = readApplyFileWithFallback(
-    applyFilePath,
-    environment,
-    'apply_output.txt',
-    artifactBasePath || 'apply-results'
-  );
+  // Use provided resource counts if available (from apply workflow), otherwise parse from output
+  let applyResults;
+  if (resourcesApplied !== undefined || resourcesChanged !== undefined || resourcesDestroyed !== undefined) {
+    console.log(`Using provided resource counts: applied=${resourcesApplied}, changed=${resourcesChanged}, destroyed=${resourcesDestroyed}`);
+    
+    const totalChanges = (parseInt(resourcesApplied) || 0) + (parseInt(resourcesChanged) || 0) + (parseInt(resourcesDestroyed) || 0);
+    let summary;
+    if (totalChanges === 0) {
+      summary = 'No changes needed - infrastructure is up-to-date';
+    } else {
+      const parts = [];
+      if (resourcesApplied > 0) parts.push(`${resourcesApplied} added`);
+      if (resourcesChanged > 0) parts.push(`${resourcesChanged} changed`);
+      if (resourcesDestroyed > 0) parts.push(`${resourcesDestroyed} destroyed`);
+      summary = `Apply completed: ${parts.join(', ')}`;
+    }
+    
+    applyResults = {
+      resourcesApplied: parseInt(resourcesApplied) || 0,
+      resourcesChanged: parseInt(resourcesChanged) || 0,
+      resourcesDestroyed: parseInt(resourcesDestroyed) || 0,
+      summary
+    };
+  } else {
+    // Read apply output to parse results
+    const applyOutput = readApplyFileWithFallback(
+      applyFilePath,
+      environment,
+      'apply_output.txt',
+      artifactBasePath || 'apply-results'
+    );
+    
+    applyResults = parseApplyResults(applyOutput);
+  }
   
-  // Read error logs if available
+  // Read error logs if available (still needed for error display)
   const initErrors = readApplyFileWithFallback(
     initErrorLogPath,
     environment,
@@ -188,8 +225,6 @@ function createTerragruntApplyComment(inputs) {
     artifactBasePath || 'apply-results'
   );
   
-  // Parse apply results
-  const applyResults = parseApplyResults(applyOutput);
   const statusInfo = getApplyStatusInfo(status);
   
   // Build comment body
@@ -214,6 +249,14 @@ function createTerragruntApplyComment(inputs) {
     }
     commentBody += `\n`;
   }
+  
+  // Try to read apply output for display (optional if we have resource counts)
+  const applyOutput = readApplyFileWithFallback(
+    applyFilePath,
+    environment,
+    'apply_output.txt',
+    artifactBasePath || 'apply-results'
+  );
   
   // Add apply output if available
   if (applyOutput) {
