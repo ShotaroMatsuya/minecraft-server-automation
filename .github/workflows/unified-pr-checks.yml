@@ -313,7 +313,6 @@ jobs:
         if: steps.should-run.outputs.should_run == 'true' && steps.check-env.outputs.exists == 'true'
         run: |
           cd "${{ matrix.path }}"
-          format_exit_code=0
           
           # Run format check and capture output
           if terragrunt fmt --check --terragrunt-non-interactive 2>&1; then
@@ -321,7 +320,6 @@ jobs:
             # Create empty error file for consistency
             touch format_errors.txt
           else
-            format_exit_code=$?
             echo "status=needs_formatting" >> "$GITHUB_OUTPUT"
             # Capture actual error for failed format check
             terragrunt fmt --check --terragrunt-non-interactive > /dev/null 2> format_errors.txt || true
