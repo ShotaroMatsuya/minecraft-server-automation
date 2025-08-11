@@ -332,7 +332,6 @@ jobs:
         if: steps.should-run.outputs.should_run == 'true' && steps.check-env.outputs.exists == 'true'
         run: |
           cd "${{ matrix.path }}"
-          validate_exit_code=0
           
           # Run validation and capture output
           if terragrunt validate --terragrunt-non-interactive 2>&1; then
@@ -340,7 +339,6 @@ jobs:
             # Create empty error file for consistency
             touch validate_errors.txt
           else
-            validate_exit_code=$?
             echo "status=failed" >> "$GITHUB_OUTPUT"
             # Capture actual error for failed validation
             terragrunt validate --terragrunt-non-interactive > /dev/null 2> validate_errors.txt || true
