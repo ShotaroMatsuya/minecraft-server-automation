@@ -200,6 +200,30 @@ jobs:
           }
           "
 
+      - name: Debug Final Outputs
+        run: |
+          echo "=== Final Check Changes Debug ==="
+          echo "All outputs from this job:"
+          echo "  changes: '${{ steps.changes.outputs.changes }}'"
+          echo "  keeping_changes: '${{ steps.changes.outputs.keeping_changes }}'"
+          echo "  scheduling_changes: '${{ steps.changes.outputs.scheduling_changes }}'"
+          echo "  pr_number: '${{ steps.pr_search.outputs.pr_number }}'"
+          echo "  labels: '${{ steps.pr_labels.outputs.labels }}'"
+          echo "  should_run_keeping: '${{ steps.check_targets.outputs.should_run_keeping }}'"
+          echo "  should_run_scheduling: '${{ steps.check_targets.outputs.should_run_scheduling }}'"
+          echo ""
+          echo "Expected workflow behavior:"
+          if [ "${{ steps.check_targets.outputs.should_run_keeping }}" = "true" ]; then
+            echo "  ✅ apply-keeping job SHOULD run"
+          else
+            echo "  ❌ apply-keeping job should NOT run"
+          fi
+          if [ "${{ steps.check_targets.outputs.should_run_scheduling }}" = "true" ]; then
+            echo "  ✅ apply-scheduling job SHOULD run"
+          else
+            echo "  ❌ apply-scheduling job should NOT run"
+          fi
+
   apply-keeping:
     name: Terragrunt Apply - Keeping
     runs-on: ubuntu-latest
@@ -536,13 +560,43 @@ jobs:
     needs: [check-changes, apply-keeping]
     if: |
       needs.check-changes.outputs.should_run_scheduling == 'true' && 
-      (needs.apply-keeping.outputs.apply_status == 'success' || needs.apply-keeping.result == 'skipped')
+      (needs.apply-keeping.result == 'skipped' || needs.apply-keeping.result == 'success')
     outputs:
       apply_status: ${{ steps.apply.outputs.status }}
       resources_applied: ${{ steps.apply.outputs.resources_applied }}
       resources_changed: ${{ steps.apply.outputs.resources_changed }}
       resources_destroyed: ${{ steps.apply.outputs.resources_destroyed }}
     steps:
+      - name: Debug Job Conditions for Scheduling
+        run: |
+          echo "=== Debugging apply-scheduling job conditions ==="
+          echo "should_run_scheduling output: '${{ needs.check-changes.outputs.should_run_scheduling }}'"
+          echo "Type check: '${{ needs.check-changes.outputs.should_run_scheduling }}' == 'true'"
+          echo "Condition 1 result: ${{ needs.check-changes.outputs.should_run_scheduling == 'true' }}"
+          
+          echo "apply-keeping result: '${{ needs.apply-keeping.result }}'"
+          echo "apply-keeping.result == 'skipped': ${{ needs.apply-keeping.result == 'skipped' }}"
+          echo "apply-keeping.result == 'success': ${{ needs.apply-keeping.result == 'success' }}"
+          echo "Condition 2 result: ${{ needs.apply-keeping.result == 'skipped' || needs.apply-keeping.result == 'success' }}"
+          
+          echo "Overall condition result: ${{ needs.check-changes.outputs.should_run_scheduling == 'true' && (needs.apply-keeping.result == 'skipped' || needs.apply-keeping.result == 'success') }}"
+          
+          echo "All check-changes outputs:"
+          echo "  changes: '${{ needs.check-changes.outputs.changes }}'"
+          echo "  keeping_changes: '${{ needs.check-changes.outputs.keeping_changes }}'"
+          echo "  scheduling_changes: '${{ needs.check-changes.outputs.scheduling_changes }}'"
+          echo "  pr_number: '${{ needs.check-changes.outputs.pr_number }}'"
+          echo "  labels: '${{ needs.check-changes.outputs.labels }}'"
+          echo "  should_run_keeping: '${{ needs.check-changes.outputs.should_run_keeping }}'"
+          echo "  should_run_scheduling: '${{ needs.check-changes.outputs.should_run_scheduling }}'"
+          
+          echo "All apply-keeping outputs and results:"
+          echo "  apply-keeping.result: '${{ needs.apply-keeping.result }}'"
+          echo "  apply-keeping.outputs.apply_status: '${{ needs.apply-keeping.outputs.apply_status }}'"
+          echo "  apply-keeping.outputs.resources_applied: '${{ needs.apply-keeping.outputs.resources_applied }}'"
+          echo "  apply-keeping.outputs.resources_changed: '${{ needs.apply-keeping.outputs.resources_changed }}'"
+          echo "  apply-keeping.outputs.resources_destroyed: '${{ needs.apply-keeping.outputs.resources_destroyed }}'"
+          
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -881,6 +935,31 @@ jobs:
         needs.apply-scheduling.outputs.apply_status == 'init_failed'
       )
     steps:
+      - name: Debug Comment Job Conditions
+        run: |
+          echo "=== Debugging comment-apply-results job conditions ==="
+          echo "PR number: '${{ needs.check-changes.outputs.pr_number }}'"
+          echo "PR number != '': ${{ needs.check-changes.outputs.pr_number != '' }}"
+          echo "PR number != null: ${{ needs.check-changes.outputs.pr_number != null }}"
+          
+          echo "Job results:"
+          echo "  apply-keeping.result: '${{ needs.apply-keeping.result }}'"
+          echo "  apply-scheduling.result: '${{ needs.apply-scheduling.result }}'"
+          
+          echo "Job status outputs:"
+          echo "  apply-keeping.outputs.apply_status: '${{ needs.apply-keeping.outputs.apply_status }}'"
+          echo "  apply-scheduling.outputs.apply_status: '${{ needs.apply-scheduling.outputs.apply_status }}'"
+          
+          echo "Individual condition checks:"
+          echo "  apply-keeping.result == 'success': ${{ needs.apply-keeping.result == 'success' }}"
+          echo "  apply-scheduling.result == 'success': ${{ needs.apply-scheduling.result == 'success' }}"
+          echo "  apply-keeping.result == 'failure': ${{ needs.apply-keeping.result == 'failure' }}"
+          echo "  apply-scheduling.result == 'failure': ${{ needs.apply-scheduling.result == 'failure' }}"
+          echo "  apply-keeping.outputs.apply_status == 'plan_failed': ${{ needs.apply-keeping.outputs.apply_status == 'plan_failed' }}"
+          echo "  apply-scheduling.outputs.apply_status == 'plan_failed': ${{ needs.apply-scheduling.outputs.apply_status == 'plan_failed' }}"
+          echo "  apply-keeping.outputs.apply_status == 'init_failed': ${{ needs.apply-keeping.outputs.apply_status == 'init_failed' }}"
+          echo "  apply-scheduling.outputs.apply_status == 'init_failed': ${{ needs.apply-scheduling.outputs.apply_status == 'init_failed' }}"
+          
       - name: Checkout
         uses: actions/checkout@v4
 
