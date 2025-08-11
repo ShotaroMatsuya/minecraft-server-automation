@@ -61,17 +61,12 @@ function readApplyFileWithFallback(primaryPath, environment, fileName, artifactB
     try {
       if (fs.existsSync(filePath)) {
         const content = fs.readFileSync(filePath, 'utf8');
-        console.log(`✅ Successfully read ${fileName} from path: ${filePath}`);
-        console.log(`   File size: ${content.length} characters`);
         return content;
       }
     } catch (error) {
-      console.log(`⚠️ Failed to read ${fileName} from ${filePath}: ${error.message}`);
     }
   }
   
-  console.log(`❌ Could not find ${fileName} in any of the attempted paths for ${environment} environment`);
-  console.log(`   Tried paths: ${pathsToTry.join(', ')}`);
   return '';
 }
 
@@ -173,12 +168,10 @@ function createTerragruntApplyComment(inputs) {
     resourcesDestroyed
   } = inputs;
   
-  console.log(`Creating apply comment for ${environment} environment with status: ${status}`);
   
   // Use provided resource counts if available (from apply workflow), otherwise parse from output
   let applyResults;
   if (resourcesApplied !== undefined || resourcesChanged !== undefined || resourcesDestroyed !== undefined) {
-    console.log(`Using provided resource counts: applied=${resourcesApplied}, changed=${resourcesChanged}, destroyed=${resourcesDestroyed}`);
     
     const totalChanges = (parseInt(resourcesApplied) || 0) + (parseInt(resourcesChanged) || 0) + (parseInt(resourcesDestroyed) || 0);
     let summary;
@@ -312,8 +305,6 @@ async function updateTerragruntApplyComment(github, context, commentBody, enviro
   // Use provided issueNumber or fall back to context.issue.number
   const targetIssueNumber = issueNumber || context.issue.number;
   
-  console.log(`Updating apply comment for ${environment} on issue/PR #${targetIssueNumber}`);
-  console.log(`Context repo: ${context.repo ? `${context.repo.owner}/${context.repo.repo}` : 'undefined'}`);
   
   try {
     // Validate required context properties
@@ -345,7 +336,6 @@ async function updateTerragruntApplyComment(github, context, commentBody, enviro
         comment_id: existingComment.id,
         body: fullCommentBody,
       });
-      console.log(`Updated existing apply comment for ${environment} environment`);
     } else {
       // Create new comment
       await github.rest.issues.createComment({
@@ -354,7 +344,6 @@ async function updateTerragruntApplyComment(github, context, commentBody, enviro
         issue_number: targetIssueNumber,
         body: fullCommentBody,
       });
-      console.log(`Created new apply comment for ${environment} environment`);
     }
   } catch (error) {
     console.error(`Error updating apply comment for ${environment}:`, error);

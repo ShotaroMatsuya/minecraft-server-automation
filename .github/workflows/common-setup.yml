@@ -1,0 +1,31 @@
+name: Common Setup
+on:
+  workflow_call:
+    inputs:
+      aws-role:
+        required: true
+        type: string
+      python-version:
+        required: false
+        type: string
+        default: '3.13'
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ inputs.aws-role }}
+          role-session-name: github-actions-common-session
+          aws-region: ap-northeast-1
+      - name: Setup aqua
+        uses: aquaproj/aqua-installer@v4.0.2
+        with:
+          aqua_version: v2.30.0
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}

@@ -59,21 +59,13 @@ function createSecurityComment(inputs) {
     // Try to read the trivy JSON results first, fallback to table format
     let trivyData = null;
     try {
-      const trivyJson = fs.readFileSync('security-results/trivy-security.sarif', 'utf8');
-      // SARIF format is complex, let's try the table format first
-      throw new Error('Use table format for now');
+      const jsonResults = fs.readFileSync('security-results/trivy-results.json', 'utf8');
+      trivyData = JSON.parse(jsonResults);
     } catch {
-      // Fallback to reading table format and try to parse JSON from a different location
-      try {
-        const jsonResults = fs.readFileSync('security-results/trivy-results.json', 'utf8');
-        trivyData = JSON.parse(jsonResults);
-      } catch {
-        // Use table format processing
-      }
+      // Use table format processing
     }
 
     if (trivyData) {
-      // Process JSON format data
       const severityCounts = {
         UNKNOWN: 0,
         LOW: 0,
@@ -102,41 +94,30 @@ function createSecurityComment(inputs) {
 
       if (inputs.hasIssues && totalFindings > 0) {
         commentBody += `⚠️ **Security issues detected**\n\n`;
-        
-        // Add severity count summary in code block
+        // ...existing code for summary, table, links, details...
         commentBody += `**Findings by Severity:**\n`;
         commentBody += `\`\`\`\n`;
         commentBody += `UNKNOWN: ${severityCounts.UNKNOWN}, LOW: ${severityCounts.LOW}, MEDIUM: ${severityCounts.MEDIUM}, HIGH: ${severityCounts.HIGH}, CRITICAL: ${severityCounts.CRITICAL}\n`;
         commentBody += `\`\`\`\n\n`;
-        
-        // Add table with findings as proper Markdown table
         commentBody += `| Severity | Location | Error Title | ID |\n`;
         commentBody += `|----------|----------|-------------|----|\n`;
-        
         findings.slice(0, 20).forEach(finding => {
           const location = finding.location || 'N/A';
-          const title = finding.title.replace(/\|/g, '\\|'); // Escape pipes for table
+          const title = finding.title.replace(/\|/g, '\\|');
           commentBody += `| ${finding.severity} | ${location} | ${title} | ${finding.id} |\n`;
         });
-        
         if (findings.length > 20) {
           commentBody += `| ... | ... | ... | *${findings.length - 20} more findings* |\n`;
         }
         commentBody += `\n`;
-        
-        // Add Scan Coverage section for security issues found
         commentBody += `### 📊 Scan Coverage\n`;
         commentBody += `- **🔍 Files Scanned**: Terraform configuration files\n`;
         commentBody += `- **🛡️ Tool**: Trivy v0.58.1\n`;
         commentBody += `- **📋 Checks**: AWS, Security, Best Practices\n\n`;
-        
-        // Add CI/CD links section
         commentBody += `### 🔗 Links\n\n`;
         commentBody += `- 📊 **[View GitHub Actions Run](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})**\n`;
         commentBody += `- 📦 **[Download Security Artifacts](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}#artifacts)**\n`;
         commentBody += `- 🔍 **[View Security Scan Job](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/job/${process.env.GITHUB_JOB})**\n\n`;
-        
-        // Add collapsible section for detailed JSON results
         commentBody += `<details><summary>📋 View Full Security Report (Click to expand)</summary>\n\n`;
         commentBody += `\`\`\`json\n${JSON.stringify(trivyData, null, 2).slice(0, 5000)}\`\`\`\n\n`;
         commentBody += `</details>\n\n`;
@@ -147,20 +128,14 @@ function createSecurityComment(inputs) {
         commentBody += `UNKNOWN: 0, LOW: 0, MEDIUM: 0, HIGH: 0, CRITICAL: 0\n`;
         commentBody += `\`\`\`\n\n`;
         commentBody += `Your infrastructure code follows security best practices.\n\n`;
-        
-        // Add Scan Coverage section for no security issues
         commentBody += `### 📊 Scan Coverage\n`;
         commentBody += `- **🔍 Files Scanned**: Terraform configuration files\n`;
         commentBody += `- **🛡️ Tool**: Trivy v0.58.1\n`;
         commentBody += `- **📋 Checks**: AWS, Security, Best Practices\n\n`;
-        
-        // Add CI/CD links section
         commentBody += `### 🔗 Links\n\n`;
         commentBody += `- 📊 **[View GitHub Actions Run](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID})**\n`;
         commentBody += `- 📦 **[Download Security Artifacts](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}#artifacts)**\n`;
         commentBody += `- 🔍 **[View Security Scan Job](${process.env.GITHUB_SERVER_URL}/${process.env.GITHUB_REPOSITORY}/actions/runs/${process.env.GITHUB_RUN_ID}/job/${process.env.GITHUB_JOB})**\n\n`;
-        
-        // Add collapsible section for detailed JSON results even when no issues
         commentBody += `<details><summary>📋 View Full Security Report (Click to expand)</summary>\n\n`;
         commentBody += `\`\`\`json\n${JSON.stringify(trivyData, null, 2).slice(0, 5000)}\`\`\`\n\n`;
         commentBody += `</details>\n\n`;

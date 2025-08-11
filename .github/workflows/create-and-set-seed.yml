@@ -42,19 +42,10 @@ jobs:
       with:
         aqua_version: v2.30.0
 
-    - name: Install tools via aqua
-      run: aqua install --all
-
     - name: Setup Python 3.13
       uses: actions/setup-python@v5
       with:
         python-version: '3.13'
-
-    - name: Verify Python Installation
-      run: |
-        echo "Python version: $(python3 --version)"
-        echo "Python executable path: $(which python3)"
-        echo "Lambda packaging will use this Python interpreter"
 
     - name: Test Toggle Display Feature
       run: |

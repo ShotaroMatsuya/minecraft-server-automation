@@ -99,7 +99,6 @@ function createTerragruntPlanComment(inputs) {
       const content = fs.readFileSync(filePath, 'utf8');
       return stripAnsiCodes(content);
     } catch (error) {
-      console.log(`DEBUG: Failed to read ${filePath}: ${error.message}`);
       return '';
     }
   }
@@ -131,10 +130,8 @@ function createTerragruntPlanComment(inputs) {
   
   // Enhanced file discovery for both environments (fallback mechanism)
   if (inputs.artifactBasePath && (!planErrorLog || planErrorLog.trim() === '')) {
-    console.log(`DEBUG: Attempting dynamic file discovery for ${environment} environment`);
     
     const allPlanFiles = findPlanFiles(inputs.artifactBasePath, environment);
-    console.log('DEBUG: Found plan files:', allPlanFiles);
     
     // Try different possible paths for plan_output.txt based on actual artifact structure
     // With merge-multiple: false, artifacts are downloaded as separate directories
@@ -147,16 +144,13 @@ function createTerragruntPlanComment(inputs) {
       ...allPlanFiles.filter(f => f.includes('plan_output'))
     ];
     
-    console.log('DEBUG: Trying plan paths:', possiblePlanPaths);
     
     for (const planPath of possiblePlanPaths) {
       if (planPath && planPath !== 'undefined') {
         try {
           planErrorLog = stripAnsiCodes(fs.readFileSync(planPath, 'utf8'));
-          console.log(`DEBUG: Successfully read plan from ${planPath}, size: ${planErrorLog.length} bytes`);
           break;
         } catch (error) {
-          console.log(`DEBUG: Failed to read plan from ${planPath}: ${error.message}`);
         }
       }
     }
@@ -174,10 +168,8 @@ function createTerragruntPlanComment(inputs) {
       for (const errorPath of possibleErrorPaths) {
         try {
           planErrorLog = stripAnsiCodes(fs.readFileSync(errorPath, 'utf8'));
-          console.log(`DEBUG: Successfully read errors from ${errorPath}, size: ${planErrorLog.length} bytes`);
           break;
         } catch (error) {
-          console.log(`DEBUG: Failed to read errors from ${errorPath}: ${error.message}`);
         }
       }
     }
@@ -193,7 +185,6 @@ function createTerragruntPlanComment(inputs) {
       for (const initPath of initPaths) {
         initErrorLog = readFileFromPath(initPath);
         if (initErrorLog) {
-          console.log(`DEBUG: Successfully read init from ${initPath}, size: ${initErrorLog.length} bytes`);
           break;
         }
       }
@@ -209,7 +200,6 @@ function createTerragruntPlanComment(inputs) {
       for (const formatPath of formatPaths) {
         formatErrorLog = readFileFromPath(formatPath);
         if (formatErrorLog) {
-          console.log(`DEBUG: Successfully read format from ${formatPath}, size: ${formatErrorLog.length} bytes`);
           break;
         }
       }
@@ -225,7 +215,6 @@ function createTerragruntPlanComment(inputs) {
       for (const validatePath of validatePaths) {
         validateErrorLog = readFileFromPath(validatePath);
         if (validateErrorLog) {
-          console.log(`DEBUG: Successfully read validate from ${validatePath}, size: ${validateErrorLog.length} bytes`);
           break;
         }
       }
@@ -244,7 +233,6 @@ function createTerragruntPlanComment(inputs) {
       if (planPath) {
         planErrorLog = readFileFromPath(planPath);
         if (planErrorLog && planErrorLog.trim() !== '') {
-          console.log(`DEBUG: Successfully read plan from primary path: ${planPath}, size: ${planErrorLog.length} bytes`);
           break;
         }
       }
@@ -305,10 +293,9 @@ function createTerragruntPlanComment(inputs) {
   // Based on terraform plan -detailed-exitcode: 0=no changes, 1=error, 2=changes
   let planContentForCheck = '';
   try {
-    planContentForCheck = stripAnsiCodes(fs.readFileSync(planFilePath, 'utf8'));
-    console.log(`DEBUG: Successfully read planFilePath: ${planFilePath}, size: ${planContentForCheck.length} bytes`);
+  planContentForCheck = stripAnsiCodes(fs.readFileSync(planFilePath, 'utf8'));
   } catch (error) {
-    console.log(`DEBUG: Failed to read planFilePath: ${planFilePath}, error: ${error.message}`);
+  // Failed to read planFilePath
     
     // Try alternative paths for plan content check
     const alternativePaths = [
@@ -319,17 +306,14 @@ function createTerragruntPlanComment(inputs) {
     for (const altPath of alternativePaths) {
       try {
         planContentForCheck = stripAnsiCodes(fs.readFileSync(altPath, 'utf8'));
-        console.log(`DEBUG: Successfully read planContentForCheck from ${altPath}, size: ${planContentForCheck.length} bytes`);
         break;
       } catch (altError) {
-        console.log(`DEBUG: Failed to read planContentForCheck from ${altPath}: ${altError.message}`);
       }
     }
     
     // Fallback to planErrorLog if no files found
     if (planContentForCheck.trim() === '') {
-      planContentForCheck = planErrorLog || '';
-      console.log(`DEBUG: Using planErrorLog fallback, size: ${planContentForCheck.length} bytes`);
+  planContentForCheck = planErrorLog || '';
     }
   }
   
@@ -508,13 +492,9 @@ function createTerragruntPlanComment(inputs) {
     // Try to read the actual plan output
     let planOutput = '';
     try {
-      planOutput = stripAnsiCodes(fs.readFileSync(planFilePath, 'utf8'));
-      console.log(`DEBUG: Successfully read planOutput from ${planFilePath}, size: ${planOutput.length} bytes`);
-      if (planOutput.length > 0) {
-        console.log(`DEBUG: Plan output preview: ${planOutput.substring(0, 200)}...`);
-      }
+    planOutput = stripAnsiCodes(fs.readFileSync(planFilePath, 'utf8'));
     } catch (planReadError) {
-      console.log(`DEBUG: Failed to read planOutput from ${planFilePath}, error: ${planReadError.message}`);
+    // Failed to read planOutput
       
       // Try alternative paths for plan output
       const alternativePlanPaths = [
@@ -525,18 +505,15 @@ function createTerragruntPlanComment(inputs) {
       for (const altPath of alternativePlanPaths) {
         try {
           planOutput = stripAnsiCodes(fs.readFileSync(altPath, 'utf8'));
-          console.log(`DEBUG: Successfully read planOutput from alternative path: ${altPath}, size: ${planOutput.length} bytes`);
           break;
         } catch (altError) {
-          console.log(`DEBUG: Failed to read planOutput from ${altPath}: ${altError.message}`);
         }
       }
       
       // If plan_output.txt doesn't exist or is empty, try plan_errors.txt
       // Sometimes Terragrunt outputs plan to stderr
       if (planOutput.trim() === '' && planErrorLog && planErrorLog.trim() !== '') {
-        planOutput = planErrorLog;
-        console.log(`DEBUG: Using planErrorLog fallback, size: ${planOutput.length} bytes`);
+  planOutput = planErrorLog;
       }
     }
     
@@ -583,10 +560,6 @@ function createTerragruntPlanComment(inputs) {
     const toChange = changeMatches ? parseInt(changeMatches[1]) : 0;
     const toDestroy = destroyMatches ? parseInt(destroyMatches[1]) : 0;
     
-    console.log(`DEBUG: Plan parsing results - toAdd: ${toAdd}, toChange: ${toChange}, toDestroy: ${toDestroy}`);
-    console.log(`DEBUG: addMatches:`, addMatches);
-    console.log(`DEBUG: changeMatches:`, changeMatches);
-    console.log(`DEBUG: destroyMatches:`, destroyMatches);
     
     // Show summary message based on status and plan content
     if (status === 'has_changes' || toAdd > 0 || toChange > 0) {

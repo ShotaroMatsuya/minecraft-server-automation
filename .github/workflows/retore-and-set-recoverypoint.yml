@@ -43,19 +43,11 @@ jobs:
       with:
         aqua_version: v2.30.0
 
-    - name: Install tools via aqua
-      run: aqua install --all
 
     - name: Setup Python 3.13
       uses: actions/setup-python@v5
       with:
         python-version: '3.13'
-
-    - name: Verify Python Installation
-      run: |
-        echo "Python version: $(python3 --version)"
-        echo "Python executable path: $(which python3)"
-        echo "Lambda packaging will use this Python interpreter"
 
     - name: Create Mapping Yaml
       working-directory: terragrunt/environments/scheduling
@@ -92,7 +84,6 @@ jobs:
           -var="set_recovery_point=true" \
           -var="set_seed_value=false"
         TF_PLAN_EXIT_CODE=$?
-        echo "exit code is ${TF_PLAN_EXIT_CODE}"
         echo "TF_PLAN_EXIT_CODE=${TF_PLAN_EXIT_CODE}" >> "$GITHUB_ENV"
 
     - name: Apply Terragrunt
