@@ -204,30 +204,19 @@ jobs:
     name: Terragrunt Apply - Keeping
     runs-on: ubuntu-latest
     needs: [check-changes]
+    if: needs.check-changes.outputs.should_run_keeping == 'true'
     outputs:
-      apply_status: ${{ steps.determine-status.outputs.status }}
-      resources_applied: ${{ steps.apply.outputs.resources_applied || 0 }}
-      resources_changed: ${{ steps.apply.outputs.resources_changed || 0 }}
-      resources_destroyed: ${{ steps.apply.outputs.resources_destroyed || 0 }}
+      apply_status: ${{ steps.apply.outputs.status }}
+      resources_applied: ${{ steps.apply.outputs.resources_applied }}
+      resources_changed: ${{ steps.apply.outputs.resources_changed }}
+      resources_destroyed: ${{ steps.apply.outputs.resources_destroyed }}
     steps:
-      - name: Check if job should run
-        id: should-run
-        run: |
-          SHOULD_RUN="${{ needs.check-changes.outputs.should_run_keeping }}"
-          echo "should_run_keeping: $SHOULD_RUN"
-          if [ "$SHOULD_RUN" = "true" ]; then
-            echo "✅ Job should run"
-            echo "run=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "⏭️ Job should be skipped"
-            echo "run=false" >> "$GITHUB_OUTPUT"
-          fi
-
       - name: Debug Job Conditions
         run: |
           echo "=== Debugging apply-keeping job conditions ==="
           echo "should_run_keeping output: '${{ needs.check-changes.outputs.should_run_keeping }}'"
-          echo "Job will run: '${{ steps.should-run.outputs.run }}'"
+          echo "Type check: '${{ needs.check-changes.outputs.should_run_keeping }}' == 'true'"
+          echo "Condition result: ${{ needs.check-changes.outputs.should_run_keeping == 'true' }}"
           echo "All check-changes outputs:"
           echo "  changes: '${{ needs.check-changes.outputs.changes }}'"
           echo "  keeping_changes: '${{ needs.check-changes.outputs.keeping_changes }}'"
@@ -294,7 +283,7 @@ jobs:
 
       - name: Terragrunt Apply - Keeping
         id: apply
-        if: steps.should-run.outputs.run == 'true' && steps.check-env.outputs.exists == 'true'
+        if: steps.check-env.outputs.exists == 'true'
         working-directory: terragrunt/environments/keeping
         run: |
           # Function to handle state lock issues
@@ -303,19 +292,25 @@ jobs:
             local retry_count=0
             
             while [ "$retry_count" -lt "$max_retries" ]; do
-              echo "=== Attempt $((retry_count + 1))/$max_retries ==="
+              echo "=== Keeping Environment - Attempt $((retry_count + 1))/$max_retries ==="
               
               # Initialize first
               init_exit_code=0
               terragrunt init --terragrunt-non-interactive 2>&1 | tee init_output.txt || init_exit_code=$?
               
               if [ "$init_exit_code" -ne 0 ]; then
-                echo "❌ Init failed on attempt $((retry_count + 1))"
+                echo "❌ Keeping init failed on attempt $((retry_count + 1))"
+                echo "=== Keeping Init Error Details ==="
+                tail -20 init_output.txt
+                echo "=== End Keeping Init Error Details ==="
+                
                 if [ "$retry_count" -eq $((max_retries - 1)) ]; then
                   echo "status=init_failed" >> "$GITHUB_OUTPUT"
                   echo "resources_applied=0" >> "$GITHUB_OUTPUT"
                   echo "resources_changed=0" >> "$GITHUB_OUTPUT"
                   echo "resources_destroyed=0" >> "$GITHUB_OUTPUT"
+                  # Preserve init error details for debugging
+                  cp init_output.txt apply_errors.txt
                   return 1
                 fi
                 retry_count=$((retry_count + 1))
@@ -329,13 +324,29 @@ jobs:
               terragrunt plan --terragrunt-non-interactive -out=tfplan > plan_output.txt 2>&1 || plan_exit_code=$?
               
               if [ "$plan_exit_code" -ne 0 ]; then
-                echo "❌ Plan failed on attempt $((retry_count + 1))"
-                cat plan_output.txt
+                echo "❌ Keeping plan failed on attempt $((retry_count + 1))"
+                echo "=== Keeping Plan Error Details ==="
+                tail -30 plan_output.txt
+                echo "=== End Keeping Plan Error Details ==="
+                
+                # Check for common dependency errors
+                if grep -q "no matching.*found" plan_output.txt; then
+                  echo "🔍 Detected missing resource dependency in keeping environment"
+                fi
+                if grep -q "couldn't find resource" plan_output.txt; then
+                  echo "🔍 Detected missing AWS resource in keeping environment"
+                fi
+                
+                # Capture plan errors for better debugging
+                cp plan_output.txt plan_errors.txt
+                
                 if [ "$retry_count" -eq $((max_retries - 1)) ]; then
                   echo "status=plan_failed" >> "$GITHUB_OUTPUT"
                   echo "resources_applied=0" >> "$GITHUB_OUTPUT"
                   echo "resources_changed=0" >> "$GITHUB_OUTPUT"
                   echo "resources_destroyed=0" >> "$GITHUB_OUTPUT"
+                  # Ensure error details are preserved for debugging
+                  cp plan_output.txt apply_errors.txt
                   return 1
                 fi
                 retry_count=$((retry_count + 1))
@@ -344,7 +355,7 @@ jobs:
                 continue
               fi
               
-              echo "✅ Plan completed successfully, proceeding with apply"
+              echo "✅ Keeping plan completed successfully, proceeding with apply"
               
               # Run apply with auto-approve using the saved plan
               apply_exit_code=0
@@ -352,7 +363,7 @@ jobs:
               
               # Check if this was a lock error
               if [ "$apply_exit_code" -ne 0 ] && grep -q "Error acquiring the state lock" apply_output.txt; then
-                echo "⚠️ State lock error detected on attempt $((retry_count + 1))"
+                echo "⚠️ Keeping state lock error detected on attempt $((retry_count + 1))"
                 if [ "$retry_count" -eq $((max_retries - 1)) ]; then
                   echo "❌ Max retries reached, failing..."
                   break
@@ -417,10 +428,25 @@ jobs:
           else
             apply_status="failed"
             echo "❌ Keeping apply failed: Exit code $final_exit_code"
-            # Capture errors to apply_errors.txt
-            if [ -f "apply_output.txt" ]; then
-              tail -100 apply_output.txt > apply_errors.txt
+            
+            # Enhanced error capture for better debugging
+            echo "=== Capturing error details for debugging ==="
+            if [ -f "apply_output.txt" ] && [ -s "apply_output.txt" ]; then
+              echo "Using apply output for error details"
+              tail -50 apply_output.txt > apply_errors.txt
+            elif [ -f "plan_errors.txt" ] && [ -s "plan_errors.txt" ]; then
+              echo "Using plan errors for error details" 
+              cp plan_errors.txt apply_errors.txt
+            elif [ -f "plan_output.txt" ] && [ -s "plan_output.txt" ]; then
+              echo "Using plan output for error details"
+              tail -50 plan_output.txt > apply_errors.txt
+            elif [ -f "init_output.txt" ] && [ -s "init_output.txt" ]; then
+              echo "Using init output for error details"
+              tail -50 init_output.txt > apply_errors.txt
+            else
+              echo "No detailed error logs available" > apply_errors.txt
             fi
+            
             exit 1
           fi
           
@@ -481,6 +507,7 @@ jobs:
             terragrunt/environments/keeping/plan_output.txt
             terragrunt/environments/keeping/init_output.txt
             terragrunt/environments/keeping/apply_errors.txt
+            terragrunt/environments/keeping/plan_errors.txt
           retention-days: 30
 
       - name: Slack Notification on Success
@@ -503,59 +530,19 @@ jobs:
           SLACK_COLOR: danger
           SLACK_MESSAGE: "keeping environment apply failed 😢"
 
-      - name: Determine Final Status
-        id: determine-status
-        if: always()
-        run: |
-          if [ "${{ steps.should-run.outputs.run }}" != "true" ]; then
-            echo "status=skipped" >> "$GITHUB_OUTPUT"
-            echo "Final status: skipped (should not run)"
-          elif [ "${{ steps.check-env.outputs.exists }}" != "true" ]; then
-            echo "status=skipped" >> "$GITHUB_OUTPUT"
-            echo "Final status: skipped (environment does not exist)"
-          elif [ "${{ steps.apply.outputs.status }}" != "" ]; then
-            echo "status=${{ steps.apply.outputs.status }}" >> "$GITHUB_OUTPUT"
-            echo "Final status: ${{ steps.apply.outputs.status }}"
-          else
-            echo "status=unknown" >> "$GITHUB_OUTPUT"
-            echo "Final status: unknown"
-          fi
-
   apply-scheduling:
     name: Terragrunt Apply - Scheduling
     runs-on: ubuntu-latest
     needs: [check-changes, apply-keeping]
     if: |
       needs.check-changes.outputs.should_run_scheduling == 'true' && 
-      (needs.apply-keeping.outputs.apply_status == 'success' || 
-       needs.apply-keeping.outputs.apply_status == 'skipped' || 
-       needs.check-changes.outputs.should_run_keeping == 'false')
+      (needs.apply-keeping.outputs.apply_status == 'success' || needs.apply-keeping.result == 'skipped')
     outputs:
       apply_status: ${{ steps.apply.outputs.status }}
       resources_applied: ${{ steps.apply.outputs.resources_applied }}
       resources_changed: ${{ steps.apply.outputs.resources_changed }}
       resources_destroyed: ${{ steps.apply.outputs.resources_destroyed }}
     steps:
-      - name: Debug Job Conditions
-        run: |
-          echo "=== Debugging apply-scheduling job conditions ==="
-          echo "should_run_scheduling output: '${{ needs.check-changes.outputs.should_run_scheduling }}'"
-          echo "should_run_keeping output: '${{ needs.check-changes.outputs.should_run_keeping }}'"
-          echo "Type check: '${{ needs.check-changes.outputs.should_run_scheduling }}' == 'true'"
-          echo "Condition result: ${{ needs.check-changes.outputs.should_run_scheduling == 'true' }}"
-          echo "apply-keeping apply_status: '${{ needs.apply-keeping.outputs.apply_status }}'"
-          echo "apply-keeping skipped check: ${{ needs.apply-keeping.outputs.apply_status == 'skipped' }}"
-          echo "apply-keeping success check: ${{ needs.apply-keeping.outputs.apply_status == 'success' }}"
-          echo "should_run_keeping false check: ${{ needs.check-changes.outputs.should_run_keeping == 'false' }}"
-          echo "Updated combined condition: ${{ needs.check-changes.outputs.should_run_scheduling == 'true' && (needs.apply-keeping.outputs.apply_status == 'success' || needs.apply-keeping.outputs.apply_status == 'skipped' || needs.check-changes.outputs.should_run_keeping == 'false') }}"
-          echo "All check-changes outputs:"
-          echo "  changes: '${{ needs.check-changes.outputs.changes }}'"
-          echo "  keeping_changes: '${{ needs.check-changes.outputs.keeping_changes }}'"
-          echo "  scheduling_changes: '${{ needs.check-changes.outputs.scheduling_changes }}'"
-          echo "  pr_number: '${{ needs.check-changes.outputs.pr_number }}'"
-          echo "  labels: '${{ needs.check-changes.outputs.labels }}'"
-          echo "  should_run_keeping: '${{ needs.check-changes.outputs.should_run_keeping }}'"
-          echo "  should_run_scheduling: '${{ needs.check-changes.outputs.should_run_scheduling }}'"
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -617,19 +604,25 @@ jobs:
             local retry_count=0
             
             while [ "$retry_count" -lt "$max_retries" ]; do
-              echo "=== Attempt $((retry_count + 1))/$max_retries ==="
+              echo "=== Scheduling Environment - Attempt $((retry_count + 1))/$max_retries ==="
               
               # Initialize first
               init_exit_code=0
               terragrunt init --terragrunt-non-interactive 2>&1 | tee init_output.txt || init_exit_code=$?
               
               if [ "$init_exit_code" -ne 0 ]; then
-                echo "❌ Init failed on attempt $((retry_count + 1))"
+                echo "❌ Scheduling init failed on attempt $((retry_count + 1))"
+                echo "=== Scheduling Init Error Details ==="
+                tail -20 init_output.txt
+                echo "=== End Scheduling Init Error Details ==="
+                
                 if [ "$retry_count" -eq $((max_retries - 1)) ]; then
                   echo "status=init_failed" >> "$GITHUB_OUTPUT"
                   echo "resources_applied=0" >> "$GITHUB_OUTPUT"
                   echo "resources_changed=0" >> "$GITHUB_OUTPUT"
                   echo "resources_destroyed=0" >> "$GITHUB_OUTPUT"
+                  # Preserve init error details for debugging
+                  cp init_output.txt apply_errors.txt
                   return 1
                 fi
                 retry_count=$((retry_count + 1))
@@ -643,13 +636,32 @@ jobs:
               terragrunt plan --terragrunt-non-interactive -out=tfplan > plan_output.txt 2>&1 || plan_exit_code=$?
               
               if [ "$plan_exit_code" -ne 0 ]; then
-                echo "❌ Plan failed on attempt $((retry_count + 1))"
-                cat plan_output.txt
+                echo "❌ Scheduling plan failed on attempt $((retry_count + 1))"
+                echo "=== Scheduling Plan Error Details ==="
+                tail -50 plan_output.txt
+                echo "=== End Scheduling Plan Error Details ==="
+                
+                # Check for common dependency errors
+                if grep -q "no matching EC2 Security Group found" plan_output.txt; then
+                  echo "🔍 Detected missing Security Group dependency"
+                fi
+                if grep -q "couldn't find resource" plan_output.txt && grep -q "IAM Role" plan_output.txt; then
+                  echo "🔍 Detected missing IAM Role dependency"
+                fi
+                if grep -q "empty result" plan_output.txt && grep -q "SNS Topic" plan_output.txt; then
+                  echo "🔍 Detected missing SNS Topic dependency"
+                fi
+                
+                # Capture plan errors for better debugging
+                cp plan_output.txt plan_errors.txt
+                
                 if [ "$retry_count" -eq $((max_retries - 1)) ]; then
                   echo "status=plan_failed" >> "$GITHUB_OUTPUT"
                   echo "resources_applied=0" >> "$GITHUB_OUTPUT"
                   echo "resources_changed=0" >> "$GITHUB_OUTPUT"
                   echo "resources_destroyed=0" >> "$GITHUB_OUTPUT"
+                  # Ensure error details are preserved for debugging
+                  cp plan_output.txt apply_errors.txt
                   return 1
                 fi
                 retry_count=$((retry_count + 1))
@@ -658,7 +670,7 @@ jobs:
                 continue
               fi
               
-              echo "✅ Plan completed successfully, proceeding with apply"
+              echo "✅ Scheduling plan completed successfully, proceeding with apply"
               
               # Run apply with auto-approve using the saved plan
               apply_exit_code=0
@@ -666,7 +678,7 @@ jobs:
               
               # Check if this was a lock error
               if [ "$apply_exit_code" -ne 0 ] && grep -q "Error acquiring the state lock" apply_output.txt; then
-                echo "⚠️ State lock error detected on attempt $((retry_count + 1))"
+                echo "⚠️ Scheduling state lock error detected on attempt $((retry_count + 1))"
                 if [ "$retry_count" -eq $((max_retries - 1)) ]; then
                   echo "❌ Max retries reached, failing..."
                   break
@@ -731,9 +743,39 @@ jobs:
           else
             apply_status="failed"
             echo "❌ Scheduling apply failed: Exit code $final_exit_code"
-            # Capture errors to apply_errors.txt
-            if [ -f "apply_output.txt" ]; then
-              tail -100 apply_output.txt > apply_errors.txt
+            
+            # Enhanced error capture for better debugging
+            echo "=== Capturing Scheduling error details for debugging ==="
+            if [ -f "apply_output.txt" ] && [ -s "apply_output.txt" ]; then
+              echo "Using apply output for error details"
+              tail -50 apply_output.txt > apply_errors.txt
+            elif [ -f "plan_errors.txt" ] && [ -s "plan_errors.txt" ]; then
+              echo "Using plan errors for error details"
+              cp plan_errors.txt apply_errors.txt
+            elif [ -f "plan_output.txt" ] && [ -s "plan_output.txt" ]; then
+              echo "Using plan output for error details"
+              tail -50 plan_output.txt > apply_errors.txt
+            elif [ -f "init_output.txt" ] && [ -s "init_output.txt" ]; then
+              echo "Using init output for error details"
+              tail -50 init_output.txt > apply_errors.txt
+            else
+              echo "No detailed error logs available" > apply_errors.txt
+            fi
+            
+            # Check for dependency issues and add helpful context
+            if [ -f "apply_errors.txt" ]; then
+              if grep -q "no matching EC2 Security Group found" apply_errors.txt; then
+                echo "Dependency Issue: Security Group not found" >> apply_errors.txt
+                echo "Possible cause: apply-keeping job may not have completed successfully" >> apply_errors.txt
+              fi
+              if grep -q "couldn't find resource.*IAM Role" apply_errors.txt; then
+                echo "Dependency Issue: IAM Role not found" >> apply_errors.txt
+                echo "Possible cause: apply-keeping job may not have created required IAM resources" >> apply_errors.txt
+              fi
+              if grep -q "empty result.*SNS Topic" apply_errors.txt; then
+                echo "Dependency Issue: SNS Topic not found" >> apply_errors.txt
+                echo "Possible cause: apply-keeping job may not have created SNS resources" >> apply_errors.txt
+              fi
             fi
           fi
           
@@ -752,7 +794,53 @@ jobs:
             terragrunt/environments/scheduling/plan_output.txt
             terragrunt/environments/scheduling/init_output.txt
             terragrunt/environments/scheduling/apply_errors.txt
+            terragrunt/environments/scheduling/plan_errors.txt
           retention-days: 30
+
+      - name: Debug Scheduling Apply Results  
+        if: always() && steps.check-env.outputs.exists == 'true'
+        working-directory: terragrunt/environments/scheduling
+        run: |
+          echo "=== Debugging Apply Results for Scheduling ==="
+          echo "Checking for scheduling output files..."
+          
+          if [ -f "apply_output.txt" ]; then
+            echo "✅ apply_output.txt exists, size: $(wc -c < apply_output.txt) bytes"
+            echo "=== Full Scheduling Apply Output ==="
+            cat apply_output.txt
+            echo "=== End Full Scheduling Apply Output ==="
+          else
+            echo "❌ apply_output.txt not found"
+          fi
+          
+          if [ -f "plan_output.txt" ]; then
+            echo "✅ plan_output.txt exists, size: $(wc -c < plan_output.txt) bytes"
+            echo "=== Scheduling Plan Output ==="
+            cat plan_output.txt
+            echo "=== End Scheduling Plan Output ==="
+          else
+            echo "❌ plan_output.txt not found"
+          fi
+          
+          if [ -f "plan_errors.txt" ]; then
+            echo "✅ plan_errors.txt exists, size: $(wc -c < plan_errors.txt) bytes"
+            echo "=== Scheduling Plan Errors ==="
+            cat plan_errors.txt
+            echo "=== End Scheduling Plan Errors ==="
+          else
+            echo "❌ plan_errors.txt not found"
+          fi
+          
+          if [ -f "apply_errors.txt" ]; then
+            echo "✅ apply_errors.txt exists, size: $(wc -c < apply_errors.txt) bytes"
+            if [ -s "apply_errors.txt" ]; then
+              echo "=== Scheduling Apply Errors Content ==="
+              cat apply_errors.txt
+              echo "=== End Scheduling Apply Errors ==="
+            fi
+          else
+            echo "❌ apply_errors.txt not found"
+          fi
 
       - name: Slack Notification on Success
         if: success()
@@ -778,7 +866,20 @@ jobs:
     name: Comment Apply Results
     runs-on: ubuntu-latest
     needs: [check-changes, apply-keeping, apply-scheduling]
-    if: always() && needs.check-changes.outputs.pr_number != '' && needs.check-changes.outputs.pr_number != null && (needs.apply-keeping.outputs.apply_status == 'success' || needs.apply-scheduling.outputs.apply_status == 'success' || needs.apply-keeping.outputs.apply_status == 'failed' || needs.apply-scheduling.outputs.apply_status == 'failed')
+    if: |
+      always() && 
+      needs.check-changes.outputs.pr_number != '' && 
+      needs.check-changes.outputs.pr_number != null && 
+      (
+        needs.apply-keeping.result == 'success' || 
+        needs.apply-scheduling.result == 'success' || 
+        needs.apply-keeping.result == 'failure' || 
+        needs.apply-scheduling.result == 'failure' ||
+        needs.apply-keeping.outputs.apply_status == 'plan_failed' ||
+        needs.apply-scheduling.outputs.apply_status == 'plan_failed' ||
+        needs.apply-keeping.outputs.apply_status == 'init_failed' ||
+        needs.apply-scheduling.outputs.apply_status == 'init_failed'
+      )
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -787,12 +888,14 @@ jobs:
         uses: actions/github-script@v7
         with:
           script: |
+            const commentHandler = require('./scripts/github-actions/comment-handler.js');
+            
             // Process both environments in sequence
             const environments = [
               {
                 name: 'keeping',
                 status: '${{ needs.apply-keeping.outputs.apply_status }}',
-                wasExecuted: '${{ needs.apply-keeping.outputs.apply_status }}' !== 'skipped' && '${{ needs.apply-keeping.outputs.apply_status }}' !== '',
+                wasExecuted: '${{ needs.apply-keeping.result }}' !== 'skipped',
                 resourcesApplied: '${{ needs.apply-keeping.outputs.resources_applied }}' || '0',
                 resourcesChanged: '${{ needs.apply-keeping.outputs.resources_changed }}' || '0',
                 resourcesDestroyed: '${{ needs.apply-keeping.outputs.resources_destroyed }}' || '0'
@@ -800,7 +903,7 @@ jobs:
               {
                 name: 'scheduling', 
                 status: '${{ needs.apply-scheduling.outputs.apply_status }}',
-                wasExecuted: '${{ needs.apply-scheduling.outputs.apply_status }}' !== 'skipped' && '${{ needs.apply-scheduling.outputs.apply_status }}' !== '',
+                wasExecuted: '${{ needs.apply-scheduling.result }}' !== 'skipped',
                 resourcesApplied: '${{ needs.apply-scheduling.outputs.resources_applied }}' || '0',
                 resourcesChanged: '${{ needs.apply-scheduling.outputs.resources_changed }}' || '0',
                 resourcesDestroyed: '${{ needs.apply-scheduling.outputs.resources_destroyed }}' || '0'
@@ -830,52 +933,24 @@ jobs:
                 }
                 
                 console.log(`Processing ${env.name} environment apply results...`);
-                console.log(`Creating apply comment for ${env.name} environment with status: ${env.status}`);
+                
+                const inputs = {
+                  commentType: 'terragrunt-apply',
+                  environment: env.name,
+                  status: env.status || 'unknown',
+                  // Use apply results from job outputs instead of artifacts
+                  resourcesApplied: env.resourcesApplied,
+                  resourcesChanged: env.resourcesChanged,
+                  resourcesDestroyed: env.resourcesDestroyed,
+                  // Flag to indicate this is from apply workflow
+                  isApplyWorkflow: true,
+                  // Override PR number for API calls
+                  prNumber: prNumberInt
+                };
                 
                 try {
-                  // Create comment body with apply workflow logic
-                  const commentBody = createApplyWorkflowComment(env);
-                  
-                  // Define comment identifier for this environment
-                  const commentIdentifier = `<!-- terragrunt-apply-${env.name} -->`;
-                  const fullCommentBody = `${commentIdentifier}\n${commentBody}`;
-                  
-                  // Get existing comments to find if we need to update or create
-                  console.log(`Fetching existing comments for PR #${prNumberInt}...`);
-                  const { data: comments } = await github.rest.issues.listComments({
-                    owner: context.repo.owner,
-                    repo: context.repo.repo,
-                    issue_number: prNumberInt,
-                  });
-                  
-                  console.log(`Found ${comments.length} existing comments`);
-                  
-                  // Find existing apply comment for this environment
-                  const existingComment = comments.find(comment => 
-                    comment.body && comment.body.includes(commentIdentifier)
-                  );
-                  
-                  if (existingComment) {
-                    // Update existing comment
-                    console.log(`Updating existing apply comment for ${env.name} environment (comment ID: ${existingComment.id})`);
-                    await github.rest.issues.updateComment({
-                      owner: context.repo.owner,
-                      repo: context.repo.repo,
-                      comment_id: existingComment.id,
-                      body: fullCommentBody,
-                    });
-                    console.log(`✅ Updated existing apply comment for ${env.name} environment`);
-                  } else {
-                    // Create new comment
-                    console.log(`Creating new apply comment for ${env.name} environment`);
-                    await github.rest.issues.createComment({
-                      owner: context.repo.owner,
-                      repo: context.repo.repo,
-                      issue_number: prNumberInt,
-                      body: fullCommentBody,
-                    });
-                    console.log(`✅ Created new apply comment for ${env.name} environment`);
-                  }
+                  await commentHandler(github, context, inputs);
+                  console.log(`✅ Successfully processed ${env.name} environment apply results`);
                 } catch (error) {
                   console.error(`❌ Error processing ${env.name} environment apply results:`, error);
                   console.error('Error details:', {
@@ -893,80 +968,4 @@ jobs:
               console.log('Parsed number result:', prNumberInt);
               console.log('Is valid number check result:', !isNaN(prNumberInt) && prNumberInt > 0);
               return;
-            }
-            
-            // Helper function to create apply workflow comments
-            function createApplyWorkflowComment(env) {
-              const { name: environment, status, resourcesApplied, resourcesChanged, resourcesDestroyed } = env;
-              
-              // Generate status emoji and text
-              let statusEmoji, statusText;
-              switch (status) {
-                case 'success':
-                  statusEmoji = '✅';
-                  statusText = 'Success';
-                  break;
-                case 'failed':
-                  statusEmoji = '❌';
-                  statusText = 'Failed';
-                  break;
-                case 'init_failed':
-                  statusEmoji = '🔧';
-                  statusText = 'Init Failed';
-                  break;
-                case 'completed_with_warnings':
-                  statusEmoji = '⚠️';
-                  statusText = 'Completed with Warnings';
-                  break;
-                default:
-                  statusEmoji = '❓';
-                  statusText = 'Unknown';
-              }
-              
-              // Parse resource counts
-              const applied = parseInt(resourcesApplied) || 0;
-              const changed = parseInt(resourcesChanged) || 0;
-              const destroyed = parseInt(resourcesDestroyed) || 0;
-              const totalChanges = applied + changed + destroyed;
-              
-              // Create summary
-              let summary;
-              if (totalChanges === 0) {
-                summary = 'No changes needed - infrastructure is up-to-date';
-              } else {
-                const parts = [];
-                if (applied > 0) parts.push(`${applied} added`);
-                if (changed > 0) parts.push(`${changed} changed`);
-                if (destroyed > 0) parts.push(`${destroyed} destroyed`);
-                summary = `Apply completed: ${parts.join(', ')}`;
-              }
-              
-              // Build comment body
-              let commentBody = `## ${statusEmoji} Terragrunt Apply Results - ${environment.charAt(0).toUpperCase() + environment.slice(1)}\n\n`;
-              
-              commentBody += `**Status:** ${statusText}\n`;
-              commentBody += `**Summary:** ${summary}\n\n`;
-              
-              // Add resource changes summary if there were changes
-              if (totalChanges > 0) {
-                commentBody += `### 📊 Resource Changes\n\n`;
-                commentBody += `| Action | Count |\n`;
-                commentBody += `|--------|-------|\n`;
-                if (applied > 0) {
-                  commentBody += `| ➕ Added | ${applied} |\n`;
-                }
-                if (changed > 0) {
-                  commentBody += `| 🔄 Changed | ${changed} |\n`;
-                }
-                if (destroyed > 0) {
-                  commentBody += `| ➖ Destroyed | ${destroyed} |\n`;
-                }
-                commentBody += `\n`;
-              }
-              
-              // Add footer with timestamp
-              const timestamp = new Date().toISOString();
-              commentBody += `---\n*Apply completed at ${timestamp}*\n`;
-              
-              return commentBody;
             }
