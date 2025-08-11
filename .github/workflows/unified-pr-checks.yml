@@ -151,6 +151,16 @@ jobs:
         uses: aquaproj/aqua-installer@v3.0.1
         with:
           aqua_version: v2.30.0
+
+      - name: Check if terraform directory exists
+        id: check-terraform
+        run: |
+          if [ -d "terraform" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Initialize TFLint
         if: steps.check-terraform.outputs.exists == 'true'
         run: |
