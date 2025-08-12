@@ -12,7 +12,5 @@ resource "aws_chatbot_slack_channel_configuration" "chatbot_slack_configuration"
   guardrail_policy_arns = [
     "arn:aws:iam::aws:policy/ReadOnlyAccess"
   ]
-
-  tags = local.common_tags
 }
 

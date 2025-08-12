@@ -9,7 +9,6 @@ resource "aws_efs_file_system" "main" {
     transition_to_primary_storage_class = "AFTER_1_ACCESS"
   }
 
-  tags = local.common_tags
 }
 
 resource "aws_efs_backup_policy" "main" {

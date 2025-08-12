@@ -1,3 +1,10 @@
+variable "owners" {}
+variable "environment" {}
+locals {
+  owners      = var.owners
+  environment = var.environment
+  name        = "${var.owners}-${var.environment}"
+}
 ############################
 # VPC Input Variables      #
 ############################
@@ -35,15 +42,4 @@ variable "vpc_cidr_block" {
 # Terraform AWS Application Load Balancer Variables #
 # Place holder file for AWS ALB Variables           #
 #####################################################
-variable "owners" {}
-variable "environment" {}
 
-locals {
-  owners      = var.owners
-  environment = var.environment
-  name        = "${var.owners}-${var.environment}"
-  common_tags = {
-    owners      = local.owners
-    environment = local.environment
-  }
-}

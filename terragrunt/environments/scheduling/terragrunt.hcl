@@ -30,8 +30,8 @@ inputs = {
   aws_region     = local.aws_region
   aws_account_id = get_env("AWS_ACCOUNT_ID", "123456789012") # Set your account ID
 
-  # Environment-specific variables
-  environment = "scheduling"
+  # Service tag for scheduling environment
+  service     = "scheduling"
   owners      = "minecraft"
 
   # Common tags

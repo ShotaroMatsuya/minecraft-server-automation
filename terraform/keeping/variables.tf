@@ -15,6 +15,11 @@ variable "owners" {
   type        = string
 }
 
+variable "service" {
+  description = "Service type (keeping or scheduling)"
+  type        = string
+}
+
 variable "aws_account_id" {
   description = "Account ID in which AWS Resoruces to be created"
   type        = string
@@ -63,9 +68,10 @@ variable "common_tags" {
 locals {
   owners      = var.owners
   environment = var.environment
+  service     = var.service
   name        = "${var.owners}-${var.environment}"
   common_tags = {
-    owners      = local.owners
-    environment = local.environment
+    owners  = local.owners
+    service = local.service
   }
 }

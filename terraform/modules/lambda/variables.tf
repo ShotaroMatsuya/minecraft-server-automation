@@ -1,3 +1,10 @@
+variable "owners" {}
+variable "environment" {}
+locals {
+  owners      = var.owners
+  environment = var.environment
+  name        = "${var.owners}-${var.environment}"
+}
 variable "log_group_name" {
   type        = string
   description = "The name of cloudwatch log group to apply subscription filter via lambda"
@@ -33,15 +40,4 @@ variable "sns_kms_key_arn" {
   description = "The ARN of the KMS key to use for encryption"
 }
 
-variable "owners" {}
-variable "environment" {}
 
-locals {
-  owners      = var.owners
-  environment = var.environment
-  name        = "${var.owners}-${var.environment}"
-  common_tags = {
-    owners      = local.owners
-    environment = local.environment
-  }
-}
