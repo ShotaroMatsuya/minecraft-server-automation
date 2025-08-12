@@ -25,8 +25,8 @@ inputs = {
   aws_region     = local.aws_region
   aws_account_id = get_env("AWS_ACCOUNT_ID", "123456789012") # Set your account ID
 
-  # Environment-specific variables
-  environment = "keeping"
+  # Service tag for keeping environment
+  service     = "keeping"
   owners      = "minecraft"
 
   # Common tags

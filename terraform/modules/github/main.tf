@@ -7,7 +7,6 @@ resource "aws_iam_role" "github_actions" {
       github_repo = var.github_repo
     }
   )
-  tags = local.common_tags
 }
 
 resource "aws_iam_policy" "github_actions" {

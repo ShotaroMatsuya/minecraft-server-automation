@@ -71,7 +71,6 @@ module "nlb" {
         timeout             = 5
         protocol            = "TCP"
       }
-      tags = local.common_tags
     }
     ex-target-two = {
       protocol                          = "TCP"
@@ -80,12 +79,10 @@ module "nlb" {
       deregistration_delay              = 10
       create_attachment                 = false
       load_balancing_cross_zone_enabled = false
-      tags                              = local.common_tags
     }
   }
   enable_deletion_protection = false
 
-  tags = local.common_tags
 }
 
 resource "null_resource" "send_slack_notification" {

@@ -46,7 +46,6 @@ resource "aws_sns_topic" "main" {
 }
 POLICY
 
-  tags = local.common_tags
 }
 
 resource "aws_sns_topic_subscription" "main" {
