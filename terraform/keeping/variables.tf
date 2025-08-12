@@ -59,19 +59,9 @@ variable "s3_bucket_name" {
   sensitive   = true
 }
 
-variable "common_tags" {
-  description = "Common tags to be applied to all resources"
-  type        = map(string)
-  default     = {}
-}
 
 locals {
   owners      = var.owners
   environment = var.environment
   service     = var.service
-  name        = "${var.owners}-${var.environment}"
-  common_tags = {
-    owners  = local.owners
-    service = local.service
-  }
 }
