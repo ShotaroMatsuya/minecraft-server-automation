@@ -82,7 +82,6 @@ locals {
   owners      = var.owners
   environment = var.environment
   service     = var.service
-  name        = "${var.owners}-${var.environment}"
 
   merged_decoded_yaml = merge([for f in var.env_files : yamldecode(file(f))]...)
   updated_list        = { for k, v in local.merged_decoded_yaml : k => v if k != "FILTERING_STRINGS" }

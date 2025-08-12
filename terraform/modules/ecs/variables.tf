@@ -1,9 +1,7 @@
 variable "owners" {}
 variable "environment" {}
 locals {
-  owners      = var.owners
-  environment = var.environment
-  name        = "${var.owners}-${var.environment}"
+  name = "${var.owners}-${var.environment}"
 }
 ##########################
 # ECS Input Variables    #

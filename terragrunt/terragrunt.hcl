@@ -40,6 +40,13 @@ terraform {
 # Provider Block
 provider "aws" {
   region = var.aws_region
+  default_tags {
+    tags = {
+      Owner       = var.owners
+      Environment = var.environment
+      Service     = var.service
+    }
+  }
 }
 EOF
 }
@@ -53,12 +60,6 @@ locals {
     alb    = "9.10.0"
   }
 
-  # Common tags
-  common_tags = {
-    Project     = "minecraft-server"
-    ManagedBy   = "terragrunt"
-    Environment = basename(dirname(get_terragrunt_dir()))
-  }
 
   # AWS configuration
   aws_region = "ap-northeast-1"
