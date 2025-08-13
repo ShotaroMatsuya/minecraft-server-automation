@@ -1,0 +1,29 @@
+# This file was previously named slack-notify.yml and used as a local action definition.
+# It must be named action.yml and placed in its own directory to be used as a local action.
+# The contents below are preserved as-is from the original file.
+
+name: 'Slack Notify'
+description: 'Send a notification to Slack'
+runs:
+  using: 'composite'
+  steps:
+    - name: Send Slack Notification
+      run: |
+        curl -X POST -H 'Content-type: application/json' --data '{
+          "text": "[${{ inputs.status }}] ${{ inputs.environment }}: ${{ inputs.message }}"
+        }' ${{ inputs.WEBHOOK_PATH }}
+      shell: bash
+
+inputs:
+  status:
+    description: 'Status of the job (success/failure)'
+    required: true
+  environment:
+    description: 'Environment name'
+    required: true
+  message:
+    description: 'Notification message'
+    required: true
+  WEBHOOK_PATH:
+    description: 'Slack webhook URL'
+    required: true
