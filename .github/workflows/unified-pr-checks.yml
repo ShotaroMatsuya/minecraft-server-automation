@@ -29,7 +29,7 @@ jobs:
     steps:
       - name: Common Setup
         id: common_setup
-        uses: ShotaroMatsuya/minecraft-server-automation/.github/workflows/common-setup.yml@main
+        uses: ShotaroMatsuya/minecraft-server-automation/.github/actions/common-setup@main
         with:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           python-version: '3.13'
@@ -66,7 +66,7 @@ jobs:
     steps:
       - name: Common Setup
         id: common_setup
-        uses: ShotaroMatsuya/minecraft-server-automation/.github/workflows/common-setup.yml@main
+        uses: ShotaroMatsuya/minecraft-server-automation/.github/actions/common-setup@main
         with:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           python-version: '3.13'
@@ -150,7 +150,7 @@ jobs:
     steps:
       - name: Common Setup
         id: common_setup
-        uses: ShotaroMatsuya/minecraft-server-automation/.github/workflows/common-setup.yml@main
+        uses: ShotaroMatsuya/minecraft-server-automation/.github/actions/common-setup@main
         with:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           python-version: '3.13'
@@ -239,7 +239,7 @@ jobs:
     steps:
       - name: Common Setup
         id: common_setup
-        uses: ShotaroMatsuya/minecraft-server-automation/.github/workflows/common-setup.yml@main
+        uses: ShotaroMatsuya/minecraft-server-automation/.github/actions/common-setup.yml@main
         with:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           python-version: '3.13'
@@ -455,7 +455,7 @@ jobs:
     steps:
       - name: Common Setup
         id: common_setup
-        uses: ShotaroMatsuya/minecraft-server-automation/.github/workflows/common-setup.yml@main
+        uses: ShotaroMatsuya/minecraft-server-automation/.github/actions/common-setup.yml@main
         with:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           python-version: '3.13'
