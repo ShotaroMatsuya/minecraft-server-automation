@@ -7,17 +7,20 @@ import base64
 from datetime import datetime, timezone, timedelta
 import boto3
 from botocore.exceptions import ClientError
+import logging
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 
 def lambda_handler(event, context):
     try:
         command_text = parse_command_text(event)
-        print(event["body"])
-        print(command_text)
+        logger.info(f"event body: {event['body']}")
+        logger.info(f"command_text: {command_text}")
         return parse_request(command_text)
-
     except Exception as err:
-        print(err)
+        logger.error(f"lambda_handler exception: {err}")
         return some_error_happened_response()
 
 
@@ -76,7 +79,9 @@ def show_help():
 
 
 def run_backup(commands):
-    github_token = os.environ["GITHUB_TOKEN"]
+    from github_auth import get_github_token
+
+    github_token = get_github_token()
     repo_owner = os.environ["REPO_OWNER"]
     repo_name = os.environ["REPO_NAME"]
     url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/dispatches"
@@ -99,7 +104,9 @@ def run_restore(commands):
         date_str = commands[1]
         try:
             datetime.strptime(date_str, "%Y%m%d%H%M%S")
-            github_token = os.environ["GITHUB_TOKEN"]
+            from github_auth import get_github_token
+
+            github_token = get_github_token()
             repo_owner = os.environ["REPO_OWNER"]
             repo_name = os.environ["REPO_NAME"]
             url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/dispatches"
