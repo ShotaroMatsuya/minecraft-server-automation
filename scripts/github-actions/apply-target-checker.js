@@ -11,12 +11,6 @@ module.exports = (labels, keepingChanges, schedulingChanges) => {
   const schedulingLabel = labels.includes('target:scheduling');
   const noApplyLabel = labels.includes('no-apply');
   
-  console.log('Found labels:', labels.join(', '));
-  console.log('Keeping label:', keepingLabel);
-  console.log('Scheduling label:', schedulingLabel);
-  console.log('No-apply label:', noApplyLabel);
-  console.log('Keeping changes:', keepingChanges);
-  console.log('Scheduling changes:', schedulingChanges);
   
   // Determine if we should run each environment
   // Run if: (file changes OR target label) AND NOT no-apply label
@@ -33,8 +27,6 @@ module.exports = (labels, keepingChanges, schedulingChanges) => {
     }
   }
   
-  console.log('Should run keeping:', shouldRunKeeping);
-  console.log('Should run scheduling:', shouldRunScheduling);
   
   return {
     should_run_keeping: shouldRunKeeping.toString(),

@@ -23,34 +23,36 @@ jobs:
     name: Check Target Environments
     runs-on: ubuntu-latest
     outputs:
-      should_run_keeping: ${{ steps.check-labels.outputs.should_run_keeping }}
-      should_run_scheduling: ${{ steps.check-labels.outputs.should_run_scheduling }}
-      should_run_checks: ${{ steps.check-labels.outputs.should_run_checks }}
+      should_run_keeping: ${{ steps.pr-info.outputs.should_run_keeping }}
+      should_run_scheduling: ${{ steps.pr-info.outputs.should_run_scheduling }}
+      should_run_checks: ${{ steps.pr-info.outputs.should_run_checks }}
     steps:
+      - name: Common Setup
+        id: common_setup
+        uses: ShotaroMatsuya/minecraft-server-automation/.github/workflows/common-setup.yml@main
+        with:
+          aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
+          python-version: '3.13'
+
       - name: Create GitHub App Token
         id: app_token
         uses: actions/create-github-app-token@v1
         with:
           app-id: ${{ secrets.APP_ID }}
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Check PR Labels
-        id: check-labels
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const environmentTargetChecker = require('./scripts/github-actions/environment-target-checker.js');
-            
-            const result = await environmentTargetChecker(github, context);
-            
-            core.setOutput('should_run_keeping', result.should_run_keeping);
-            core.setOutput('should_run_scheduling', result.should_run_scheduling);
-            core.setOutput('should_run_checks', result.should_run_checks);
+
+      - name: Get PR Info (External Script)
+        id: pr-info
+        run: |
+          bash scripts/github-actions/pr-info-helper.sh > pr-info.json
+          echo "PR info: $(cat pr-info.json)"
+          should_run_keeping=$(jq -r '.should_run_keeping' pr-info.json)
+          should_run_scheduling=$(jq -r '.should_run_scheduling' pr-info.json)
+          should_run_checks=$(jq -r '.should_run_checks' pr-info.json)
+          echo "should_run_keeping=$should_run_keeping" >> "$GITHUB_OUTPUT"
+          echo "should_run_scheduling=$should_run_scheduling" >> "$GITHUB_OUTPUT"
+          echo "should_run_checks=$should_run_checks" >> "$GITHUB_OUTPUT"
 
   security-scan:
     name: Infrastructure Security Scan
@@ -62,27 +64,12 @@ jobs:
       results_summary: ${{ steps.check-results.outputs.results_summary }}
       scan_status: ${{ steps.check-results.outputs.scan_status }}
     steps:
-      - name: Create GitHub App Token
-        id: app_token
-        uses: actions/create-github-app-token@v1
+      - name: Common Setup
+        id: common_setup
+        uses: ShotaroMatsuya/minecraft-server-automation/.github/workflows/common-setup.yml@main
         with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Setup aqua
-        uses: aquaproj/aqua-installer@v3.0.1
-        with:
-          aqua_version: v2.30.0
-
-      - name: Install tools via aqua
-        run: |
-          rm -f ./terragrunt ./terraform ./tflint ./aws ./jq ./yq 2>/dev/null || true
-          aqua install --all
+          aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
+          python-version: '3.13'
 
       - name: Check if terraform directory exists
         id: check-terraform
@@ -97,7 +84,7 @@ jobs:
         id: trivy-scan
         if: steps.check-terraform.outputs.exists == 'true'
         env:
-          TF_VAR_github_token: ${{ steps.app_token.outputs.token }}
+          TF_VAR_github_token: ${{ steps.common_setup.outputs.token }}
         run: |
           echo "🔍 Running Trivy security scan..."
           
@@ -108,13 +95,6 @@ jobs:
             --format table \
             --output trivy-results.txt \
             --exit-code 0 2> trivy-errors.txt || scan_exit_code=$?
-          
-          # Generate SARIF for GitHub Security tab
-          trivy config terraform/ \
-            --config trivy.yaml \
-            --format sarif \
-            --output trivy-security.sarif \
-            --exit-code 0 || true
           
           # Set scan status
           if [ $scan_exit_code -eq 0 ]; then
@@ -140,6 +120,8 @@ jobs:
               echo "results_summary=No security issues found" >> "$GITHUB_OUTPUT"
               echo "scan_status=success" >> "$GITHUB_OUTPUT"
             fi
+                  # Extract error summary using terragrunt-error-helper.sh
+                  bash scripts/github-actions/terragrunt-error-helper.sh trivy-errors.txt > trivy-error-summary.txt || true
           else
             echo "has_issues=false" >> "$GITHUB_OUTPUT"
             echo "results_summary=No security issues found" >> "$GITHUB_OUTPUT"
@@ -153,16 +135,8 @@ jobs:
           name: trivy-security-results
           path: |
             trivy-results.txt
-            trivy-security.sarif
             trivy-errors.txt
-          retention-days: 30
-
-      - name: Upload SARIF to GitHub Security
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: 'trivy-security.sarif'
-          category: 'infrastructure-security-scan'
-        if: hashFiles('trivy-security.sarif') != ''
+          retention-days: 7
 
   code-quality:
     name: TFLint Code Quality
@@ -174,27 +148,12 @@ jobs:
       results_summary: ${{ steps.check-results.outputs.results_summary }}
       scan_status: ${{ steps.check-results.outputs.scan_status }}
     steps:
-      - name: Create GitHub App Token
-        id: app_token
-        uses: actions/create-github-app-token@v1
+      - name: Common Setup
+        id: common_setup
+        uses: ShotaroMatsuya/minecraft-server-automation/.github/workflows/common-setup.yml@main
         with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Setup aqua
-        uses: aquaproj/aqua-installer@v3.0.1
-        with:
-          aqua_version: v2.30.0
-
-      - name: Install tools via aqua
-        run: |
-          rm -f ./terragrunt ./terraform ./tflint ./aws ./jq ./yq 2>/dev/null || true
-          aqua install --all
+          aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
+          python-version: '3.13'
 
       - name: Check if terraform directory exists
         id: check-terraform
@@ -218,7 +177,7 @@ jobs:
         id: tflint-scan
         if: steps.check-terraform.outputs.exists == 'true'
         env:
-          TF_VAR_github_token: ${{ steps.app_token.outputs.token }}
+          TF_VAR_github_token: ${{ steps.common_setup.outputs.token }}
         run: |
           echo "🔍 Running TFLint code quality analysis..."
           
@@ -278,12 +237,12 @@ jobs:
       plan_status_keeping: ${{ steps.set-keeping-output.outputs.status }}
       plan_status_scheduling: ${{ steps.set-scheduling-output.outputs.status }}
     steps:
-      - name: Create GitHub App Token
-        id: app_token
-        uses: actions/create-github-app-token@v1
+      - name: Common Setup
+        id: common_setup
+        uses: ShotaroMatsuya/minecraft-server-automation/.github/workflows/common-setup.yml@main
         with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
+          python-version: '3.13'
       - name: Check if this environment should run
         id: should-run
         run: |
@@ -309,46 +268,6 @@ jobs:
           else
             echo "🚀 Running ${{ matrix.environment }} environment"
           fi
-
-      - name: Checkout
-        if: steps.should-run.outputs.should_run == 'true'
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Configure AWS Credentials
-        if: steps.should-run.outputs.should_run == 'true'
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
-          role-session-name: github-actions-test-session
-          aws-region: ap-northeast-1
-
-      - name: Setup aqua
-        if: steps.should-run.outputs.should_run == 'true'
-        uses: aquaproj/aqua-installer@v3.0.1
-        with:
-          aqua_version: v2.30.0
-
-      - name: Install tools via aqua
-        if: steps.should-run.outputs.should_run == 'true'
-        run: |
-          rm -f ./terragrunt ./terraform ./tflint ./aws ./jq ./yq 2>/dev/null || true
-          aqua install --all
-
-      - name: Setup Python 3.13
-        if: steps.should-run.outputs.should_run == 'true'
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.13'
-
-      - name: Verify Python Installation
-        if: steps.should-run.outputs.should_run == 'true'
-        run: |
-          echo "Python version: $(python3 --version)"
-          echo "Python executable path: $(which python3)"
-          echo "Lambda packaging will use this Python interpreter"
 
       - name: Check if environment exists
         if: steps.should-run.outputs.should_run == 'true'
@@ -377,10 +296,9 @@ jobs:
         id: fmt-check
         if: steps.should-run.outputs.should_run == 'true' && steps.check-env.outputs.exists == 'true'
         env:
-          TF_VAR_github_token: ${{ steps.app_token.outputs.token }}
+          TF_VAR_github_token: ${{ steps.common_setup.outputs.token }}
         run: |
           cd "${{ matrix.path }}"
-          format_exit_code=0
           
           # Run format check and capture output
           if terragrunt fmt --check --terragrunt-non-interactive 2>&1; then
@@ -388,25 +306,20 @@ jobs:
             # Create empty error file for consistency
             touch format_errors.txt
           else
-            format_exit_code=$?
             echo "status=needs_formatting" >> "$GITHUB_OUTPUT"
             # Capture actual error for failed format check
             terragrunt fmt --check --terragrunt-non-interactive > /dev/null 2> format_errors.txt || true
           fi
           
-          # Debug output
-          echo "Format check exit code: $format_exit_code"
-          echo "Format errors file size: $(wc -c < format_errors.txt 2>/dev/null || echo 0) bytes"
         continue-on-error: true
 
       - name: Terragrunt Validation
         id: validate
         if: steps.should-run.outputs.should_run == 'true' && steps.check-env.outputs.exists == 'true'
         env:
-          TF_VAR_github_token: ${{ steps.app_token.outputs.token }}
+          TF_VAR_github_token: ${{ steps.common_setup.outputs.token }}
         run: |
           cd "${{ matrix.path }}"
-          validate_exit_code=0
           
           # Run validation and capture output
           if terragrunt validate --terragrunt-non-interactive 2>&1; then
@@ -414,22 +327,18 @@ jobs:
             # Create empty error file for consistency
             touch validate_errors.txt
           else
-            validate_exit_code=$?
             echo "status=failed" >> "$GITHUB_OUTPUT"
             # Capture actual error for failed validation
             terragrunt validate --terragrunt-non-interactive > /dev/null 2> validate_errors.txt || true
           fi
           
-          # Debug output
-          echo "Validation exit code: $validate_exit_code"
-          echo "Validation errors file size: $(wc -c < validate_errors.txt 2>/dev/null || echo 0) bytes"
         continue-on-error: true
 
       - name: Terragrunt Plan
         id: plan
         if: steps.should-run.outputs.should_run == 'true' && steps.check-env.outputs.exists == 'true'
         env:
-          TF_VAR_github_token: ${{ steps.app_token.outputs.token }}
+          TF_VAR_github_token: ${{ steps.common_setup.outputs.token }}
         run: |
           cd "${{ matrix.path }}"
           
@@ -502,12 +411,6 @@ jobs:
           # Set the status output
           echo "status=$plan_status" >> "$GITHUB_OUTPUT"
           
-          # Debug output
-          echo "Plan exit code: ${plan_exit_code:-0}"
-          echo "Plan output file exists: $(test -f plan_output.txt && echo 'yes' || echo 'no')"
-          echo "Plan output size: $(wc -c < plan_output.txt 2>/dev/null || echo 0) bytes"
-          echo "Plan errors file exists: $(test -f plan_errors.txt && echo 'yes' || echo 'no')"
-          echo "Plan errors size: $(wc -c < plan_errors.txt 2>/dev/null || echo 0) bytes"
         continue-on-error: true
 
       - name: Set keeping-specific output
@@ -550,8 +453,12 @@ jobs:
     needs: [check-targets, security-scan, code-quality, terragrunt-plan]
     if: always() && needs.check-targets.outputs.should_run_checks == 'true'
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: Common Setup
+        id: common_setup
+        uses: ShotaroMatsuya/minecraft-server-automation/.github/workflows/common-setup.yml@main
+        with:
+          aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
+          python-version: '3.13'
 
       - name: Download Security Results
         uses: actions/download-artifact@v4
@@ -564,6 +471,7 @@ jobs:
         if: needs.security-scan.result != 'skipped'
         uses: actions/github-script@v7
         with:
+          github-token: ${{ steps.common_setup.outputs.token }}
           script: |
             const commentHandler = require('./scripts/github-actions/comment-handler.js');
             
@@ -588,6 +496,7 @@ jobs:
         if: needs.code-quality.result != 'skipped'
         uses: actions/github-script@v7
         with:
+          github-token: ${{ steps.common_setup.outputs.token }}
           script: |
             const commentHandler = require('./scripts/github-actions/comment-handler.js');
             
@@ -632,49 +541,25 @@ jobs:
         if: needs.terragrunt-plan.result != 'skipped'
         uses: actions/github-script@v7
         with:
+          github-token: ${{ steps.common_setup.outputs.token }}
           script: |
-            const commentHandler = require('./scripts/github-actions/comment-handler.js');
-            
-            // Check if we have any artifacts to process
-            const artifactsFound = '${{ steps.check-artifacts.outputs.artifacts_found }}' === 'true';
-            
-            if (!artifactsFound) {
-              console.log('ℹ️ No plan artifacts found - likely all environments were skipped by label targeting');
-              
-              // Still post a comment to inform about the skipped state
-              const inputs = {
-                commentType: 'terragrunt-plan-summary',
-                message: 'All Terragrunt environments were skipped based on PR labels. No plan execution was performed.',
-                artifactBasePath: 'plan-results'
-              };
-              
-              await commentHandler(github, context, inputs);
-              return;
-            }
-            
-            // Process both environments if artifacts are available
+            const { updateTerragruntPlanComment, createTerragruntPlanComment } = require('./scripts/github-actions/terragrunt-plan-comment.js');
             const environments = [
               {
                 name: 'keeping',
                 status: '${{ needs.terragrunt-plan.outputs.plan_status_keeping }}'
               },
               {
-                name: 'scheduling', 
+                name: 'scheduling',
                 status: '${{ needs.terragrunt-plan.outputs.plan_status_scheduling }}'
               }
             ];
-            
             for (const env of environments) {
-              // Skip if the status is 'skipped' (environment was not targeted)
               if (env.status === 'skipped') {
                 console.log(`⏭️ Skipping ${env.name} environment - not targeted by labels`);
                 continue;
               }
-              
-              console.log(`🔄 Processing ${env.name} environment...`);
-              
               const inputs = {
-                commentType: 'terragrunt-plan',
                 environment: env.name,
                 status: env.status || 'unknown',
                 planFilePath: `plan-results/terragrunt-plan-${env.name}/plan_output.txt`,
@@ -684,12 +569,7 @@ jobs:
                 validateErrorLogPath: `plan-results/terragrunt-plan-${env.name}/validate_errors.txt`,
                 artifactBasePath: 'plan-results'
               };
-              
-              try {
-                await commentHandler(github, context, inputs);
-                console.log(`✅ Successfully processed ${env.name} environment`);
-              } catch (error) {
-                console.error(`❌ Error processing ${env.name} environment:`, error);
-                // Continue processing other environments even if one fails
-              }
+              const commentBody = createTerragruntPlanComment(inputs);
+              await updateTerragruntPlanComment(github, context, commentBody, env.name);
+              console.log(`✅ Successfully processed ${env.name} environment`);
             }

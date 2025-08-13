@@ -6,7 +6,6 @@
  */
 
 module.exports = async (github, context, changedFiles) => {
-  console.log('Changed files:', changedFiles);
   
   // Analyze which environments are affected
   const keepingFiles = changedFiles.filter(file => 
@@ -27,11 +26,6 @@ module.exports = async (github, context, changedFiles) => {
   const shouldLabelKeeping = keepingFiles.length > 0 || moduleFiles.length > 0;
   const shouldLabelScheduling = schedulingFiles.length > 0 || moduleFiles.length > 0;
   
-  console.log('Keeping files:', keepingFiles);
-  console.log('Scheduling files:', schedulingFiles);
-  console.log('Module files:', moduleFiles);
-  console.log('Should label keeping:', shouldLabelKeeping);
-  console.log('Should label scheduling:', shouldLabelScheduling);
   
   // Get current labels
   const { data: currentLabels } = await github.rest.issues.listLabelsOnIssue({
@@ -41,7 +35,6 @@ module.exports = async (github, context, changedFiles) => {
   });
   
   const currentLabelNames = currentLabels.map(label => label.name);
-  console.log('Current labels:', currentLabelNames);
   
   // Determine required labels
   const requiredLabels = [];
@@ -52,7 +45,6 @@ module.exports = async (github, context, changedFiles) => {
     requiredLabels.push('target:scheduling');
   }
   
-  console.log('Required labels:', requiredLabels);
   
   // Remove old target labels that are no longer needed
   const targetLabelsToRemove = currentLabelNames.filter(label => 
@@ -67,9 +59,7 @@ module.exports = async (github, context, changedFiles) => {
         issue_number: context.issue.number,
         name: labelToRemove
       });
-      console.log(`Removed label: ${labelToRemove}`);
     } catch (error) {
-      console.log(`Failed to remove label ${labelToRemove}:`, error.message);
     }
   }
   
@@ -84,9 +74,7 @@ module.exports = async (github, context, changedFiles) => {
         issue_number: context.issue.number,
         labels: labelsToAdd
       });
-      console.log(`Added labels: ${labelsToAdd.join(', ')}`);
     } catch (error) {
-      console.log(`Failed to add labels:`, error.message);
     }
   }
   
@@ -167,7 +155,6 @@ ${moduleFiles.map(f => `- \`${f}\``).join('\n')}
       comment_id: existingComment.id,
       body: summary
     });
-    console.log('Updated existing auto-label comment');
   } else {
     await github.rest.issues.createComment({
       owner: context.repo.owner,
@@ -175,6 +162,5 @@ ${moduleFiles.map(f => `- \`${f}\``).join('\n')}
       issue_number: context.issue.number,
       body: summary
     });
-    console.log('Created new auto-label comment');
   }
 }
