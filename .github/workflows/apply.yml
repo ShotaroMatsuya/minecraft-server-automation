@@ -91,30 +91,32 @@ jobs:
           LABELS="${{ steps.pr_info.outputs.labels }}"
           KEEPING_CHANGES="${{ steps.changes.outputs.keeping_changes }}"
           SCHEDULING_CHANGES="${{ steps.changes.outputs.scheduling_changes }}"
-          
-          # Convert space-separated labels to JavaScript array
+
           node -e "
           try {
-            const applyTargetChecker = require('./scripts/github-actions/apply-target-checker.js');
             const fs = require('fs');
-            
             const labels = '$LABELS'.split(' ').filter(l => l);
             const keepingChanges = '$KEEPING_CHANGES' === 'true';
             const schedulingChanges = '$SCHEDULING_CHANGES' === 'true';
-            
-            const result = applyTargetChecker(labels, keepingChanges, schedulingChanges);
-            
-            // Write outputs to GITHUB_OUTPUT
-            fs.appendFileSync(process.env.GITHUB_OUTPUT, 
-              \`should_run_keeping=\${result.should_run_keeping}\\n\`);
-            fs.appendFileSync(process.env.GITHUB_OUTPUT, 
-              \`should_run_scheduling=\${result.should_run_scheduling}\\n\`);
-              
+            const keepingLabel = labels.includes('target:keeping');
+            const schedulingLabel = labels.includes('target:scheduling');
+            const noApplyLabel = labels.includes('no-apply');
+            let shouldRunKeeping = false;
+            let shouldRunScheduling = false;
+            if (!noApplyLabel) {
+              if (keepingChanges || keepingLabel) {
+                shouldRunKeeping = true;
+              }
+              if (schedulingChanges || schedulingLabel) {
+                shouldRunScheduling = true;
+              }
+            }
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `should_run_keeping=${shouldRunKeeping}\\n`);
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, `should_run_scheduling=${shouldRunScheduling}\\n`);
           } catch (error) {
             process.exit(1);
           }
           "
-
   apply-keeping:
     name: Terragrunt Apply - Keeping
     runs-on: ubuntu-latest
