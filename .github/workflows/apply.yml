@@ -35,7 +35,7 @@ jobs:
     steps:
       - name: Common Setup
         id: common_setup
-        uses: ShotaroMatsuya/minecraft-server-automation/.github/actions/common-setup@main
+        uses: ./.github/actions/common-setup
         with:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           python-version: '3.13'
@@ -128,7 +128,7 @@ jobs:
     steps:          
       - name: Common Setup
         id: common_setup
-        uses: ShotaroMatsuya/minecraft-server-automation/.github/actions/common-setup@main
+        uses: ./.github/actions/common-setup
         with:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           python-version: '3.13'
@@ -166,7 +166,7 @@ jobs:
           retention-days: 30
       - name: Slack Notification on Success
         if: success()
-        uses: ShotaroMatsuya/minecraft-server-automation/.github/actions/slack-notify@main
+        uses: ./.github/actions/slack-notify
         with:
           status: "success"
           environment: "keeping"
@@ -175,7 +175,7 @@ jobs:
 
       - name: Slack Notification on Failure
         if: failure()
-        uses: ShotaroMatsuya/minecraft-server-automation/.github/actions/slack-notify@main
+        uses: ./.github/actions/slack-notify
         with:
           status: "failure"
           environment: "keeping"
@@ -197,7 +197,7 @@ jobs:
     steps:
       - name: Common Setup
         id: common_setup
-        uses: ShotaroMatsuya/minecraft-server-automation/.github/actions/common-setup@main
+        uses: ./.github/actions/common-setup
         with:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           python-version: '3.13'
@@ -246,7 +246,7 @@ jobs:
           retention-days: 30
       - name: Slack Notification on Success
         if: success()
-        uses: ShotaroMatsuya/minecraft-server-automation/.github/actions/slack-notify@main
+        uses: ./.github/actions/slack-notify
         with:
           status: "success"
           environment: "scheduling"
@@ -255,7 +255,7 @@ jobs:
 
       - name: Slack Notification on Failure
         if: failure()
-        uses: ShotaroMatsuya/minecraft-server-automation/.github/actions/slack-notify@main
+        uses: ./.github/actions/slack-notify
         with:
           status: "failure"
           environment: "scheduling"
@@ -283,7 +283,7 @@ jobs:
     steps:
       - name: Common Setup
         id: common_setup
-        uses: ShotaroMatsuya/minecraft-server-automation/.github/actions/common-setup@main
+        uses: ./.github/actions/common-setup
         with:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           python-version: '3.13'
