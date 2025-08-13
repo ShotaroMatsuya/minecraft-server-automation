@@ -461,7 +461,7 @@ jobs:
           python-version: '3.13'
 
       - name: Download Security Results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: trivy-security-results
           path: security-results/
@@ -486,7 +486,7 @@ jobs:
             await commentHandler(github, context, inputs);
 
       - name: Download Code Quality Results
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: tflint-quality-results
           path: quality-results/
@@ -512,7 +512,7 @@ jobs:
 
       - name: Download Terragrunt Plan Results
         id: download-artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           pattern: terragrunt-plan-*
           path: plan-results/
