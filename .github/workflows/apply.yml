@@ -92,31 +92,20 @@ jobs:
           KEEPING_CHANGES="${{ steps.changes.outputs.keeping_changes }}"
           SCHEDULING_CHANGES="${{ steps.changes.outputs.scheduling_changes }}"
 
-          node -e "
-          try {
-            const fs = require('fs');
-            const labels = '$LABELS'.split(' ').filter(l => l);
-            const keepingChanges = '$KEEPING_CHANGES' === 'true';
-            const schedulingChanges = '$SCHEDULING_CHANGES' === 'true';
-            const keepingLabel = labels.includes('target:keeping');
-            const schedulingLabel = labels.includes('target:scheduling');
-            const noApplyLabel = labels.includes('no-apply');
-            let shouldRunKeeping = false;
-            let shouldRunScheduling = false;
-            if (!noApplyLabel) {
-              if (keepingChanges || keepingLabel) {
-                shouldRunKeeping = true;
-              }
-              if (schedulingChanges || schedulingLabel) {
-                shouldRunScheduling = true;
-              }
-            }
-            fs.appendFileSync(process.env.GITHUB_OUTPUT, `should_run_keeping=${shouldRunKeeping}\\n`);
-            fs.appendFileSync(process.env.GITHUB_OUTPUT, `should_run_scheduling=${shouldRunScheduling}\\n`);
-          } catch (error) {
-            process.exit(1);
-          }
-          "
+          should_run_keeping=false
+          should_run_scheduling=false
+          if [[ ! " $LABELS " =~ " no-apply " ]]; then
+            if [[ "$KEEPING_CHANGES" == "true" ]] || [[ " $LABELS " =~ " target:keeping " ]]; then
+              should_run_keeping=true
+            fi
+            if [[ "$SCHEDULING_CHANGES" == "true" ]] || [[ " $LABELS " =~ " target:scheduling " ]]; then
+              should_run_scheduling=true
+            fi
+          fi
+          {
+            echo "should_run_keeping=$should_run_keeping"
+            echo "should_run_scheduling=$should_run_scheduling"
+          } >> "$GITHUB_OUTPUT"
   apply-keeping:
     name: Terragrunt Apply - Keeping
     runs-on: ubuntu-latest
