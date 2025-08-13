@@ -11,7 +11,6 @@ concurrency:
 
 env:
   TF_VAR_WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
-  TF_VAR_github_token: ${{ secrets.TF_VAR_github_token }}
   AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
   TERRAGRUNT_VERSION: 0.67.16
   TERRAFORM_VERSION: 1.9.8
@@ -34,6 +33,12 @@ jobs:
       should_run_keeping: ${{ steps.check_targets.outputs.should_run_keeping }}
       should_run_scheduling: ${{ steps.check_targets.outputs.should_run_scheduling }}
     steps:
+      - name: Create GitHub App Token
+        id: app_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -42,7 +47,7 @@ jobs:
       - name: Find PR associated with the commit
         id: pr_search
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
         run: |
           echo "=== Finding PR number from merge commit ==="
           
@@ -84,7 +89,7 @@ jobs:
       - name: Get PR labels
         id: pr_labels
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
         run: |
           PR_NUMBER=${{ steps.pr_search.outputs.pr_number }}
           echo "=== Getting labels for PR #$PR_NUMBER ==="
@@ -293,6 +298,12 @@ jobs:
       resources_changed: ${{ steps.apply.outputs.resources_changed }}
       resources_destroyed: ${{ steps.apply.outputs.resources_destroyed }}
     steps:
+      - name: Create GitHub App Token
+        id: app_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
       - name: Debug Job Conditions
         run: |
           echo "=== Debugging apply-keeping job conditions ==="
@@ -367,6 +378,9 @@ jobs:
         id: apply
         if: steps.check-env.outputs.exists == 'true'
         working-directory: terragrunt/environments/keeping
+        env:
+          TF_VAR_aws_account_id: ${{ env.AWS_ACCOUNT_ID }}
+          TF_VAR_github_token: ${{ steps.app_token.outputs.token }}
         run: |
           # Function to handle state lock issues
           handle_state_lock() {
@@ -534,8 +548,6 @@ jobs:
           
           # Set the status output
           echo "status=$apply_status" >> "$GITHUB_OUTPUT"
-        env:
-          TF_VAR_aws_account_id: ${{ env.AWS_ACCOUNT_ID }}
 
       - name: Debug Apply Results for Keeping
         if: always() && steps.check-env.outputs.exists == 'true'
@@ -625,6 +637,12 @@ jobs:
       resources_changed: ${{ steps.apply.outputs.resources_changed }}
       resources_destroyed: ${{ steps.apply.outputs.resources_destroyed }}
     steps:
+      - name: Create GitHub App Token
+        id: app_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
       - name: Debug Job Conditions for Scheduling
         run: |
           echo "=== Debugging apply-scheduling job conditions ==="
@@ -709,6 +727,9 @@ jobs:
         id: apply
         if: steps.check-env.outputs.exists == 'true'
         working-directory: terragrunt/environments/scheduling
+        env:
+          TF_VAR_aws_account_id: ${{ env.AWS_ACCOUNT_ID }}
+          TF_VAR_github_token: ${{ steps.app_token.outputs.token }}
         run: |
           # Function to handle state lock issues
           handle_state_lock() {
@@ -893,8 +914,6 @@ jobs:
           
           # Set the status output
           echo "status=$apply_status" >> "$GITHUB_OUTPUT"
-        env:
-          TF_VAR_aws_account_id: ${{ env.AWS_ACCOUNT_ID }}
 
       - name: Upload Scheduling Apply Results
         uses: actions/upload-artifact@v4

@@ -41,6 +41,12 @@ jobs:
             dockerfile: 'docker/minecraft/Dockerfile'
 
     steps:
+      - name: Create GitHub App Token
+        id: app_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
       - name: Checkout code
         uses: actions/checkout@v4
       - name: Configure AWS Credentials
@@ -89,7 +95,7 @@ jobs:
         if: steps.diff.outputs.diff && github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ steps.app_token.outputs.token }}
           script: |
             const cliOutput = process.env.CLI_OUTPUT;
             const issue_number = context.issue.number;

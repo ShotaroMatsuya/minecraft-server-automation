@@ -8,7 +8,6 @@ on:
 
 env:
   TF_VAR_WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
-  TF_VAR_github_token: ${{ secrets.TF_VAR_github_token }}
   AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
   TERRAGRUNT_VERSION: 0.67.16
   TERRAFORM_VERSION: 1.9.8
@@ -28,6 +27,12 @@ jobs:
       should_run_scheduling: ${{ steps.check-labels.outputs.should_run_scheduling }}
       should_run_checks: ${{ steps.check-labels.outputs.should_run_checks }}
     steps:
+      - name: Create GitHub App Token
+        id: app_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -57,6 +62,12 @@ jobs:
       results_summary: ${{ steps.check-results.outputs.results_summary }}
       scan_status: ${{ steps.check-results.outputs.scan_status }}
     steps:
+      - name: Create GitHub App Token
+        id: app_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -85,6 +96,8 @@ jobs:
       - name: Run Trivy Security Scan
         id: trivy-scan
         if: steps.check-terraform.outputs.exists == 'true'
+        env:
+          TF_VAR_github_token: ${{ steps.app_token.outputs.token }}
         run: |
           echo "🔍 Running Trivy security scan..."
           
@@ -161,6 +174,12 @@ jobs:
       results_summary: ${{ steps.check-results.outputs.results_summary }}
       scan_status: ${{ steps.check-results.outputs.scan_status }}
     steps:
+      - name: Create GitHub App Token
+        id: app_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -198,6 +217,8 @@ jobs:
       - name: Run TFLint Analysis
         id: tflint-scan
         if: steps.check-terraform.outputs.exists == 'true'
+        env:
+          TF_VAR_github_token: ${{ steps.app_token.outputs.token }}
         run: |
           echo "🔍 Running TFLint code quality analysis..."
           
@@ -257,6 +278,12 @@ jobs:
       plan_status_keeping: ${{ steps.set-keeping-output.outputs.status }}
       plan_status_scheduling: ${{ steps.set-scheduling-output.outputs.status }}
     steps:
+      - name: Create GitHub App Token
+        id: app_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
       - name: Check if this environment should run
         id: should-run
         run: |
@@ -349,6 +376,8 @@ jobs:
       - name: Terragrunt Format Check
         id: fmt-check
         if: steps.should-run.outputs.should_run == 'true' && steps.check-env.outputs.exists == 'true'
+        env:
+          TF_VAR_github_token: ${{ steps.app_token.outputs.token }}
         run: |
           cd "${{ matrix.path }}"
           format_exit_code=0
@@ -373,6 +402,8 @@ jobs:
       - name: Terragrunt Validation
         id: validate
         if: steps.should-run.outputs.should_run == 'true' && steps.check-env.outputs.exists == 'true'
+        env:
+          TF_VAR_github_token: ${{ steps.app_token.outputs.token }}
         run: |
           cd "${{ matrix.path }}"
           validate_exit_code=0
@@ -397,6 +428,8 @@ jobs:
       - name: Terragrunt Plan
         id: plan
         if: steps.should-run.outputs.should_run == 'true' && steps.check-env.outputs.exists == 'true'
+        env:
+          TF_VAR_github_token: ${{ steps.app_token.outputs.token }}
         run: |
           cd "${{ matrix.path }}"
           
