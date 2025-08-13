@@ -48,7 +48,7 @@ jobs:
       - name: Get PR Info (External Script)
         id: pr-info
         run: |
-          bash scripts/github-actions/pr-info-helper.sh > pr-info.json
+          bash scripts/github-actions/pr-info-helper.sh "${GITHUB_SHA}" "${GITHUB_REPOSITORY}" > pr-info.json
           echo "PR info: $(cat pr-info.json)"
           should_run_keeping=$(jq -r '.should_run_keeping' pr-info.json)
           should_run_scheduling=$(jq -r '.should_run_scheduling' pr-info.json)
@@ -475,7 +475,7 @@ jobs:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           python-version: '3.13'
           github-token: ${{ secrets.GITHUB_TOKEN }}
-          
+
       - name: Download Security Results
         uses: actions/download-artifact@v5
         with:
