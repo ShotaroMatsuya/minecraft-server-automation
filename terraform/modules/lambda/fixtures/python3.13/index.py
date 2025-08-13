@@ -4,41 +4,47 @@ import zlib
 import os
 from urllib import request
 import boto3
+import logging
 
-print("Loading function")
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+logger.info("Loading function")
 
 
 def lambda_handler(event, context):
-    data = zlib.decompress(
-        base64.b64decode(event["awslogs"]["data"]), 16 + zlib.MAX_WBITS
-    )
-    data_dict = json.loads(data)
-    log_entire_json = json.loads(
-        json.dumps(
-            data_dict["logEvents"],
-            ensure_ascii=False))
-    log_entire_len = len(log_entire_json)
-    region = context.invoked_function_arn.split(":")[3]
-    log_group_name = context.log_group_name
-    log_stream_name = context.log_stream_name
-    log_url = (
-        "https://"
-        + region
-        + ".console.aws.amazon.com/cloudwatch/home?region="
-        + region
-        + "#logEvent:group="
-        + log_group_name
-        + ";stream="
-        + log_stream_name
-    )
-    post_sns_topic(log_entire_len, data_dict, log_url)
-    post_to_slack(log_entire_len, data_dict, log_url)
+    try:
+        data = zlib.decompress(
+            base64.b64decode(event["awslogs"]["data"]), 16 + zlib.MAX_WBITS
+        )
+        data_dict = json.loads(data)
+        log_entire_json = json.loads(
+            json.dumps(data_dict["logEvents"], ensure_ascii=False)
+        )
+        log_entire_len = len(log_entire_json)
+        region = context.invoked_function_arn.split(":")[3]
+        log_group_name = context.log_group_name
+        log_stream_name = context.log_stream_name
+        log_url = (
+            "https://"
+            + region
+            + ".console.aws.amazon.com/cloudwatch/home?region="
+            + region
+            + "#logEvent:group="
+            + log_group_name
+            + ";stream="
+            + log_stream_name
+        )
+        post_sns_topic(log_entire_len, data_dict, log_url)
+        post_to_slack(log_entire_len, data_dict, log_url)
+    except Exception as e:
+        logger.error(f"lambda_handler exception: {e}")
 
 
 def post_sns_topic(log_entire_len: int, data_dict: dict, log_url: str):
     for i in range(log_entire_len):
         log_dict = json.loads(
-            json.dumps(data_dict["logEvents"][i], ensure_ascii=False))
+            json.dumps(data_dict["logEvents"][i], ensure_ascii=False)
+        )
         try:
             message_str = log_dict["message"]
             message_dict = json.loads(message_str)
@@ -53,14 +59,14 @@ def post_sns_topic(log_entire_len: int, data_dict: dict, log_url: str):
                 Subject=os.environ["ALARM_SUBJECT"],
             )
         except Exception as e:
-            print("[sns_notice_exception: ]" + str(e))
+            logger.error(f"[sns_notice_exception: ] {e}")
 
 
 def post_to_slack(log_entire_len: int, data_dict: dict, log_url: str):
     for i in range(log_entire_len):
         log_dict = json.loads(
             json.dumps(data_dict["logEvents"][i], ensure_ascii=False)
-            )
+        )
         try:
             message_str = log_dict["message"]
             message_dict = json.loads(message_str)
@@ -68,7 +74,7 @@ def post_to_slack(log_entire_len: int, data_dict: dict, log_url: str):
             send_data = {
                 "username": "【UserEvent Notification】",
                 "icon_emoji": ":loudspeaker:",
-                "text": f"```{user_action_info}```"
+                "text": f"```{user_action_info}```",
             }
             r = request.Request(
                 url=os.environ["WEB_HOOK_URL"],
@@ -76,6 +82,6 @@ def post_to_slack(log_entire_len: int, data_dict: dict, log_url: str):
             )
             with request.urlopen(r) as response:
                 response_body = response.read().decode("utf-8")
-                print(response_body)
+                logger.info(response_body)
         except Exception as e:
-            print("[slack_notice_exection: ]" + str(e))
+            logger.error(f"[slack_notice_exception: ] {e}")

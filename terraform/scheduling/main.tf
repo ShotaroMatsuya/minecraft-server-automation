@@ -1,6 +1,6 @@
 data "aws_vpc" "myvpc" {
   filter {
-    name   = "tag:owners"
+    name   = "tag:Owner"
     values = ["minecraft"]
   }
 }
