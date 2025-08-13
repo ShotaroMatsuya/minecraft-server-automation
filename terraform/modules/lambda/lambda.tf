@@ -18,6 +18,7 @@ module "user_action_filter_function" {
     SNS_TOPIC_ARN = var.sns_topic_arn
     ALARM_SUBJECT = "【UserEvent Notification】"
     WEB_HOOK_URL  = var.slack_webhook_url
+    SECRET_ID     = data.aws_secretsmanager_secret.github_app_secret.name
   }
   attach_policy_json = true
   policy_json        = <<-EOT
@@ -50,6 +51,14 @@ module "user_action_filter_function" {
       ],
       "Resource": "${var.sns_kms_key_arn}",
       "Effect": "Allow"
+    },
+    {
+      "Sid": "AllowReadGitHubAppSecret",
+      "Effect": "Allow",
+      "Action": [
+        "secretsmanager:GetSecretValue"
+      ],
+      "Resource": "${data.aws_secretsmanager_secret.github_app_secret.arn}"
     }
   ]
 }
