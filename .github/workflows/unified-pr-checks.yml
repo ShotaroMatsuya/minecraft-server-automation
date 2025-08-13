@@ -27,6 +27,8 @@ jobs:
       should_run_scheduling: ${{ steps.pr-info.outputs.should_run_scheduling }}
       should_run_checks: ${{ steps.pr-info.outputs.should_run_checks }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: Common Setup
         id: common_setup
         uses: ./.github/actions/common-setup
@@ -64,6 +66,8 @@ jobs:
       results_summary: ${{ steps.check-results.outputs.results_summary }}
       scan_status: ${{ steps.check-results.outputs.scan_status }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: Common Setup
         id: common_setup
         uses: ./.github/actions/common-setup
@@ -148,6 +152,8 @@ jobs:
       results_summary: ${{ steps.check-results.outputs.results_summary }}
       scan_status: ${{ steps.check-results.outputs.scan_status }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: Common Setup
         id: common_setup
         uses: ./.github/actions/common-setup
@@ -237,6 +243,8 @@ jobs:
       plan_status_keeping: ${{ steps.set-keeping-output.outputs.status }}
       plan_status_scheduling: ${{ steps.set-scheduling-output.outputs.status }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: Common Setup
         id: common_setup
         uses: ./.github/actions/common-setup
@@ -453,6 +461,8 @@ jobs:
     needs: [check-targets, security-scan, code-quality, terragrunt-plan]
     if: always() && needs.check-targets.outputs.should_run_checks == 'true'
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: Common Setup
         id: common_setup
         uses: ./.github/actions/common-setup
