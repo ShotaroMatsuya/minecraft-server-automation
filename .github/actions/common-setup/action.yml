@@ -28,6 +28,9 @@ inputs:
   python-version:
     description: 'Python version to set up'
     required: true
+  github-token:
+    description: 'GitHub token for API'
+    required: true
 
 outputs:
   token:

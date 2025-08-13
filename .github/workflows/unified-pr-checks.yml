@@ -35,6 +35,7 @@ jobs:
         with:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           python-version: '3.13'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create GitHub App Token
         id: app_token
@@ -74,6 +75,7 @@ jobs:
         with:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           python-version: '3.13'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check if terraform directory exists
         id: check-terraform
@@ -160,6 +162,7 @@ jobs:
         with:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           python-version: '3.13'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check if terraform directory exists
         id: check-terraform
@@ -251,6 +254,8 @@ jobs:
         with:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           python-version: '3.13'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          
       - name: Check if this environment should run
         id: should-run
         run: |
@@ -469,7 +474,8 @@ jobs:
         with:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           python-version: '3.13'
-
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          
       - name: Download Security Results
         uses: actions/download-artifact@v5
         with:

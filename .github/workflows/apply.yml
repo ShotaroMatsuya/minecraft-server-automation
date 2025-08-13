@@ -41,6 +41,7 @@ jobs:
         with:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           python-version: '3.13'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Get PR number and labels
         id: pr_info
@@ -127,6 +128,7 @@ jobs:
         with:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           python-version: '3.13'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check if keeping environment exists
         id: check-env
@@ -198,6 +200,7 @@ jobs:
         with:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           python-version: '3.13'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create Mapping Yaml for scheduling
         working-directory: terraform/scheduling
@@ -286,7 +289,8 @@ jobs:
         with:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           python-version: '3.13'
-
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          
       - name: Comment Apply Results
         uses: actions/github-script@v7
         with:
