@@ -131,16 +131,11 @@ jobs:
       resources_destroyed: ${{ steps.apply.outputs.resources_destroyed }}
     steps:          
       - name: Common Setup
-        uses: ./.github/workflows/common-setup.yml
+        id: common_setup
+        uses: ShotaroMatsuya/minecraft-server-automation/.github/workflows/common-setup.yml@main
         with:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
-          python-version: '3.13'   
-      - name: Create GitHub App Token
-        id: app_token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          python-version: '3.13'
 
       - name: Check if keeping environment exists
         id: check-env
@@ -159,7 +154,7 @@ jobs:
         run: bash scripts/github-actions/terragrunt-apply.sh terragrunt/environments/keeping
         env:
           TF_VAR_aws_account_id: ${{ env.AWS_ACCOUNT_ID }}
-          TF_VAR_github_token: ${{ steps.app_token.outputs.token }}
+          TF_VAR_github_token: ${{ steps.common_setup.outputs.token }}
 
       - name: Upload Keeping Apply Results
         uses: actions/upload-artifact@v4
@@ -175,7 +170,7 @@ jobs:
           retention-days: 30
       - name: Slack Notification on Success
         if: success()
-        uses: ./.github/workflows/slack-notify.yml
+        uses: ShotaroMatsuya/minecraft-server-automation/.github/workflows/slack-notify.yml@main
         with:
           status: "success"
           environment: "keeping"
@@ -184,7 +179,7 @@ jobs:
 
       - name: Slack Notification on Failure
         if: failure()
-        uses: ./.github/workflows/slack-notify.yml
+        uses: ShotaroMatsuya/minecraft-server-automation/.github/workflows/slack-notify.yml@main
         with:
           status: "failure"
           environment: "keeping"
@@ -205,19 +200,11 @@ jobs:
       resources_destroyed: ${{ steps.apply.outputs.resources_destroyed }}
     steps:
       - name: Common Setup
-        uses: ./.github/workflows/common-setup.yml
+        id: common_setup
+        uses: ShotaroMatsuya/minecraft-server-automation/.github/workflows/common-setup.yml@main
         with:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           python-version: '3.13'
-
-      - name: Create GitHub App Token
-        id: app_token
-        uses: actions/create-github-app-token@v1
-        with:
-          app-id: ${{ secrets.APP_ID }}
-          private-key: ${{ secrets.APP_PRIVATE_KEY }}
-
-
 
       - name: Create Mapping Yaml for scheduling
         working-directory: terraform/scheduling
@@ -246,7 +233,7 @@ jobs:
         run: bash scripts/github-actions/terragrunt-apply.sh terragrunt/environments/scheduling
         env:
           TF_VAR_aws_account_id: ${{ env.AWS_ACCOUNT_ID }}
-          TF_VAR_github_token: ${{ steps.app_token.outputs.token }}
+          TF_VAR_github_token: ${{ steps.common_setup.outputs.token }}
 
 
       - name: Upload Scheduling Apply Results
@@ -263,7 +250,7 @@ jobs:
           retention-days: 30
       - name: Slack Notification on Success
         if: success()
-        uses: ./.github/workflows/slack-notify.yml
+        uses: ShotaroMatsuya/minecraft-server-automation/.github/workflows/slack-notify.yml@main
         with:
           status: "success"
           environment: "scheduling"
@@ -272,7 +259,7 @@ jobs:
 
       - name: Slack Notification on Failure
         if: failure()
-        uses: ./.github/workflows/slack-notify.yml
+        uses: ShotaroMatsuya/minecraft-server-automation/.github/workflows/slack-notify.yml@main
         with:
           status: "failure"
           environment: "scheduling"
