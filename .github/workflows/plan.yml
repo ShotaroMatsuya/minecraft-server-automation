@@ -45,17 +45,18 @@ jobs:
           private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
 
-      - name: Get PR Info (External Script)
-        id: pr-info
-        run: |
-          bash scripts/github-actions/pr-info-helper.sh "${GITHUB_SHA}" "${GITHUB_REPOSITORY}" > pr-info.json
-          echo "PR info: $(cat pr-info.json)"
-          should_run_keeping=$(jq -r '.should_run_keeping' pr-info.json)
-          should_run_scheduling=$(jq -r '.should_run_scheduling' pr-info.json)
-          should_run_checks=$(jq -r '.should_run_checks' pr-info.json)
-          echo "should_run_keeping=$should_run_keeping" >> "$GITHUB_OUTPUT"
-          echo "should_run_scheduling=$should_run_scheduling" >> "$GITHUB_OUTPUT"
-          echo "should_run_checks=$should_run_checks" >> "$GITHUB_OUTPUT"
+      - name: Check PR Labels
+        id: check-labels
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const environmentTargetChecker = require('./scripts/github-actions/environment-target-checker.js');
+            
+            const result = await environmentTargetChecker(github, context);
+            
+            core.setOutput('should_run_keeping', result.should_run_keeping);
+            core.setOutput('should_run_scheduling', result.should_run_scheduling);
+            core.setOutput('should_run_checks', result.should_run_checks);
 
   security-scan:
     name: Infrastructure Security Scan
