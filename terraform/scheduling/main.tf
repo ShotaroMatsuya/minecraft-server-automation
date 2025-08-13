@@ -1,6 +1,6 @@
 data "aws_vpc" "myvpc" {
   filter {
-    name   = "tag:owners"
+    name   = "tag:Owner"
     values = ["minecraft"]
   }
 }
@@ -8,16 +8,16 @@ data "aws_vpc" "myvpc" {
 data "aws_security_group" "fargate_sg" {
   filter {
     name   = "tag:Name"
-    values = ["minecraft-keeping-fargate-sg"]
+    values = ["minecraft-test-fargate-sg"]
   }
 }
 
 data "aws_iam_role" "task_role" {
-  name = "ecs_tasks-minecraft-keeping-role"
+  name = "ecs_tasks-minecraft-test-role"
 }
 
 data "aws_iam_role" "task_execution_role" {
-  name = "minecraft-keeping-ecs_tasks_execution-role"
+  name = "minecraft-test-ecs_tasks_execution-role"
 }
 
 # data "aws_efs_file_system" "my_efs" {
@@ -25,7 +25,7 @@ data "aws_iam_role" "task_execution_role" {
 # }
 
 data "aws_sns_topic" "my_sns" {
-  name = "minecraft-keeping-sns-topic"
+  name = "minecraft-test-sns-topic"
 }
 
 data "aws_kms_key" "my_kms" {

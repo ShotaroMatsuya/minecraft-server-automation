@@ -10,7 +10,6 @@ locals {
 
   # Extract module versions from root config
   module_versions = local.root_config.locals.module_versions
-  common_tags     = local.root_config.locals.common_tags
   aws_region      = local.root_config.locals.aws_region
 }
 
@@ -30,12 +29,9 @@ inputs = {
   aws_region     = local.aws_region
   aws_account_id = get_env("AWS_ACCOUNT_ID", "123456789012") # Set your account ID
 
-  # Environment-specific variables
-  environment = "scheduling"
+  # Service tag for scheduling environment
+  service     = "scheduling"
   owners      = "minecraft"
-
-  # Common tags
-  common_tags = local.common_tags
 
   # Scheduling-specific settings
   minecraft_server_enable = true

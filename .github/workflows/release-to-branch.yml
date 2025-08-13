@@ -8,13 +8,20 @@ jobs:
   sync-branch:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+      - uses: actions/checkout@08eba0b27e820071cde6df949e0beb9ba4906955 # v4
       - run: git describe --abbrev=0 --tags > /tmp/version
 
       - run: git checkout -b release
-      - run: git push --force "https://x-access-token:${GITHUB_TOKEN}@github.com/${{ github.repository }}" release
+      - name: Create GitHub App Token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+          # installation-id: ${{ secrets.APP_INSTALLATION_ID }}
+      - run: git push --force "https://x-access-token:${{ steps.app-token.outputs.token }}@github.com/${{ github.repository }}" release
         env:
-          GITHUB_TOKEN: ${{ github.token }}
+          GITHUB_TOKEN: ${{ steps.app-token.outputs.token }}
       # - uses: everlytic/branch-merge@1.1.2
       #   with:
       #     github_token: ${{ github.token }}

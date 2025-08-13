@@ -1,3 +1,8 @@
+variable "owners" {}
+variable "environment" {}
+locals {
+  name = "${var.owners}-${var.environment}"
+}
 variable "chatbot_slack_id" {
   description = "The ID of the Slack channel. To get the ID, open Slack, right click on the channel name in the left pane, then choose Copy Link. The channel ID is the 9-character string at the end of the URL. For example, ABCBBLZZZ."
   sensitive   = true
@@ -16,15 +21,4 @@ variable "chatbot_notification_role_arn" {
   description = "The ARN of chatbot notification only role"
 }
 
-variable "owners" {}
-variable "environment" {}
 
-locals {
-  owners      = var.owners
-  environment = var.environment
-  name        = "${var.owners}-${var.environment}"
-  common_tags = {
-    owners      = local.owners
-    environment = local.environment
-  }
-}

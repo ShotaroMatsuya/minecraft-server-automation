@@ -10,8 +10,6 @@ module "vpc" {
   public_subnets       = var.vpc_public_subnets
   enable_dns_hostnames = true
 
-  tags     = local.common_tags
-  vpc_tags = local.common_tags
 
   # Additional Tags to Subnets
   public_subnet_tags = {

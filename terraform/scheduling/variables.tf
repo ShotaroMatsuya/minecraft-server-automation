@@ -1,3 +1,7 @@
+variable "service" {
+  description = "Service type (keeping or scheduling)"
+  type        = string
+}
 # Input Variables
 # AWS Region
 variable "aws_region" {
@@ -77,11 +81,7 @@ variable "seed_value" {
 locals {
   owners      = var.owners
   environment = var.environment
-  name        = "${var.owners}-${var.environment}"
-  common_tags = {
-    owners      = local.owners
-    environment = local.environment
-  }
+  service     = var.service
 
   merged_decoded_yaml = merge([for f in var.env_files : yamldecode(file(f))]...)
   updated_list        = { for k, v in local.merged_decoded_yaml : k => v if k != "FILTERING_STRINGS" }

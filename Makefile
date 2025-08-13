@@ -1,3 +1,6 @@
+init-reconfigure: ## Reinitialize Terraform backend for both environments (force reconfigure)
+	cd terraform/keeping && terraform init -reconfigure
+	cd terraform/scheduling && terraform init -reconfigure
 .PHONY: help install-tools validate fmt plan apply destroy clean
 
 # Default target
@@ -130,52 +133,75 @@ upgrade-modules: ## Upgrade all Terraform modules to latest versions
 # Terragrunt commands
 tg-validate: ## Validate Terragrunt configurations
 	@echo "🔍 Validating Terragrunt configurations..."
+	rm -f terraform/keeping/provider.tf
+	rm -f terraform/scheduling/provider.tf
 	cd terragrunt/environments/keeping && terragrunt validate
 	cd terragrunt/environments/scheduling && terragrunt validate
 	@echo "✅ All Terragrunt configurations are valid"
 
 tg-init: ## Initialize Terragrunt for both environments
 	@echo "🔄 Initializing Terragrunt configurations..."
+	rm -rf .terragrunt-cache
+	rm -rf terragrunt/environments/keeping/.terragrunt-cache
+	rm -rf terragrunt/environments/scheduling/.terragrunt-cache
+	rm -f terraform/keeping/provider.tf
+	rm -f terraform/scheduling/provider.tf
 	cd terragrunt/environments/keeping && terragrunt init
 	cd terragrunt/environments/scheduling && terragrunt init
 	@echo "✅ Terragrunt initialization complete"
 
 tg-plan-keeping: ## Show Terragrunt plan for keeping resources
+	rm -f terraform/keeping/provider.tf
 	cd terragrunt/environments/keeping && terragrunt plan
 
 tg-plan-scheduling: ## Show Terragrunt plan for scheduling resources
+	rm -f terraform/scheduling/provider.tf
 	cd terragrunt/environments/scheduling && terragrunt plan
 
 tg-plan-all: ## Show Terragrunt plans for both environments
 	@echo "📋 Planning keeping resources..."
+	rm -f terraform/keeping/provider.tf
 	cd terragrunt/environments/keeping && terragrunt plan
 	@echo "📋 Planning scheduling resources..."
+	rm -f terraform/scheduling/provider.tf
 	cd terragrunt/environments/scheduling && terragrunt plan
 
 tg-deploy-all: ## Deploy all resources using Terragrunt (keeping -> scheduling)
 	@echo "🚀 Starting Terragrunt deployment..."
 	@echo "📋 Step 1: Deploying keeping resources..."
+	rm -f terraform/keeping/provider.tf
 	cd terragrunt/environments/keeping && terragrunt apply
 	@echo "✅ Keeping resources deployed successfully"
 	@echo "📋 Step 2: Deploying scheduling resources..."
+	rm -f terraform/scheduling/provider.tf
 	cd terragrunt/environments/scheduling && terragrunt apply
 	@echo "🎉 All resources deployed successfully!"
 
+tg-apply-keeping: ## Apply Terragrunt for keeping resources
+	@echo "🚀 Applying Terragrunt for keeping resources..."
+	rm -f terraform/keeping/provider.tf
+	cd terragrunt/environments/keeping && terragrunt apply
+	@echo "✅ Keeping resources applied successfully"
+
 tg-start-minecraft: ## Start minecraft server using Terragrunt
 	@echo "🎮 Starting Minecraft server with Terragrunt..."
+	rm -f terraform/scheduling/provider.tf
 	cd terragrunt/environments/scheduling && terragrunt apply
 	@echo "✅ Minecraft server started!"
 
 tg-stop-minecraft: ## Stop minecraft server using Terragrunt
 	@echo "🛑 Stopping Minecraft server with Terragrunt..."
+	rm -f terraform/scheduling/provider.tf
 	cd terragrunt/environments/scheduling && terragrunt destroy
 	@echo "✅ Minecraft server stopped!"
 
 tg-destroy-all: ## Destroy all resources using Terragrunt (reverse order)
 	@echo "🗑️  Starting Terragrunt destruction..."
 	@echo "📋 Step 1: Destroying scheduling resources..."
+	rm -f terraform/scheduling/provider.tf
 	cd terragrunt/environments/scheduling && terragrunt destroy
 	@echo "✅ Scheduling resources destroyed"
 	@echo "📋 Step 2: Destroying keeping resources..."
+	rm -f terraform/keeping/provider.tf
 	cd terragrunt/environments/keeping && terragrunt destroy
 	@echo "🎉 All resources destroyed successfully!"

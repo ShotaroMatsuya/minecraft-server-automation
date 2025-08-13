@@ -15,6 +15,11 @@ variable "owners" {
   type        = string
 }
 
+variable "service" {
+  description = "Service type (keeping or scheduling)"
+  type        = string
+}
+
 variable "aws_account_id" {
   description = "Account ID in which AWS Resoruces to be created"
   type        = string
@@ -54,18 +59,9 @@ variable "s3_bucket_name" {
   sensitive   = true
 }
 
-variable "common_tags" {
-  description = "Common tags to be applied to all resources"
-  type        = map(string)
-  default     = {}
-}
 
 locals {
   owners      = var.owners
   environment = var.environment
-  name        = "${var.owners}-${var.environment}"
-  common_tags = {
-    owners      = local.owners
-    environment = local.environment
-  }
+  service     = var.service
 }

@@ -11,7 +11,6 @@ concurrency:
 
 env:
   TF_VAR_WEBHOOK_PATH: ${{ secrets.WEBHOOK_PATH }}
-  TF_VAR_github_token: ${{ secrets.TF_VAR_github_token }}
   AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
   TERRAGRUNT_VERSION: 0.67.16
   TERRAFORM_VERSION: 1.9.8
@@ -34,6 +33,12 @@ jobs:
       should_run_keeping: ${{ steps.check_targets.outputs.should_run_keeping }}
       should_run_scheduling: ${{ steps.check_targets.outputs.should_run_scheduling }}
     steps:
+      - name: Create GitHub App Token
+        id: app_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -42,7 +47,7 @@ jobs:
       - name: Get PR number and labels
         id: pr_info
         env:
-          GH_TOKEN: ${{ github.token }}
+          GH_TOKEN: ${{ steps.app_token.outputs.token }}
         run: |
           bash scripts/github-actions/pr-info-helper.sh "${{ github.sha }}" "${{ github.repository }}" > pr_info.txt
           grep '^pr_number=' pr_info.txt | tee -a "$GITHUB_OUTPUT"
@@ -129,8 +134,13 @@ jobs:
         uses: ./.github/workflows/common-setup.yml
         with:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
-          python-version: '3.13'
-
+          python-version: '3.13'   
+      - name: Create GitHub App Token
+        id: app_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
 
       - name: Check if keeping environment exists
         id: check-env
@@ -149,6 +159,8 @@ jobs:
         run: bash scripts/github-actions/terragrunt-apply.sh terragrunt/environments/keeping
         env:
           TF_VAR_aws_account_id: ${{ env.AWS_ACCOUNT_ID }}
+          TF_VAR_github_token: ${{ steps.app_token.outputs.token }}
+
       - name: Upload Keeping Apply Results
         uses: actions/upload-artifact@v4
         if: always()
@@ -198,6 +210,15 @@ jobs:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           python-version: '3.13'
 
+      - name: Create GitHub App Token
+        id: app_token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.APP_ID }}
+          private-key: ${{ secrets.APP_PRIVATE_KEY }}
+
+
+
       - name: Create Mapping Yaml for scheduling
         working-directory: terraform/scheduling
         run: |
@@ -225,6 +246,8 @@ jobs:
         run: bash scripts/github-actions/terragrunt-apply.sh terragrunt/environments/scheduling
         env:
           TF_VAR_aws_account_id: ${{ env.AWS_ACCOUNT_ID }}
+          TF_VAR_github_token: ${{ steps.app_token.outputs.token }}
+
 
       - name: Upload Scheduling Apply Results
         uses: actions/upload-artifact@v4
