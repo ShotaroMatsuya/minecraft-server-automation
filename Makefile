@@ -177,6 +177,12 @@ tg-deploy-all: ## Deploy all resources using Terragrunt (keeping -> scheduling)
 	cd terragrunt/environments/scheduling && terragrunt apply
 	@echo "🎉 All resources deployed successfully!"
 
+tg-apply-keeping: ## Apply Terragrunt for keeping resources
+	@echo "🚀 Applying Terragrunt for keeping resources..."
+	rm -f terraform/keeping/provider.tf
+	cd terragrunt/environments/keeping && terragrunt apply
+	@echo "✅ Keeping resources applied successfully"
+
 tg-start-minecraft: ## Start minecraft server using Terragrunt
 	@echo "🎮 Starting Minecraft server with Terragrunt..."
 	rm -f terraform/scheduling/provider.tf
