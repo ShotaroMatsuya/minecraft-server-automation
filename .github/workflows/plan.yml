@@ -23,9 +23,9 @@ jobs:
     name: Check Target Environments
     runs-on: ubuntu-latest
     outputs:
-      should_run_keeping: ${{ steps.pr-info.outputs.should_run_keeping }}
-      should_run_scheduling: ${{ steps.pr-info.outputs.should_run_scheduling }}
-      should_run_checks: ${{ steps.pr-info.outputs.should_run_checks }}
+      should_run_keeping: ${{ steps.check-labels.outputs.should_run_keeping }}
+      should_run_scheduling: ${{ steps.check-labels.outputs.should_run_scheduling }}
+      should_run_checks: ${{ steps.check-labels.outputs.should_run_checks }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
