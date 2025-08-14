@@ -33,12 +33,15 @@ jobs:
       should_run_keeping: ${{ steps.check_targets.outputs.should_run_keeping }}
       should_run_scheduling: ${{ steps.check_targets.outputs.should_run_scheduling }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: Common Setup
         id: common_setup
         uses: ./.github/actions/common-setup
         with:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           python-version: '3.13'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Get PR number and labels
         id: pr_info
@@ -91,30 +94,21 @@ jobs:
           LABELS="${{ steps.pr_info.outputs.labels }}"
           KEEPING_CHANGES="${{ steps.changes.outputs.keeping_changes }}"
           SCHEDULING_CHANGES="${{ steps.changes.outputs.scheduling_changes }}"
-          
-          # Convert space-separated labels to JavaScript array
-          node -e "
-          try {
-            const applyTargetChecker = require('./scripts/github-actions/apply-target-checker.js');
-            const fs = require('fs');
-            
-            const labels = '$LABELS'.split(' ').filter(l => l);
-            const keepingChanges = '$KEEPING_CHANGES' === 'true';
-            const schedulingChanges = '$SCHEDULING_CHANGES' === 'true';
-            
-            const result = applyTargetChecker(labels, keepingChanges, schedulingChanges);
-            
-            // Write outputs to GITHUB_OUTPUT
-            fs.appendFileSync(process.env.GITHUB_OUTPUT, 
-              \`should_run_keeping=\${result.should_run_keeping}\\n\`);
-            fs.appendFileSync(process.env.GITHUB_OUTPUT, 
-              \`should_run_scheduling=\${result.should_run_scheduling}\\n\`);
-              
-          } catch (error) {
-            process.exit(1);
-          }
-          "
 
+          should_run_keeping=false
+          should_run_scheduling=false
+          if [[ ! " $LABELS " =~ " no-apply " ]]; then
+            if [[ "$KEEPING_CHANGES" == "true" ]] || [[ " $LABELS " =~ " target:keeping " ]]; then
+              should_run_keeping=true
+            fi
+            if [[ "$SCHEDULING_CHANGES" == "true" ]] || [[ " $LABELS " =~ " target:scheduling " ]]; then
+              should_run_scheduling=true
+            fi
+          fi
+          {
+            echo "should_run_keeping=$should_run_keeping"
+            echo "should_run_scheduling=$should_run_scheduling"
+          } >> "$GITHUB_OUTPUT"
   apply-keeping:
     name: Terragrunt Apply - Keeping
     runs-on: ubuntu-latest
@@ -125,13 +119,16 @@ jobs:
       resources_applied: ${{ steps.apply.outputs.resources_applied }}
       resources_changed: ${{ steps.apply.outputs.resources_changed }}
       resources_destroyed: ${{ steps.apply.outputs.resources_destroyed }}
-    steps:          
+    steps: 
+      - name: Checkout
+        uses: actions/checkout@v4         
       - name: Common Setup
         id: common_setup
         uses: ./.github/actions/common-setup
         with:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           python-version: '3.13'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Check if keeping environment exists
         id: check-env
@@ -195,12 +192,15 @@ jobs:
       resources_changed: ${{ steps.apply.outputs.resources_changed }}
       resources_destroyed: ${{ steps.apply.outputs.resources_destroyed }}
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: Common Setup
         id: common_setup
         uses: ./.github/actions/common-setup
         with:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           python-version: '3.13'
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create Mapping Yaml for scheduling
         working-directory: terraform/scheduling
@@ -281,13 +281,16 @@ jobs:
         needs.apply-scheduling.outputs.apply_status == 'init_failed'
       )
     steps:
+      - name: Checkout
+        uses: actions/checkout@v4
       - name: Common Setup
         id: common_setup
         uses: ./.github/actions/common-setup
         with:
           aws-role: arn:aws:iam::${{ env.AWS_ACCOUNT_ID }}:role/minecraft-test-github-actions
           python-version: '3.13'
-
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          
       - name: Comment Apply Results
         uses: actions/github-script@v7
         with:

@@ -1,0 +1,42 @@
+# This file was previously named common-setup.yml and used as a local action definition.
+# It must be named action.yml and placed in its own directory to be used as a local action.
+# The contents below are preserved as-is from the original file.
+
+name: 'Common Setup'
+description: 'Performs common setup tasks for workflows'
+runs:
+  using: 'composite'
+  steps:
+    - name: Set up AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        role-to-assume: ${{ inputs.aws-role }}
+        aws-region: ap-northeast-1
+    - name: Set up Python ${{ inputs.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ inputs.python-version }}
+    - name: Generate GitHub token for API
+      id: generate_token
+      run: echo "token=${{ inputs.github-token }}" >> "$GITHUB_OUTPUT"
+      shell: bash
+    - name: Setup aqua
+      uses: aquaproj/aqua-installer@v3.0.1
+      with:
+        aqua_version: v2.30.0
+
+inputs:
+  aws-role:
+    description: 'AWS role to assume'
+    required: true
+  python-version:
+    description: 'Python version to set up'
+    required: true
+  github-token:
+    description: 'GitHub token for API'
+    required: true
+
+outputs:
+  token:
+    description: 'GitHub token for API'
+    value: ${{ steps.generate_token.outputs.token }}
