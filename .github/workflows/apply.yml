@@ -289,7 +289,7 @@ jobs:
           python-version: '3.13'
 
       - name: Comment Apply Results
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           github-token: ${{ steps.common_setup.outputs.token }}
           script: |
